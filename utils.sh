@@ -1,27 +1,19 @@
-function _wrap () {
-  alias $1="echo \" ~ $2\" && $2"
+#!/bin/env bash
+
+DOT_DIR=~/dotfiles
+
+function _add_zsh_variant {
+  variant=$1
+  profile_filename="$HOME/.zsh_$variant"
+  cp "$DOT_DIR/$variant/profile.sh" "$profile_filename"
+  echo "# Read the $variant profile" >> ~/.zshrc
+  echo "[[ -f $profile_filename  ]] && source $profile_filename" >> ~/.zshrc
 }
 
-function getOS() {
-  unameOut="$(uname -s)"
-  case "${unameOut}" in
-      Linux*)     machine=Linux;;
-      Darwin*)    machine=Mac;;
-      CYGWIN*)    machine=Cygwin;;
-      MINGW*)     machine=MinGw;;
-      *)          machine="UNKNOWN:${unameOut}"
-  esac
-  echo $machine
-}
-
-function _cli_setup_os_specifics() {
-  unameOut="$(uname -s)"
-  case "${unameOut}" in
-      Linux*)     machine=Linux;;
-      Darwin*)    source ./osx.sh;;
-      CYGWIN*)    machine=Cygwin;;
-      MINGW*)     machine=MinGw;;
-      *)          machine="UNKNOWN:${unameOut}"
-  esac
-  echo $machine
+function dotfiles_update {
+    cd $DOT_DIR
+    git fetch
+    git reset --hard origin/main
+    cd -
+    "$DOT_DIR/setup.sh"
 }

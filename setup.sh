@@ -1,18 +1,23 @@
-#!/bin/bash
+#!/bin/env bash
+source ~/dotfiles/utils.sh
 
 # run the correct setup file
 unameOut="$(uname -s)"
 case "${unameOut}" in
     Linux*)     SETUP_DIR=debian;;
     Darwin*)    SETUP_DIR=osx;;
-    # CYGWIN*)    SETUP_DIR=Cygwin;;
-    # MINGW*)     SETUP_DIR=MinGw;;
     *)          echo "No setup for this OS (${unameOut})"
 esac
 
 echo "Installing common dependencies..." 
-bash ./common/setup.sh
+zsh "$DOT_DIR/common/setup.sh"
 echo "done."
+
+# let's not install local tools for remote servers like environments
+if [[ ${SPIN}  ]]; then
+	SETUP_DIR=spin
+fi
+
 echo "Installing $SETUP_DIR dependencies..."
-eval "bash ./$SETUP_DIR/setup.sh"
+zsh "$DOT_DIR/$SETUP_DIR/setup.sh"
 echo "done."

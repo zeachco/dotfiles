@@ -1,34 +1,24 @@
-#!/bin/bash
+#!/bin/env bash
+source ~/dotfiles/utils.sh
 
-# # DIR="$HOME/.cli-dev"
+_add_zsh_variant common
 
+function configureGitIdentity() {
+    echo "Email for git config: "
+    read git_email
+    echo "Full name for git config: "
+    read git_name
+    git config --global --replace-all user.email $git_email
+    git config --global --replace-all user.name $git_name
+}
 
+foundEmail=`git config --list | grep email`
 
-# APPS="zsh neovim tmux net-tools curl htop g++ make"
-# echo "this script is meant to be used on a debian-type os like Ubuntu"
-# read -n 1 -p  "Press any key to continue"
+if [[ $foundEmail != *"@"* ]]
+    then configureGitIdentity
+fi
 
-# # tools
-# eval "sudo apt install -y $APPS"
-
-# # omzsh
-# sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
-
-# # fzf
-# git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
-# ~/.fzf/install
-
-# # sudo setcap 'cap_net_bind_service=+ep' `which node`
-# # echo "Changing max notify watcher from $(cat /proc/sys/fs/inotify/max_user_watches) to 524288 (max value)"
-# # echo "fs.inotify.max_user_watches=524288" | sudo tee -a  /etc/sysctl.conf
-
-# read -p "Email for git config: " git_email
-# read -p "Full name for git config: " git_name
-
-# git config --global --replace-all user.email $git_email
-# git config --global --replace-all user.name $git_name
 git config --global --replace-all credential.helper cache
-
 git config --global --replace-all color.ui auto
 git config --global --replace-all alias.b "branch -a"
 git config --global --replace-all alias.aaa "add . --all && commit --amend --no-edit"
@@ -50,11 +40,3 @@ git config --global --replace-all alias.mt "mergetool"
 git config --global --replace-all core.editor "nvim"
 git config --global --replace-all push.default "tracking"
 git config --global --replace-all alias.l "log --oneline --graph"
-
-# # echo "Setting up '$DIR/profile.sh'"
-# # chmod +x "$DIR/profile.sh"
-# # echo "source $DIR/profile.sh" >> ~/.zprofile
-# # source "$DIR/profile.sh"
-
-# # ln -sf ~/.vim/plugins.vim ~/.cli-dev/plugins.vim
-# # ln -sf ~/.config/nvim/init.vim ~/.cli-dev/nvim.vim

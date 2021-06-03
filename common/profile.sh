@@ -1,12 +1,14 @@
-#!/bin/bash
-# alias wtest="yarn sewing-kit test --no-graphql"
-# https://github.com/Shopify/sewing-kit/blob/master/docs/commands.md
+#!/bin/env bash
 
 function gcommits() {
   if [ -z $1 ];
   then git log --format="%C(auto)%h (%s, %ad)" -n 20 | cat;
   else git log --format="%H" -n $1 | cat;
   fi
+}
+
+function _wrap () {
+  alias $1="echo \" ~ $2\" && $2"
 }
 
 _wrap gba "git branch -a"
@@ -36,3 +38,16 @@ _wrap hosts "sudo vim /etc/hosts && sudo /etc/init.d/dns-clean restart && sudo /
 _wrap amisafe "ps auxwww | grep sshd"
 _wrap empty-trash "rm -rf ~/.local/share/Trash/*"
 _wrap v "nvim"
+
+# Kill all processes that match the given name. ie: `killname webpack` will kill all running webpack instances
+killname() {
+  sudo kill -9 $(ps -e | grep $1 | awk '{print $1}')
+}
+
+ipp () {
+  dig +short myip.opendns.com @resolver1.opendns.com
+}
+
+ipl () {
+  ifconfig | grep broadcast | awk '{print $2}'
+}
