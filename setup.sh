@@ -13,8 +13,8 @@ echo "Installing common dependencies..."
 zsh "$DOT_DIR/common/setup.sh"
 echo "done."
 
-# let's not install local tools for remote servers like environments
-if [[ ${SPIN}  ]]; then
+# instead of OS based, let's just run the spin profile for remote spin instances
+if [[ ${SPIN} ]]; then
 	SETUP_DIR=spin
 fi
 
