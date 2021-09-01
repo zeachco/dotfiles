@@ -6,3 +6,9 @@ xcode_kill() {
 }
 
 brightness 1
+
+outside() {
+  brightness 1
+  sleep 10
+  outside
+}
