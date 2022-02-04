@@ -1,5 +1,14 @@
 #!/bin/env bash
 
+DOT_DIR=~/dotfiles
+function dotfiles_update {
+    cd $DOT_DIR
+    git fetch
+    git reset --hard origin/main
+    cd -
+    zsh "$DOT_DIR/setup.sh"
+}
+
 function gcommits() {
   if [ -z $1 ];
   then git log --format="%C(auto)%h (%s, %ad)" -n 20 | cat;

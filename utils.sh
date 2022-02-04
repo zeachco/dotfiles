@@ -9,11 +9,3 @@ function _add_zsh_variant {
   echo "# Read the $variant profile" >> ~/.zshrc
   echo "[[ -f $profile_filename  ]] && source $profile_filename" >> ~/.zshrc
 }
-
-function dotfiles_update {
-    cd $DOT_DIR
-    git fetch
-    git reset --hard origin/main
-    cd -
-    "$DOT_DIR/setup.sh"
-}
