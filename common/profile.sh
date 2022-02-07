@@ -20,6 +20,10 @@ function _wrap () {
   alias $1="echo \" ~ $2\" && $2"
 }
 
+function use() {
+  export SPIN_INSTANCE=$1
+}
+
 _wrap gba "git branch -a"
 _wrap gpaa "git add . --all && git commit --amend --no-edit && git push origin --force-with-lease"
 _wrap grbi "git rebase upstream/master -i"
