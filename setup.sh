@@ -1,6 +1,8 @@
 #!/bin/env bash
 source ~/dotfiles/utils.sh
 
+clean_imports
+
 # run the correct setup file
 unameOut="$(uname -s)"
 case "${unameOut}" in
