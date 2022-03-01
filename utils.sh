@@ -9,3 +9,9 @@ function _add_zsh_variant {
   echo "# Read the $variant profile" >> ~/.zshrc
   echo "[[ -f $profile_filename  ]] && source $profile_filename" >> ~/.zshrc
 }
+
+function install_profile {
+    echo "Installing $1 dependencies..."
+    zsh "$DOT_DIR/$1/setup.sh"
+    echo "done."
+}

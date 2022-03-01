@@ -1,6 +1,12 @@
 #!/bin/env bash
 source ~/dotfiles/utils.sh
 
+# linux based spin envs are already configured
+if [[ ls /opt/spin ]]; then
+    echo "Not installing debian packages for spin linux machine"
+    exit 0
+fi
+
 APPS="zsh neovim tmux net-tools curl htop g++ make"
 
 # tools
