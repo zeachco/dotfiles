@@ -13,9 +13,9 @@ echo "Installing common dependencies..."
 zsh "$DOT_DIR/common/setup.sh"
 echo "done."
 
-# instead of OS based, let's just run the spin profile for remote spin instances
-if [[ ${SPIN} ]]; then
-	SETUP_DIR=spin
+# instead of OS based, let's just run the spin profile for machines using spin
+if [[ ls /opt/spin ]]; then
+    SETUP_DIR=spin
 fi
 
 echo "Installing $SETUP_DIR dependencies..."
