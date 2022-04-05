@@ -65,3 +65,10 @@ ipp () {
 ipl () {
   ifconfig | grep broadcast | awk '{print $2}'
 }
+
+node_admin() {
+  # allows node to run on admin ports such as 80 and 443
+  sudo setcap 'cap_net_bind_service=+ep' `which node`
+  echo "Changing max notify watcher from $(cat /proc/sys/fs/inotify/max_user_watches) to 524288 (max value)"
+  echo "fs.inotify.max_user_watches=524288" | sudo tee -a  /etc/sysctl.conf
+}
