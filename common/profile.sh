@@ -1,4 +1,4 @@
-#!/bin/env bash
+#/bin/env bash
 
 DOT_DIR=~/dotfiles
 function dotfiles_update {
@@ -18,10 +18,6 @@ function gcommits() {
 
 function _wrap () {
   alias $1="echo \" ~ $2\" && $2"
-}
-
-function use() {
-  export SPIN_INSTANCE=$1
 }
 
 _wrap gba "git branch -a"
