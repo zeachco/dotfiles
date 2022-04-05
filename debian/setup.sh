@@ -25,3 +25,4 @@ git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
 ## install lunarvim
 
 bash <(curl -s https://raw.githubusercontent.com/lunarvim/lunarvim/master/utils/installer/install.sh) --no-install-dependencies
+sudo ln -s ~/.local/bin/lvim /usr/bin/lvim
