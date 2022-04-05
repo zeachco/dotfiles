@@ -7,7 +7,7 @@ if [[ ls /opt/spin ]]; then
     exit 0
 fi
 
-APPS="zsh neovim tmux net-tools curl htop g++ make"
+APPS="zsh neovim tmux net-tools curl htop g++ make neofetch"
 
 # tools
 eval "sudo apt install -y $APPS"
@@ -23,3 +23,5 @@ git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
 sudo setcap 'cap_net_bind_service=+ep' `which node`
 echo "Changing max notify watcher from $(cat /proc/sys/fs/inotify/max_user_watches) to 524288 (max value)"
 echo "fs.inotify.max_user_watches=524288" | sudo tee -a  /etc/sysctl.conf
+
+_add_zsh_variant debian
