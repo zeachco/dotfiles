@@ -48,6 +48,7 @@ _wrap hosts "sudo vim /etc/hosts && sudo /etc/init.d/dns-clean restart && sudo /
 _wrap amisafe "ps auxwww | grep sshd"
 _wrap empty-trash "rm -rf ~/.local/share/Trash/*"
 _wrap v "nvim"
+_wrap e "lvim"
 
 # Kill all processes that match the given name. ie: `killname webpack` will kill all running webpack instances
 killname() {
