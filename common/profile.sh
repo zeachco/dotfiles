@@ -69,3 +69,16 @@ node_admin() {
   echo "Changing max notify watcher from $(cat /proc/sys/fs/inotify/max_user_watches) to 524288 (max value)"
   echo "fs.inotify.max_user_watches=524288" | sudo tee -a  /etc/sysctl.conf
 }
+
+clone () {
+  git clone git@github.com:$1.git
+}
+
+tableflip() {
+  echo "(╯°□°)╯︵ ┻━┻";
+  spin destroy --all
+  spin up business-platform --wait
+  spin code
+  spin login
+  say "`node -e "n=new Date,f=t=>Math.abs(Math.round((t)/60000)),e=new Date(n.toLocaleString().split(', ')[0]+', 17:00:00'),o=console.log('code is open.'+n>e?'You are over '+f(n-e)+' minutes, just go home':'You have '+f(e-n)+' minutes left today')"`"
+}
