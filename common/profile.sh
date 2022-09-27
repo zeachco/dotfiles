@@ -77,8 +77,8 @@ clone () {
 tableflip() {
   echo "(╯°□°)╯︵ ┻━┻";
   spin destroy --all
+  spin login
   spin up business-platform --wait
   spin code
-  spin login
   say "`node -e "n=new Date,f=t=>Math.abs(Math.round((t)/60000)),e=new Date(n.toLocaleString().split(', ')[0]+', 17:00:00'),o=console.log('code is open.'+n>e?'You are over '+f(n-e)+' minutes, just go home':'You have '+f(e-n)+' minutes left today')"`"
 }
