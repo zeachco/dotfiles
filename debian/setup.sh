@@ -5,6 +5,7 @@ _add_zsh_variant debian
 
 # linux based spin envs are already configured
 if [ -d /opt/spin ]; then
+    sudo apt install -y neofetch
     echo "Not installing debian packages for spin linux machine"
     exit 0
 fi
