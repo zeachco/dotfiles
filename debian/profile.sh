@@ -1,2 +1,1 @@
 #!/bin/env bash
-neofetch
