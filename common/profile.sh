@@ -10,14 +10,14 @@ function dotfiles_update {
 }
 
 function gcommits() {
-  if [ -z $1 ];
-  then git log --format="%C(auto)%h (%s, %ad)" -n 20 | cat;
-  else git log --format="%H" -n $1 | cat;
-  fi
+    if [ -z $1 ];
+    then git log --format="%C(auto)%h (%s, %ad)" -n 20 | cat;
+    else git log --format="%H" -n $1 | cat;
+    fi
 }
 
 function _wrap () {
-  alias $1="echo \" ~ $2\" && $2"
+    alias $1="echo \" ~ $2\" && $2"
 }
 
 _wrap gba "git branch -a"
@@ -49,38 +49,39 @@ _wrap amisafe "ps auxwww | grep sshd"
 _wrap empty-trash "rm -rf ~/.local/share/Trash/*"
 _wrap v "nvim"
 _wrap e "lvim"
+_wrap os "neofetch"
 
 # Kill all processes that match the given name. ie: `killname webpack` will kill all running webpack instances
 killname() {
-  sudo kill -9 $(ps -e | grep $1 | awk '{print $1}')
+    sudo kill -9 $(ps -e | grep $1 | awk '{print $1}')
 }
 
 ipp () {
-  dig +short myip.opendns.com @resolver1.opendns.com
+    dig +short myip.opendns.com @resolver1.opendns.com
 }
 
 ipl () {
-  ifconfig | grep broadcast | awk '{print $2}'
+    ifconfig | grep broadcast | awk '{print $2}'
 }
 
 node_admin() {
-  # allows node to run on admin ports such as 80 and 443
-  sudo setcap 'cap_net_bind_service=+ep' `which node`
-  echo "Changing max notify watcher from $(cat /proc/sys/fs/inotify/max_user_watches) to 524288 (max value)"
-  echo "fs.inotify.max_user_watches=524288" | sudo tee -a  /etc/sysctl.conf
+    # allows node to run on admin ports such as 80 and 443
+    sudo setcap 'cap_net_bind_service=+ep' `which node`
+    echo "Changing max notify watcher from $(cat /proc/sys/fs/inotify/max_user_watches) to 524288 (max value)"
+    echo "fs.inotify.max_user_watches=524288" | sudo tee -a  /etc/sysctl.conf
 }
 
 clone () {
-  git clone git@github.com:$1.git
+    git clone git@github.com:$1.git
 }
 
 tableflip() {
-  echo "(╯°□°)╯︵ ┻━┻";
-  spin destroy --all
-  spin login
-  spin up business-platform --wait
-  spin code
-  say "`node -e "n=new Date,f=t=>Math.abs(Math.round((t)/60000)),e=new Date(n.toLocaleString().split(', ')[0]+', 17:00:00'),o=console.log('code is open.'+n>e?'You are over '+f(n-e)+' minutes, just go home':'You have '+f(e-n)+' minutes left today')"`"
+    echo "(╯°□°)╯︵ ┻━┻";
+    spin destroy --all
+    spin login
+    spin up business-platform --wait
+    spin code
+    say "`node -e "n=new Date,f=t=>Math.abs(Math.round((t)/60000)),e=new Date(n.toLocaleString().split(', ')[0]+', 17:00:00'),o=console.log('code is open.'+n>e?'You are over '+f(n-e)+' minutes, just go home':'You have '+f(e-n)+' minutes left today')"`"
 }
 
 # if command -v tmux &> /dev/null && [ -z "$TMUX" ]; then

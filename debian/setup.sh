@@ -10,7 +10,18 @@ if [ -d /opt/spin ]; then
     exit 0
 fi
 
-APPS="zsh neovim tmux net-tools curl htop g++ make neofetch"
+# Update or install neovim
+if (( $(nvim --version | head -n 1 | awk '{print $2}') >= 0.8 )); then
+    echo "Neovim version is 0.8 or higher"
+else
+    echo "Neovim version is lower than 0.8"
+    sudo apt remove -y neovim
+    sudo add-apt-repository ppa:neovim-ppa/unstable
+    sudo apt update -y
+    sudo apt install -y neovim
+fi
+
+APPS="zsh tmux net-tools curl htop g++ make neofetch"
 
 # tools
 eval "sudo apt install -y $APPS"
