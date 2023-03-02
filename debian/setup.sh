@@ -38,3 +38,22 @@ git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
 
 bash <(curl -s https://raw.githubusercontent.com/lunarvim/lunarvim/master/utils/installer/install.sh) --no-install-dependencies
 sudo ln -s ~/.local/bin/lvim /usr/bin/lvim
+
+download_fonts() {
+    NAME=BorgSansMono
+    FILE="$NAME.ttf.zip"
+    FONT_LINK="https://github.com/marnen/borg-sans-mono/files/107663/$FILE"
+    
+    mkdir -p ~/.local/share/fonts
+    cd ~/.local/share/fonts
+    
+    wget "$FONT_LINK"
+    unzip "$FILE" -d "$NAME"
+    
+    mkdir -p "~/.local/share/fonts/$NAME"
+    cp "$NAME/*.ttf" "~/.local/share/fonts/$NAME/"
+    
+    fc-cache -f -v
+}
+
+download_fonts
