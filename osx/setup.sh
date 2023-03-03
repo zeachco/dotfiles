@@ -12,6 +12,7 @@ FONT=VictorMono
 
 brew tap homebrew/cask-fonts &&
 brew install --cask font-$FONT-nerd-font
+brew install --HEAD neovim
 
 _add_zsh_variant osx
 
