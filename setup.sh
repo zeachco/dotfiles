@@ -13,7 +13,7 @@ esac
 
 install_profile "common"
 
-# instead of OS based, let's just run the spin profile for machines using spin
+# spin pre install
 FILE=/opt/spin
 if test -d "$FILE"; then
     install_profile "spin"
