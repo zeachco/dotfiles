@@ -10,16 +10,18 @@ if [ -d /opt/spin ]; then
     exit 0
 fi
 
-# Update or install neovim
-if (( $(nvim --version | head -n 1 | awk '{print $2}') >= 0.8 )); then
-    echo "Neovim version is 0.8 or higher"
+neovimVersion=$(nvim --version | head -n 1 | awk '{print $2}')
+
+if [ "$(echo "${neovimVersion} v0.8" | tr " " "\n" | sort -V | tail -n 1)" = "${neovimVersion}" ]; then
+    echo "Using neovim $neovimVersion"
 else
-    echo "Neovim version is lower than 0.8"
+    echo "Neovim version is lower than 0.8, updating"
     sudo apt remove -y neovim
     sudo add-apt-repository ppa:neovim-ppa/unstable
     sudo apt update -y
     sudo apt install -y neovim
 fi
+
 
 APPS="zsh tmux net-tools curl htop g++ make neofetch"
 
@@ -40,18 +42,24 @@ bash <(curl -s https://raw.githubusercontent.com/lunarvim/lunarvim/master/utils/
 sudo ln -s ~/.local/bin/lvim /usr/bin/lvim
 
 download_fonts() {
-    NAME=BorgSansMono
-    FILE="$NAME.ttf.zip"
-    FONT_LINK="https://github.com/marnen/borg-sans-mono/files/107663/$FILE"
+    FONT=VictorMono
     
-    mkdir -p ~/.local/share/fonts
-    cd ~/.local/share/fonts
+    mkdir -p ~/.local/share/fonts/$FONT
+    cd ~/.local/share/fonts/$FONT
     
-    wget "$FONT_LINK"
-    unzip "$FILE" -d "$NAME"
+    curl -fLo "$FONT Nerd Font Complete.otf" "https://github.com/ryanoasis/nerd-fonts/raw/HEAD/patched-fonts/$FONT/complete/$FONT%20Nerd%20Font%20Complete.otf"
     
-    mkdir -p "~/.local/share/fonts/$NAME"
-    cp "$NAME/*.ttf" "~/.local/share/fonts/$NAME/"
+    
+    # NAME=BorgSansMono
+    # FILE=$NAME.ttf.zip
+    # FONT_LINK=https://github.com/marnen/borg-sans-mono/files/107663/$FILE
+    
+    
+    # wget $FONT_LINK
+    # unzip $FILE -d $NAME
+    
+    # mkdir -p ~/.local/share/fonts/$NAME
+    # cp $NAME/*.ttf ~/.local/share/fonts/$NAME/
     
     fc-cache -f -v
 }
