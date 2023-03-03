@@ -31,10 +31,13 @@ eval "sudo apt install -y $APPS"
 # omzsh
 sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 
-# fzf
-git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
-~/.fzf/install
-
+if [ `command -v fzf` ] ; then
+    echo "fzf already installed"
+else
+    echo "installing fzf"
+    git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
+    ~/.fzf/install
+fi
 
 ## install lunarvim
 
