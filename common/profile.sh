@@ -89,3 +89,8 @@ tableflip() {
 # else
 #   neofetch
 # fi
+
+power() {
+  upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep 'state\|percentage'
+}
+
