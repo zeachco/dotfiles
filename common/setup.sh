@@ -40,3 +40,7 @@ git config --global --replace-all alias.mt "mergetool"
 git config --global --replace-all core.editor "nvim"
 git config --global --replace-all push.default "tracking"
 git config --global --replace-all alias.l "log --oneline --graph"
+
+icurl -fsSL https://deno.land/x/install/install.sh | sh
+
+
