@@ -1,4 +1,4 @@
-#!/bin/env bash
+#!/bin/bash
 source ~/dotfiles/utils.sh
 
 if [ $(command -v neofetch) ] ; then

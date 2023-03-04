@@ -4,10 +4,20 @@ DOT_DIR=~/dotfiles
 PROFILE_TARGET=~/.zshrc
 
 function _add_zsh_variant {
-  variant=$1
-  profile_filename="$HOME/.zsh_$variant"
+  local variant=$1
+  local profile_filename="$HOME/.zsh_$variant"
+
+  local filename="example.txt"
+  local line="[[ -f $profile_filename ]] && source $profile_filename # zeachco-dotfiles $variant"
+
   cp "$DOT_DIR/$variant/profile.sh" "$profile_filename"
-  echo "\n[[ -f $profile_filename  ]] && source $profile_filename # zeachco-dotfiles $variant" >> $PROFILE_TARGET
+
+  if grep -Fxq "$line" "$profile_filename"; then
+    echo "The line '$line' already exists in $profile_filename."
+  else
+    echo "The line '$line' does not exist in $profile_filename."
+    echo "\n[[ -f $profile_filename  ]] && source $profile_filename # zeachco-dotfiles $variant" >> $PROFILE_TARGET
+  fi
 }
 
 function install_profile {
