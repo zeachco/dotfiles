@@ -9,8 +9,8 @@ else
 fi
 
 
-brew tap homebrew/cask-fonts &&
-brew install --cask font-victor-nerd-font
+brew tap homebrew/cask-fonts 
+brew install --cask font-victor-mono-nerd-font
 brew install --HEAD neovim
 
 _add_zsh_variant osx
