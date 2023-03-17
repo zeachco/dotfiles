@@ -94,6 +94,10 @@ power() {
   upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep 'state\|percentage'
 }
 
+denode() {
+  deno run -A --unstable npm:$1
+}
+
 local denoPath=$(realpath ~/.deno)
 export PATH="$denoPath/bin:$PATH"
 
