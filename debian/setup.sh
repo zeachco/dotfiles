@@ -3,9 +3,28 @@ source ~/dotfiles/utils.sh
 
 _add_zsh_variant debian
 
+RED="\033[0;31m;"
+NC="\033[0m;"
+
+
+install() {
+    if command -v apt &> /dev/null
+    then
+        sudo apt install -y $1
+    else
+        if command -v pacman &> /dev/null
+        then
+            sudo pacman -S $1 --noconfirm
+        else
+            echo -e "${RED} I don't know how to install $1 ${NC}"
+        fi
+    fi
+}
+
+
 # linux based spin envs are already configured
 if [ -d /opt/spin ]; then
-    sudo apt install -y neofetch
+    install neofetch
     echo "Not installing debian packages for spin linux machine"
     exit 0
 fi
@@ -16,17 +35,26 @@ if [ "$(echo "${neovimVersion} v0.8" | tr " " "\n" | sort -V | tail -n 1)" = "${
     echo "Using neovim $neovimVersion"
 else
     echo "Neovim version is lower than 0.8, updating"
-    sudo apt remove -y neovim
-    sudo add-apt-repository ppa:neovim-ppa/unstable
-    sudo apt update -y
-    sudo apt install -y neovim
+
+    { # try
+        sudo apt remove -y neovim
+        sudo add-apt-repository ppa:neovim-ppa/unstable
+        sudo apt update -y
+    } || { # catch
+        echo -e "${RED} Not updating apt cache ${NC}"
+    }
+    install neovim
 fi
 
-
-APPS="zsh tmux net-tools curl htop g++ make neofetch"
-
 # tools
-eval "sudo apt install -y $APPS"
+install zsh
+install tmux
+install net-tools
+install curl
+install htop
+install g++
+install make
+install neofetch
 
 # omzsh
 sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
