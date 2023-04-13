@@ -43,5 +43,5 @@ git config --global --replace-all alias.l "log --oneline --graph"
 git config --global --replace-all pull.rebase true
 
 icurl -fsSL https://deno.land/x/install/install.sh | sh
-
+curl https://pyenv.run | bash
 
