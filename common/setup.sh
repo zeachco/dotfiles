@@ -57,5 +57,5 @@ fi
 cp ~/.zshrc ~/.zshrc.backup
 
 # replace theme
-sed -i 's/\(ZSH_THEME=\).*/\1"bureau"/' ~/.zshrc
+awk '/ZSH_THEME=/ {sub(/=.*/, "=\"bureau\"")} 1' ~/.zshrc > temp.zshrc && mv temp.zshrc ~/.zshrc
 
