@@ -1,8 +1,6 @@
 #!/bin/env bash
 source ~/dotfiles/utils.sh
 
-_add_zsh_variant common
-
 function configureGitIdentity() {
     echo "Email for git config: "
     read git_email
@@ -42,6 +40,22 @@ git config --global --replace-all push.default "tracking"
 git config --global --replace-all alias.l "log --oneline --graph"
 git config --global --replace-all pull.rebase true
 
-icurl -fsSL https://deno.land/x/install/install.sh | sh
-curl https://pyenv.run | bash
+script_install deno "curl -fsSL https://deno.land/x/install/install.sh | sh"
+script_install pyenv "curl https://pyenv.run | bash"
+script_install fzf "git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf && ~/.fzf/install --completion --key-bindings --update-rc"
+script_install lvim "bash <(curl -s https://raw.githubusercontent.com/lunarvim/lunarvim/master/utils/installer/install.sh) --no-install-dependencies && sudo ln -s ~/.local/bin/lvim /usr/bin/lvim"
+
+
+if [ -d "$HOME/.oh-my-zsh" ] && [ -f "$HOME/.zshrc" ]; then
+    print_exists "Oh My Zsh"
+else
+    print_needs "Oh My Zsh"
+  sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+fi
+
+# backup .zshrc
+cp ~/.zshrc ~/.zshrc.backup
+
+# replace theme
+sed -i 's/\(ZSH_THEME=\).*/\1"bureau"/' ~/.zshrc
 

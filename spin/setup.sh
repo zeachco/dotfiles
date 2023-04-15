@@ -1,9 +1,6 @@
 #!/bin/env bash
 source ~/dotfiles/utils.sh
 
-_add_zsh_variant spin
-
-
 if [ `command -v fzf` ] ; then
     echo "fzf already installed"
 else
