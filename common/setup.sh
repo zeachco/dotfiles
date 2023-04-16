@@ -59,3 +59,10 @@ cp ~/.zshrc ~/.zshrc.backup
 # replace theme
 awk '/ZSH_THEME=/ {sub(/=.*/, "=\"bureau\"")} 1' ~/.zshrc > temp.zshrc && mv temp.zshrc ~/.zshrc
 
+# projets's dev folder
+
+{
+    mkdir ~/dev >/dev/null 2>&1 && echo -e "${WARN}create ${NORM}~/dev folder"
+} || {
+    echo -e "${PASS}found ${NORM}~/dev folder"
+}
