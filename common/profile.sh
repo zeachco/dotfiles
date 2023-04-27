@@ -9,6 +9,8 @@ function dotfiles_update {
     zsh "$DOT_DIR/setup.sh"
 }
 
+alias update_dotfiles="dotfiles_update"
+
 function gcommits() {
     if [ -z $1 ];
     then git log --format="%C(auto)%h (%s, %ad)" -n 20 | cat;
