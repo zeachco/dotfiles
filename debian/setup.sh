@@ -48,3 +48,19 @@ else
     curl -fLo "$FONT Nerd Font Complete.otf" "https://github.com/ryanoasis/nerd-fonts/raw/HEAD/patched-fonts/$FONT/complete/$FONT%20Nerd%20Font%20Complete.otf"
     fc-cache -f -v
 fi
+
+## run system updates
+
+echo -e "${WARN}installing ${NORM}$pkg_name..."
+if command -v apt &> /dev/null
+then
+    sudo apt update
+    sudo apt upgrade -y
+else
+    if command -v pacman &> /dev/null
+    then
+        sudo pacman -Syu
+    else
+        echo -e "${FAIL} I don't know how to update this system ${NORM}"
+    fi
+fi
