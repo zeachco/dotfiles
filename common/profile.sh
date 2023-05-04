@@ -22,6 +22,7 @@ function _set () {
     alias $1="echo -e \" ~ \033[0;34m$2\033[0m\" && $2"
 }
 
+_set p "pnpm"
 _set gba "git branch -a"
 _set gpaa "git add . --all && git commit --amend --no-edit && git push origin --force-with-lease"
 _set grbi "git rebase upstream/master -i"
