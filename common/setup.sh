@@ -58,7 +58,7 @@ fi
 cp ~/.zshrc ~/.zshrc.backup
 
 # replace theme
-awk '/ZSH_THEME=/ {sub(/=.*/, "=\"bureau\"")} 1' ~/.zshrc > temp.zshrc && mv temp.zshrc ~/.zshrc
+awk '/ZSH_THEME=/ {sub(/=.*/, "=\"pmcgee\"")} 1' ~/.zshrc > temp.zshrc && mv temp.zshrc ~/.zshrc
 
 # projets's dev folder
 
