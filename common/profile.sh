@@ -87,6 +87,15 @@ tableflip() {
     say "`node -e "n=new Date,f=t=>Math.abs(Math.round((t)/60000)),e=new Date(n.toLocaleString().split(', ')[0]+', 17:00:00'),o=console.log('code is open.'+n>e?'You are over '+f(n-e)+' minutes, just go home':'You have '+f(e-n)+' minutes left today')"`"
 }
 
+git_test() {
+    DEFAULT_FILTER="test.ts"
+    DEFAULT_RUNNER="yarn jest --watch"
+    FILTER="${1:-$DEFAULT_FILTER}"
+    RUNNER="${2:-$DEFAULT_RUNNER}"
+    git diff origin/main --name-only | grep $FILTER |  fzf -m | xargs $RUNNER
+}
+_set gt "git_test"
+
 # if command -v tmux &> /dev/null && [ -z "$TMUX" ]; then
 #   tmux attach -t default || tmux new -s default
 # else
