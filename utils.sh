@@ -11,8 +11,8 @@ INFO="\033[0;34m"
 NORM="\033[0m"
 
 function install_profile {
-    echo -e "${INFO}check ${NORM}$1 dependencies..."
-    zsh "$DOT_DIR/$1/setup.sh"
+  echo -e "${INFO}check ${NORM}$1 dependencies..."
+  zsh "$DOT_DIR/$1/setup.sh"
 
 
   local variant=$1

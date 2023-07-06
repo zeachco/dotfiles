@@ -1,4 +1,5 @@
 #!/bin/bash
+source ~/.zshrc
 source ~/dotfiles/utils.sh
 
 clean_imports
