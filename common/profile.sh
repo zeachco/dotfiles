@@ -53,6 +53,7 @@ _set empty-trash "rm -rf ~/.local/share/Trash/*"
 _set v "nvim"
 _set e "lvim"
 _set os "neofetch"
+_set esm "deno run -A https://esm.sh/v128 add"
 
 # Kill all processes that match the given name. ie: `killname webpack` will kill all running webpack instances
 killname() {
