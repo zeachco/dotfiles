@@ -1,5 +1,4 @@
 #!/bin/bash
-source ~/.zshrc
 source ~/dotfiles/utils.sh
 
 clean_imports
@@ -14,9 +13,7 @@ esac
 
 install_profile "common"
 
-# spin pre install
-FILE=/opt/spin
-if test -d "$FILE"; then
+if [[ "$USER" == "spin" ]]; then
     install_profile "spin"
 fi
 

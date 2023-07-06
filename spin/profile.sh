@@ -7,8 +7,9 @@ onboarding() {
   rake business_platform:profile_assessment_platform_tophat:setup_$1
 }
 
-git-update() {
-    stop && git fetch --all && git rebase origin/master && update && start
+spin_reset_project() {
+    local branch=${1:-"main"}
+    stop && git fetch --all && git rebase origin/$branch && update && start
 }
 
 ssb() {
