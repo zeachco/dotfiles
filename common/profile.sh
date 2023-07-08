@@ -120,3 +120,9 @@ eval "$(pyenv virtualenv-init -)"
 
 bindkey '[C' forward-word
 bindkey '[D' backward-word
+
+
+if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
+  exec tmux
+fi
+

@@ -72,6 +72,7 @@ if [ -f "$HOME/.tmux.conf" ]; then
     print_exists "tmux config"
 else
     print_needs "tmux config"
-    ln -s -f ~/dotfiles/common/tmux.conf
+    ln -s -f ~/dotfiles/common/tmux.conf ~/.tmux.conf
     cp ~/dotfiles/common/tmux.conf.local ~/.tmux.conf.local
+
 fi
