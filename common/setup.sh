@@ -35,7 +35,7 @@ git config --global --replace-all alias.fa "fetch --all"
 git config --global --replace-all alias.fu "fetch upstream"
 git config --global --replace-all alias.rh "reset --hard"
 git config --global --replace-all alias.mt "mergetool"
-git config --global --replace-all core.editor "nvim"
+git config --global --replace-all core.editor "lvim"
 git config --global --replace-all push.default "tracking"
 git config --global --replace-all alias.l "log --oneline --graph"
 git config --global --replace-all pull.rebase true
