@@ -56,8 +56,22 @@ _set os "neofetch"
 _set esm "deno run -A https://esm.sh/v128 add"
 
 # Kill all processes that match the given name. ie: `killname webpack` will kill all running webpack instances
+# killname() {
+#     sudo kill -9 $(ps -e | grep $1 | awk '{print $1}')
+# }
+
 killname() {
-    sudo kill -9 $(ps -e | grep $1 | awk '{print $1}')
+    for pid in $(ps -e | grep $1 | awk '{print $1}'); do
+        process_name=$(ps -p $pid -o comm=)
+        echo "Are you sure you want to kill process $pid ($process_name)? [y/N]"
+        read response
+        if [[ $response =~ ^([yY][eE][sS]|[yY])$ ]]; then
+            sudo kill -9 $pid
+            echo "Killed process $pid ($process_name)"
+        else
+            echo "Skipped process $pid ($process_name)"
+        fi
+    done
 }
 
 ipp () {
