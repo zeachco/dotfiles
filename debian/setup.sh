@@ -36,6 +36,7 @@ install curl
 install htop
 install g++
 install make
+install gh github-cli
 
 FONT=VictorMono
 if [ -d "$HOME/.local/share/fonts/$FONT" ]
