@@ -26,14 +26,14 @@ function web_rebase_update() {
   tmux split-window -h
   tmux split-window -h
 
-  tmux send-keys -t $session_name:1.1 "cd ../shopify && git fetch --all && git reset --hard origin/$core_branch && update && exit 0" C-m
-  tmux send-keys -t $session_name:1.2 "cd ../banking && git fetch --all && git reset --hard origin/$banking_branch && update && exit 0" C-m
-  tmux send-keys -t $session_name:1.3 "cd ../web && git fetch --all && exit 0" C-m
+  tmux send-keys -t $session_name:1.1 "cd ../shopify && git fetch --all && stop && git reset --hard origin/$core_branch && update && exit 0" C-m
+  tmux send-keys -t $session_name:1.2 "cd ../banking && git fetch --all && stop && git reset --hard origin/$banking_branch && update && exit 0" C-m
+  tmux send-keys -t $session_name:1.3 "cd ../web && git fetch --all && stop && git rebase origin/main && exit 0" C-m
 
   tmux attach-session -t $session_name
 
   wait
-  tmux kill-session -t $session_name
 
-  cd ../web && git rebase origin/main && update
+  tmux kill-session -t $session_name
+  cd ../web && update
 }
