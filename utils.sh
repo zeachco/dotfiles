@@ -12,7 +12,7 @@ NORM="\033[0m"
 
 function install_profile {
   echo -e "${INFO}check ${NORM}$1 dependencies..."
-  sh "$DOT_DIR/$1/setup.sh"
+  bash "$DOT_DIR/$1/setup.sh"
 
 
   local variant=$1
