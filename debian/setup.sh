@@ -1,6 +1,7 @@
 #!/bin/env bash
 source ~/dotfiles/utils.sh
 
+
 install neofetch
 
 # linux based spin envs are already configured
@@ -45,7 +46,7 @@ then
 else
     print_needs "VictorMono Font"
     mkdir -p ~/.local/share/fonts/$FONT
-    cd ~/.local/share/fonts/$FONT    
+    cd ~/.local/share/fonts/$FONT
     curl -fLo "$FONT Nerd Font Complete.otf" "https://github.com/ryanoasis/nerd-fonts/raw/HEAD/patched-fonts/$FONT/complete/$FONT%20Nerd%20Font%20Complete.otf"
     fc-cache -f -v
 fi
