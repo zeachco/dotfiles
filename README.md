@@ -6,8 +6,8 @@ git clone git@github.com:zeachco/dotfiles.git ~/dotfiles && bash ~/dotfiles/setu
 
 # Supports
 
-- linux debian based (with apt-get such as Ubuntu)
-- linux debian based (with pacman such as Manjaroo)
+- linux debian/arch based (with apt-get such as Ubuntu)
+- linux debian/arch based (with pacman such as Manjaroo)
 - maxos (with xcode)
 - spin cloud debian-based server
 - extensible by profile
