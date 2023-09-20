@@ -1,7 +1,7 @@
 #!/bin/env bash
 
 # When xcode needs to be reinstalled or is corrupted
-xcode_kill() {
+xcode_reinstall() {
   sudo rm -rf $(xcode-select -print-path)
   xcode-select --install
 }
