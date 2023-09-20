@@ -20,6 +20,7 @@ git clone git@github.com:zeachco/dotfiles.git ~/dotfiles && bash ~/dotfiles/setu
 - nvm - Node environment manager
 - rust
 - deno
+- bun
 
 ## Tools
 
