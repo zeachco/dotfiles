@@ -129,9 +129,9 @@ denode() {
 local denoPath=$(realpath ~/.deno)
 export PATH="$denoPath/bin:$PATH"
 
-export PATH="$HOME/.pyenv/bin:$PATH"
-eval "$(pyenv init -)"
-eval "$(pyenv virtualenv-init -)"
+# export PATH="$HOME/.pyenv/bin:$PATH"
+# eval "$(pyenv init -)"
+# eval "$(pyenv virtualenv-init -)"
 
 bindkey '[C' forward-word
 bindkey '[D' backward-word
