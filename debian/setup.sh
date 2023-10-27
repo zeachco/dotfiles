@@ -29,6 +29,7 @@ else
 fi
 
 # tools
+install gdebi
 install zsh
 install tmux
 install ifconfig net-tools
