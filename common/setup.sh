@@ -39,6 +39,7 @@ git config --global --replace-all core.editor "lvim"
 git config --global --replace-all push.default "tracking"
 git config --global --replace-all alias.l "log --oneline --graph"
 git config --global --replace-all pull.rebase true
+git config --global --replace-all init.defaultBranch main
 
 script_install deno "curl -fsSL https://deno.land/x/install/install.sh | sh"
 #script_install pyenv "curl https://pyenv.run | bash"
