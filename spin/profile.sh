@@ -16,18 +16,19 @@ ssb() {
     yarn storybook
 }
 
-# Usage: web_rebase_update [core_branch] [banking_branch]
+# Usage: web_rebase_update [core_branch] [banking_branch] [setup command (default "update")]
 function web_rebase_update() {
   local core_branch=${1:-"main"}
   local banking_branch=${2:-"main"}
+  local setup_cmd=${3:-"update"}
   local session_name="web_rebase_update"
 
   tmux new-session -d -s $session_name
   tmux split-window -h
   tmux split-window -h
 
-  tmux send-keys -t $session_name:1.1 "cd ../shopify && git fetch --all && git reset --hard origin/$core_branch && dev refresh && exit 0" C-m
-  tmux send-keys -t $session_name:1.2 "cd ../banking && git fetch --all && git reset --hard origin/$banking_branch && dev refresh && exit 0" C-m
+  tmux send-keys -t $session_name:1.1 "cd ../shopify && git fetch --all && git reset --hard origin/$core_branch && $setup_cmd && exit 0" C-m
+  tmux send-keys -t $session_name:1.2 "cd ../banking && git fetch --all && git reset --hard origin/$banking_branch && $setup_cmd && exit 0" C-m
   tmux send-keys -t $session_name:1.3 "cd ../web && git fetch --all && git rebase origin/main && exit 0" C-m
 
   tmux attach-session -t $session_name
@@ -35,5 +36,5 @@ function web_rebase_update() {
   wait
 
   tmux kill-session -t $session_name
-  cd ../web && dev refresh --full
+  cd ../web && $setup_cmd --full
 }
