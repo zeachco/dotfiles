@@ -1,6 +1,4 @@
 #!/bin/env bash
-
-alias wtest="yarn test --no-graphql"
 alias c="bin/rails c"
 
 # Usage: onboarding [country_product]
@@ -8,19 +6,21 @@ onboarding() {
   rake business_platform:profile_assessment_platform_tophat:setup_$1
 }
 
-# Usage: ssb [section]
-# Short for "start storybook"
-ssb() {
-    local section=${1:-"Banking"}
-    STORYBOOK_FOCUS=app/org-admin/Internal/sections/$section/**/*.stories.@(mdx|tsx)
-    yarn storybook
-}
-
-# Usage: web_rebase_update [core_branch] [banking_branch] [setup command (default "update")]
+# Usage: web_rebase_update [core_branch] [banking_branch] [setup command]
 function web_rebase_update() {
+  local spin_version=`cat /etc/spin/metadata/isospin_version`
+
   local core_branch=${1:-"main"}
   local banking_branch=${2:-"main"}
-  local setup_cmd=${3:-"update"}
+  local setup_cmd
+
+  if [[ $spin_version == "2" ]]; then
+    setup_cmd="dev refresh"
+  else
+    setup_cmd="update"
+  fi
+  echo "Using setup command: $setup_cmd"
+
   local session_name="web_rebase_update"
 
   tmux new-session -d -s $session_name
