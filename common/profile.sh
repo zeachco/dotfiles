@@ -136,5 +136,5 @@ export PATH="$denoPath/bin:$PATH"
 bindkey '[C' forward-word
 bindkey '[D' backward-word
 
-
+eval "$(rbenv init -)"
 
