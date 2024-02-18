@@ -126,6 +126,12 @@ denode() {
   deno run -A --unstable npm:$1
 }
 
+codeai() {
+    file=$1
+    prompt=$2
+    echo "Analyzing $file, please rewrite its content to satisfy the request using no markup or plain English, just code. The goal is to achieve this user story: $prompt" | ollama run codellama > $file;
+}
+
 local denoPath=$(realpath ~/.deno)
 export PATH="$denoPath/bin:$PATH"
 
