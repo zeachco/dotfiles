@@ -129,7 +129,15 @@ denode() {
 codeai() {
     file=$1
     prompt=$2
-    echo "Analyzing $file, please rewrite its content to satisfy the request using no markup or plain English, just code. The goal is to achieve this user story: $prompt" | ollama run codellama > $file;
+    echo "starting AI analysis for $file..."
+    fullprompt="file: '$file':\n \`\`\`\n$(cat $file)\n\n\`\`\`\n\nplease rewrite its content to satisfy the following: $prompt\n\n"
+    echo "$fullprompt" | ollama run codellama:13b > $file & echo "to stop: \n kill $!";
+}
+
+speakai() {
+    prompt=$1
+    echo "starting AI..."
+    echo "$prompt" | ollama run mistral | espeak -s150 -g4 -p55 -a 200 & echo "to stop: \n kill $!";
 }
 
 local denoPath=$(realpath ~/.deno)

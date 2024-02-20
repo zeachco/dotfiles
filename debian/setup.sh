@@ -38,6 +38,7 @@ install curl
 install htop
 install g++
 install make
+install ollama "curl -fsSL https://ollama.com/install.sh | sh"
 
 FONT=VictorMono
 if [ -d "$HOME/.local/share/fonts/$FONT" ]
