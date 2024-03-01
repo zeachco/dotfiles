@@ -29,6 +29,7 @@ else
 fi
 
 # tools
+install unzip
 install gdebi
 install zsh
 install tmux
