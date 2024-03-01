@@ -99,9 +99,11 @@ node_admin() {
     echo "fs.inotify.max_user_watches=524288" | sudo tee -a  /etc/sysctl.conf
 }
 
-clone () {
-    git clone git@github.com:$1.git
-}
+# clone () {
+#     git clone git@github.com:$1.git
+# }
+
+alias clone="bun ~/dotfiles/advanced/clone.ts"
 
 git_test() {
     DEFAULT_FILTER="test.ts"
@@ -150,4 +152,6 @@ export PATH="$denoPath/bin:$PATH"
 bindkey '[C' forward-word
 bindkey '[D' backward-word
 
-
+iso() {
+  echo "sudo dd if=/home/olivier/Downloads/manjaro-kde-23.1.3-240113-linux66.iso of=/dev/sdb1 bs=4M status=progress"
+}
