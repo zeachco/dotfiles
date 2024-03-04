@@ -30,7 +30,7 @@ fi
 
 # tools
 install unzip
-install gdebi
+# install gdebi
 install zsh
 install tmux
 install ifconfig net-tools
@@ -39,7 +39,7 @@ install curl
 install htop
 install g++
 install make
-install ollama "curl -fsSL https://ollama.com/install.sh | sh"
+install ollama "curl -fsSL https://ollama.com/install.sh | zsh"
 
 FONT=VictorMono
 if [ -d "$HOME/.local/share/fonts/$FONT" ]
