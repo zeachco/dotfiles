@@ -155,3 +155,9 @@ bindkey '[D' backward-word
 iso() {
   echo "sudo dd if=/home/olivier/Downloads/manjaro-kde-23.1.3-240113-linux66.iso of=/dev/sdb1 bs=4M status=progress"
 }
+
+ai() {
+  local model=${1:-"mistral"}
+  echo "Using model $model"
+  ollama run mistral
+}
