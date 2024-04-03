@@ -149,8 +149,18 @@ export PATH="$denoPath/bin:$PATH"
 # eval "$(pyenv init -)"
 # eval "$(pyenv virtualenv-init -)"
 
-bindkey '[C' forward-word
-bindkey '[D' backward-word
+if [ -z "$0" ] || [ "${0%.*}" = "__" ]; then  # Check if the script name is empty or starts with "__" (common practice for Bash shebang)
+  SHELL=$(which shell)
+else
+  SHELL=$0
+fi
+
+if [ -z "$SHELL" ] || [ "$SHELL" = "/bin/zsh" ]; then
+  echo "Currently running Bash"
+  bindkey '[C' forward-word
+  bindkey '[D' backward-word
+fi
+
 
 iso() {
   echo "sudo dd if=/home/olivier/Downloads/manjaro-kde-23.1.3-240113-linux66.iso of=/dev/sdb1 bs=4M status=progress"
