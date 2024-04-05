@@ -1,7 +1,9 @@
-#!/bin/bash
+#!/bin/env sh
 source ~/dotfiles/utils.sh
 
 clean_imports
+
+echo "Will install using $SHELL ($0)"
 
 # run the correct setup file
 unameOut="$(uname -s)"

@@ -1,4 +1,4 @@
-#/bin/env bash
+#!/bin/env sh
 
 DOT_DIR=~/dotfiles
 function dotfiles_update {
@@ -31,6 +31,7 @@ function _set () {
     alias $1="echo -e \" ~ \033[0;34m$2\033[0m\" && $2"
 }
 
+_set ll "ls -al"
 _set p "pnpm"
 _set gba "git branch -a"
 _set gpaa "git add . --all && git commit --amend --no-edit && git push origin --force-with-lease"
@@ -142,21 +143,7 @@ speakai() {
     echo "$prompt" | ollama run mistral | espeak -s150 -g4 -p55 -a 200 & echo "to stop: \n kill $!";
 }
 
-local denoPath=$(realpath ~/.deno)
-export PATH="$denoPath/bin:$PATH"
-
-# export PATH="$HOME/.pyenv/bin:$PATH"
-# eval "$(pyenv init -)"
-# eval "$(pyenv virtualenv-init -)"
-
-if [ -z "$0" ] || [ "${0%.*}" = "__" ]; then  # Check if the script name is empty or starts with "__" (common practice for Bash shebang)
-  SHELL=$(which shell)
-else
-  SHELL=$0
-fi
-
-if [ -z "$SHELL" ] || [ "$SHELL" = "/bin/zsh" ]; then
-  echo "Currently running Bash"
+if [[ $SHELL == *zsh* ]]; then
   bindkey '[C' forward-word
   bindkey '[D' backward-word
 fi
@@ -167,17 +154,24 @@ iso() {
 }
 
 ai() {
-  local model=${1:-"mistral"}
+  local model=${1:-"tinyllama"}
   echo "Using model $model"
-  ollama run mistral
+  ollama run $model
 }
 
 # Default profile references
+
+denoPath=$(realpath ~/.deno)
+export PATH="$denoPath/bin:$PATH"
+
+# export PATH="$HOME/.pyenv/bin:$PATH"
+# eval "$(pyenv init -)"
+# eval "$(pyenv virtualenv-init -)"
 
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH=$BUN_INSTALL/bin:$PATH
 
-export NVM_DIR="$HOME/.nvm"
+# export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion

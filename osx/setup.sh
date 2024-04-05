@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 source ~/dotfiles/utils.sh
 
 if needs neofetch; then

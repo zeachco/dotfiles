@@ -1,4 +1,4 @@
-#!/bin/env bash
+#!/bin/env sh
 source ~/dotfiles/utils.sh
 
 
@@ -22,7 +22,7 @@ else
         sudo apt remove -y neovim
         sudo add-apt-repository ppa:neovim-ppa/unstable
         sudo apt update -y
-    } || { # catch
+        } || { # catch
         echo -e "${FAIL} Not updating apt cache ${NORM}"
     }
     install neovim
@@ -31,7 +31,7 @@ fi
 # tools
 install unzip
 # install gdebi
-install zsh
+# install zsh
 install tmux
 install ifconfig net-tools
 install dig dnsutils
@@ -39,7 +39,7 @@ install curl
 install htop
 install g++
 install make
-install ollama "curl -fsSL https://ollama.com/install.sh | zsh"
+script_install ollama "curl -fsS https://ollama.com/install.sh | $SHELL"
 
 FONT=VictorMono
 if [ -d "$HOME/.local/share/fonts/$FONT" ]

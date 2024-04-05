@@ -1,6 +1,6 @@
 # Execute
 
-```bash
+```sh
 git clone git@github.com:zeachco/dotfiles.git ~/dotfiles && bash ~/dotfiles/setup.sh
 ```
 
@@ -28,8 +28,6 @@ git clone git@github.com:zeachco/dotfiles.git ~/dotfiles && bash ~/dotfiles/setu
 - git aliases (ie `gco` and `git co` for git checkout) git aliases print the real command
 - lunarvim (text editor)
 - neovim (text editor)
-- zsh (sh interpreter)
-- oh my zsh (and theme)
 - ligature nerd fonts
 - fzf (fast file searching)
 - tmux (multi session and space management terminal)
@@ -41,3 +39,4 @@ git clone git@github.com:zeachco/dotfiles.git ~/dotfiles && bash ~/dotfiles/setu
 - ipl - local ip print
 - clone - github shorhand to clone ie: `clone zeachco/dotfiles`
 - neofetch - print detailed os information for support help and forums
+- ai [ollama model] - starts an AI model locally, default to tinyllama
