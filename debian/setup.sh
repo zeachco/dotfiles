@@ -69,3 +69,6 @@ else
         echo -e "${FAIL} I don't know how to update this system ${NORM}"
     fi
 fi
+
+echo "Remapping CapsLock to ESC"
+echo "setxkbmap -option caps:escape" >> ~/.xinitrc
