@@ -40,6 +40,7 @@ install htop
 install g++
 install make
 install gh github-cli
+install peek
 script_install ollama "curl -fsS https://ollama.com/install.sh | $SHELL"
 
 FONT=VictorMono

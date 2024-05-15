@@ -100,10 +100,6 @@ node_admin() {
     echo "fs.inotify.max_user_watches=524288" | sudo tee -a  /etc/sysctl.conf
 }
 
-# clone () {
-#     git clone git@github.com:$1.git
-# }
-
 alias clone="bun ~/dotfiles/advanced/clone.ts"
 
 git_test() {
