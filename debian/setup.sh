@@ -71,5 +71,5 @@ else
     fi
 fi
 
-echo "Remapping CapsLock to ESC"
-echo "setxkbmap -option caps:escape" >> ~/.xinitrc
+# echo "Remapping CapsLock to ESC"
+# echo "setxkbmap -option caps:escape" >> ~/.xinitrc
