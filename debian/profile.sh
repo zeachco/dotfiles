@@ -4,5 +4,9 @@
 setxkbmap -option caps:escape
 
 wifi() {
-    lspci -nnk | grep -iA2 net
+  lspci -nnk | grep -iA2 net
+}
+
+kde_restart() {
+  sudo systemctl restart display-manager
 }
