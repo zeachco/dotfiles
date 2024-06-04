@@ -21,7 +21,6 @@ git config --global --replace-all color.ui auto
 git config --global --replace-all alias.b "branch -a"
 git config --global --replace-all alias.aaa "add . --all && commit --amend --no-edit"
 git config --global --replace-all alias.rbi "rebase upstream/master -i"
-git config --global --replace-all alias.ph "push heroku master"
 git config --global --replace-all alias.aa "add -A"
 git config --global --replace-all alias.d "diff"
 git config --global --replace-all alias.s "status"
@@ -30,7 +29,7 @@ git config --global --replace-all alias.cp "cherry-pick"
 git config --global --replace-all alias.ci "commit"
 git config --global --replace-all alias.rb "rebase -i"
 git config --global --replace-all alias.p "pull"
-git config --global --replace-all alias.pp "push origin"
+git config --global --replace-all alias.pp "push"
 git config --global --replace-all alias.fa "fetch --all"
 git config --global --replace-all alias.fu "fetch upstream"
 git config --global --replace-all alias.rh "reset --hard"
@@ -77,5 +76,5 @@ else
     print_needs "tmux config"
     ln -s -f ~/dotfiles/common/tmux.conf ~/.tmux.conf
     cp ~/dotfiles/common/tmux.conf.local ~/.tmux.conf.local
-    
+
 fi
