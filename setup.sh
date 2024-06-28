@@ -1,5 +1,5 @@
 #!/bin/env sh
-source ~/dotfiles/utils.sh
+. ~/dotfiles/utils.sh
 
 clean_imports
 
@@ -12,6 +12,10 @@ case "${unameOut}" in
     Darwin*)    OS_DIR=osx;;
     *)          echo "No setup for this OS (${unameOut})"
 esac
+
+if [[ "$(lsb_release -a)" =~ "Ubuntu" ]]; then
+    OS_DIR=ubuntu
+fi
 
 install_profile "common"
 

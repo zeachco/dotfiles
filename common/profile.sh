@@ -61,7 +61,7 @@ _set hosts "sudo vim /etc/hosts && sudo /etc/init.d/dns-clean restart && sudo /e
 _set amisafe "ps auxwww | grep sshd"
 _set empty-trash "rm -rf ~/.local/share/Trash/*"
 _set v "nvim"
-_set e "lvim"
+_set e "nvim"
 _set os "neofetch"
 _set esm "deno run -A https://esm.sh/v128 add"
 _set task "deno task"
@@ -150,7 +150,7 @@ iso() {
 }
 
 ai() {
-  local model=${1:-"tinyllama"}
+  model=${1:-"tinyllama"}
   echo "Using model $model"
   ollama run $model
 }

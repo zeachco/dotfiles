@@ -24,14 +24,14 @@ touch $USER_SOURCE_FILE
 function install_profile {
     echo -e "${INFO}check ${NORM}$1 dependencies..."
     $SHELL "$DOT_DIR/$1/setup.sh"
-    
-    local variant=$1
-    local profile_filename="$HOME/.dotfiles_$variant"
-    
-    local hook="[[ -f $profile_filename ]] && source $profile_filename # zeachco-dotfiles $variant"
-    
+
+    variant=$1
+    profile_filename="$HOME/.dotfiles_$variant"
+
+    hook="[[ -f $profile_filename ]] && source $profile_filename # zeachco-dotfiles $variant"
+
     cp "$DOT_DIR/$variant/profile.sh" "$profile_filename"
-    
+
     echo -e "${INFO}link ${NORM}$profile_filename"
     echo "$hook" >> $USER_SOURCE_FILE
 }
@@ -72,9 +72,9 @@ function needs {
 }
 
 function install() {
-    local name="$1"
-    local pkg_name="${2:-$1}"
-    
+    name="$1"
+    pkg_name="${2:-$1}"
+
     if needs $name
     then
         echo -e "${WARN}installing ${NORM}$pkg_name..."
@@ -94,9 +94,9 @@ function install() {
 }
 
 function script_install() {
-    local name="$1"
-    local exec="$2"
-    
+    name="$1"
+    exec="$2"
+
     if needs $name
     then
         echo -e "${WARN}installing ${NORM}$name..."

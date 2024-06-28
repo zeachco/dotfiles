@@ -12,8 +12,8 @@ function configureGitIdentity() {
 
 foundEmail=`git config --list | grep email`
 
-if [[ $foundEmail != *"@"* ]]
-then configureGitIdentity
+if [[ $foundEmail != *"@"* ]]; then
+    configureGitIdentity
 fi
 
 git config --global --replace-all credential.helper cache
@@ -34,18 +34,18 @@ git config --global --replace-all alias.fa "fetch --all"
 git config --global --replace-all alias.fu "fetch upstream"
 git config --global --replace-all alias.rh "reset --hard"
 git config --global --replace-all alias.mt "mergetool"
-git config --global --replace-all core.editor "lvim"
+git config --global --replace-all core.editor "nvim"
 git config --global --replace-all push.default "tracking"
 git config --global --replace-all alias.l "log --oneline --graph"
 git config --global --replace-all pull.rebase true
 git config --global --replace-all init.defaultBranch main
 
-script_install deno "curl -fsSL https://deno.land/x/install/install.sh | $SHELL"
+# script_install deno "curl -fsSL https://deno.land/x/install/install.sh | $SHELL"
 #script_install pyenv "curl https://pyenv.run | $SHELL"
-script_install fzf "git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf && ~/.fzf/install --completion --key-bindings --update-rc"
-script_install lvim "$SHELL <(curl -s https://raw.githubusercontent.com/lunarvim/lunarvim/master/utils/installer/install.sh) --no-install-dependencies && sudo ln -s ~/.local/bin/lvim /usr/bin/lvim"
-script_install rustc "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | $SHELL"
-script_install bun "curl -fsSL https://bun.sh/install | $SHELL"
+# script_install fzf "git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf && ~/.fzf/install --completion --key-bindings --update-rc"
+# script_install lvim "$SHELL <(curl -s https://raw.githubusercontent.com/lunarvim/lunarvim/master/utils/installer/install.sh) --no-install-dependencies && sudo ln -s ~/.local/bin/lvim /usr/bin/lvim"
+# script_install rustc "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | $SHELL"
+# script_install bun "curl -fsSL https://bun.sh/install | $SHELL"
 
 # # not using OMZSH
 # if [ -d "$HOME/.oh-my-zsh" ] && [ -f "$HOME/.zshrc" ]; then
@@ -70,11 +70,11 @@ awk '/ZSH_THEME=/ {sub(/=.*/, "=\"pmcgee\"")} 1' ~/.zshrc > temp.zshrc && mv tem
 }
 
 # check if tmux config is already set
-if [ -f "$HOME/.tmux.conf" ]; then
-    print_exists "tmux config"
-else
-    print_needs "tmux config"
-    ln -s -f ~/dotfiles/common/tmux.conf ~/.tmux.conf
-    cp ~/dotfiles/common/tmux.conf.local ~/.tmux.conf.local
+# if [ -f "$HOME/.tmux.conf" ]; then
+#     print_exists "tmux config"
+# else
+#     print_needs "tmux config"
+#     ln -s -f ~/dotfiles/common/tmux.conf ~/.tmux.conf
+#     cp ~/dotfiles/common/tmux.conf.local ~/.tmux.conf.local
 
-fi
+# fi
