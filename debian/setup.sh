@@ -1,7 +1,6 @@
 #!/bin/env sh
 source ~/dotfiles/utils.sh
 
-
 install neofetch
 
 # linux based spin envs are already configured
@@ -10,7 +9,23 @@ then
     echo -e "${FAIL}Not installing debian packages for spin linux machine"
     exit 0
 fi
+# tools
+install unzip
+# install gdebi
+# install zsh
+install tmux
+install ifconfig net-tools
+install dig dnsutils
+install curl
+install htop
+install g++
+install make
+install gh github-cli
+script_install ollama "curl -fsS https://ollama.com/install.sh | $SHELL"
 
+
+# just use omakub
+exit 0;
 neovimVersion=$(nvim --version | head -n 1 | awk '{print $2}')
 
 if [ "$(echo "${neovimVersion} v0.8" | tr " " "\n" | sort -V | tail -n 1)" = "${neovimVersion}" ]
@@ -27,21 +42,6 @@ else
     }
     install neovim
 fi
-
-# tools
-install unzip
-# install gdebi
-# install zsh
-install tmux
-install ifconfig net-tools
-install dig dnsutils
-install curl
-install htop
-install g++
-install make
-install gh github-cli
-install peek
-script_install ollama "curl -fsS https://ollama.com/install.sh | $SHELL"
 
 FONT=VictorMono
 if [ -d "$HOME/.local/share/fonts/$FONT" ]

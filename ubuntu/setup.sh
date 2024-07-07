@@ -1,7 +1,7 @@
 #!/bin/env sh
 source ~/dotfiles/utils.sh
 
-script_install omakub "wget -qO- https://omakub.org/install | $SHELL"
+#script_install omakub "wget -qO- https://omakub.org/install | $SHELL"
 
 install neofetch
 
