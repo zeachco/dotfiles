@@ -1,5 +1,13 @@
 # Execute
 
+For ubuntu, use [omakub](https://omakub.org/) instead, it's just better
+
+```sh
+wget -qO- https://omakub.org/install | bash
+```
+
+For arch, mac or any other debian forks
+
 ```sh
 git clone git@github.com:zeachco/dotfiles.git ~/dotfiles && bash ~/dotfiles/setup.sh
 ```
