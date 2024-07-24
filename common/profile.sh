@@ -65,6 +65,7 @@ _set e "nvim"
 _set os "neofetch"
 _set esm "deno run -A https://esm.sh/v128 add"
 _set task "deno task"
+_set pr "gh pr checkout $1"
 
 # Kill all processes that match the given name. ie: `killname webpack` will kill all running webpack instances
 # killname() {
