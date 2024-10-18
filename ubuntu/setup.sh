@@ -17,4 +17,9 @@ install make
 install gh github-cli
 install peek
 script_install ollama "curl -fsS https://ollama.com/install.sh | $SHELL"
-mise up
+script_install mise "curl https://mise.run | $SHELL"
+mise use deno
+mise use rust
+mise use bun
+mise use node
+mise upgrade --bump
