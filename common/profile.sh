@@ -7,13 +7,6 @@ function dotfiles_update {
     git reset --hard origin/main
     cd -
 
-    echo "Checking deno..."
-    deno upgrade
-    echo "Checking rust..."
-    rustup update
-    echo "Checking bun..."
-    bun upgrade
-
     zsh "$DOT_DIR/setup.sh"
 }
 
