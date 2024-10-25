@@ -56,14 +56,7 @@ _set empty-trash "rm -rf ~/.local/share/Trash/*"
 _set v "nvim"
 _set e "nvim"
 _set os "neofetch"
-_set esm "deno run -A https://esm.sh/v128 add"
-_set task "deno task"
 _set pr "gh pr checkout $1"
-
-# Kill all processes that match the given name. ie: `killname webpack` will kill all running webpack instances
-# killname() {
-#     sudo kill -9 $(ps -e | grep $1 | awk '{print $1}')
-# }
 
 killname() {
     for pid in $(ps -e | grep $1 | awk '{print $1}'); do
@@ -105,12 +98,6 @@ git_test() {
 }
 _set gt "git_test"
 
-# if command -v tmux &> /dev/null && [ -z "$TMUX" ]; then
-#   tmux attach -t default || tmux new -s default
-# else
-#   neofetch
-# fi
-
 power() {
   upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep 'state\|percentage'
 }
@@ -138,11 +125,6 @@ if [[ $SHELL == *zsh* ]]; then
   bindkey '[D' backward-word
 fi
 
-
-iso() {
-  echo "sudo dd if=/home/olivier/Downloads/manjaro-kde-23.1.3-240113-linux66.iso of=/dev/sdb1 bs=4M status=progress"
-}
-
 ai() {
   model=${1:-"tinyllama"}
   echo "Using model $model"
@@ -153,19 +135,3 @@ pie_score() {
     echo "Generate a PIE score by listing 3 score for Physical, Intellectual and Emotional, each line starts with the name of the score followed by 'is <score>, because <make up a casual reason matching the category>'" | ollama run mistral
 }
 
-# Default profile references
-
-denoPath=$(realpath ~/.deno)
-export PATH="$denoPath/bin:$PATH"
-
-# export PATH="$HOME/.pyenv/bin:$PATH"
-# eval "$(pyenv init -)"
-# eval "$(pyenv virtualenv-init -)"
-
-# bun
-export BUN_INSTALL="$HOME/.bun"
-export PATH=$BUN_INSTALL/bin:$PATH
-
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
