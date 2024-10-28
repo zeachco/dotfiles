@@ -5,3 +5,6 @@ xcode_reinstall() {
   sudo rm -rf $(xcode-select -print-path)
   xcode-select --install
 }
+
+export DOCKER_HOST=unix:///$HOME/.colima/docker.sock
+

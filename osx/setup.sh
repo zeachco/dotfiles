@@ -9,6 +9,7 @@ if needs nvim; then
     brew tap homebrew/cask-fonts
     brew install --cask font-victor-mono-nerd-font
     brew install --HEAD neovim
+    brew install colima
 fi
 
 # call `defaults delete <property>` to reset to default
