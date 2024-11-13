@@ -7,7 +7,7 @@ function dotfiles_update {
     git reset --hard origin/main
     cd -
 
-    zsh "$DOT_DIR/setup.sh"
+    $SHELL "$DOT_DIR/setup.sh"
 }
 
 alias update_dotfiles="dotfiles_update"
