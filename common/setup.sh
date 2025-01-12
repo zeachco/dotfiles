@@ -56,13 +56,16 @@ git config --global --replace-all init.defaultBranch main
 # fi
 
 # backup .zshrc
-cp ~/.zshrc ~/.zshrc.backup
+if [ "$SHELL" = "/bin/zsh" ] || [ "$SHELL" = "/usr/bin/zsh" ]; then
+    cp ~/.zshrc ~/.zshrc.backup
+    # replace theme
+    awk '/ZSH_THEME=/ {sub(/=.*/, "=\"pmcgee\"")} 1' ~/.zshrc > temp.zshrc && mv temp.zshrc ~/.zshrc
+else
+    cp ~/.bashrc ~/.bashrc.backup
+fi
 
-# replace theme
-awk '/ZSH_THEME=/ {sub(/=.*/, "=\"pmcgee\"")} 1' ~/.zshrc > temp.zshrc && mv temp.zshrc ~/.zshrc
 
 # projets's dev folder
-
 {
     mkdir ~/dev >/dev/null 2>&1 && echo -e "${WARN}create ${NORM}~/dev folder"
     } || {
