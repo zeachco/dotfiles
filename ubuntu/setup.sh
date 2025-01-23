@@ -12,6 +12,7 @@ install dig dnsutils
 install htop
 install g++
 install make
-install peek
 
 script_install devbox "curl -fsSL https://get.jetify.com/devbox | $SHELL"
+
+$SHELL ~/dotfiles/ubuntu/shortcuts.sh
