@@ -8,3 +8,7 @@ xcode_reinstall() {
 
 export DOCKER_HOST=unix:///$HOME/.colima/docker.sock
 
+dark() {
+  enabled=${1:-true}
+  osascript -e "tell application \"System Events\" to tell appearance preferences to set dark mode to $enabled"
+}
