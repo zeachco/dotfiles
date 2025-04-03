@@ -58,6 +58,10 @@ _set e "nvim"
 _set os "neofetch"
 _set pr "gh pr checkout $1"
 
+killport() {
+  lsof -i :$1 | grep LISTEN | awk '{print $2}' | xargs kill -9
+}
+
 killname() {
     for pid in $(ps -e | grep $1 | awk '{print $1}'); do
         process_name=$(ps -p $pid -o comm=)
