@@ -139,3 +139,17 @@ pie_score() {
     echo "Generate a PIE score by listing 3 score for Physical, Intellectual and Emotional, each line starts with the name of the score followed by 'is <score>, because <make up a casual reason matching the category>'" | ollama run mistral
 }
 
+cd() {
+  builtin cd "$@" || return
+  check_for_devbox
+}
+
+check_for_devbox() {
+  if [[ -f "devbox.json" && -z "$DEVBOX_SHELL" ]]; then
+    echo "Found devbox.json. Entering devbox shell..."
+    export DEVBOX_SHELL=1
+    devbox shell
+  fi
+}
+
+check_for_devbox
