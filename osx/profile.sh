@@ -12,3 +12,11 @@ dark() {
   enabled=${1:-true}
   osascript -e "tell application \"System Events\" to tell appearance preferences to set dark mode to $enabled"
 }
+
+original_docker=`which docker`
+
+docker() {
+  which colima > /dev/null || { brew install colima && sleep 1} # ensures we have colima
+  $original_docker version > /dev/null || { colima start && sleep 1}
+  $original_docker $@
+}

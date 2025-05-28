@@ -2,14 +2,17 @@
 source ~/dotfiles/utils.sh
 
 if needs neofetch; then
-    brew install neofetch
+  brew install neofetch
 fi
 
 if needs nvim; then
-    brew tap homebrew/cask-fonts
-    brew install --cask font-victor-mono-nerd-font
-    brew install --HEAD neovim
-    brew install colima
+  brew tap homebrew/cask-fonts
+  brew install --cask font-victor-mono-nerd-font
+  brew install --HEAD neovim
+fi
+
+if needs colima; then
+  brew install colima
 fi
 
 # call `defaults delete <property>` to reset to default

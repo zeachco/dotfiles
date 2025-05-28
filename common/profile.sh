@@ -143,17 +143,20 @@ pie_score() {
     echo "Generate a PIE score by listing 3 score for Physical, Intellectual and Emotional, each line starts with the name of the score followed by 'is <score>, because <make up a casual reason matching the category>'" | ollama run mistral
 }
 
+# replace normal to call hook after the command
 cd() {
   builtin cd "$@" || return
   check_for_devbox
 }
-
 check_for_devbox() {
   if [[ -f "devbox.json" && -z "$DEVBOX_SHELL" ]]; then
     echo "Found devbox.json. Entering devbox shell..."
+    which devbox > /dev/null || curl -fsSL https://get.jetify.com/devbox | bash
     export DEVBOX_SHELL=1
     devbox shell
   fi
 }
-
+# also call on shell open for when you split your terminal on an existing devbox path
+# remove this line if you find this behavior too intrusive
 check_for_devbox
+
