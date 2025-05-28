@@ -19,9 +19,13 @@ function gcommits() {
     fi
 }
 
+function use() {
+  echo "\033[0;34m( $1 )\033[0m"
+}
+
 # alias with command print
 function _set () {
-    alias $1="echo -e \" ~ \033[0;34m$2\033[0m\" && $2"
+  alias $1="use '$2' && $2"
 }
 
 _set ll "ls -al"
