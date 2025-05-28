@@ -1,30 +1,30 @@
 #!/bin/env sh
 
 DOT_DIR=~/dotfiles
-function dotfiles_update {
-    cd $DOT_DIR
+dotfiles_update() {
+    cd $DOT_DIR || exit 1
     git fetch
     git reset --hard origin/main
-    cd -
+    cd - || exit 1
 
     $SHELL "$DOT_DIR/setup.sh"
 }
 
 alias update_dotfiles="dotfiles_update"
 
-function gcommits() {
-    if [ -z $1 ];
+gcommits() {
+    if [ -z "$1" ];
     then git log --format="%C(auto)%h (%s, %ad)" -n 20 | cat;
     else git log --format="%H" -n $1 | cat;
     fi
 }
 
-function use() {
-  echo "\033[0;34m( $1 )\033[0m"
+use() {
+  printf "\033[0;34m( %s )\033[0m\n" "$1"
 }
 
 # alias with command print
-function _set () {
+_set() {
   alias $1="use '$2' && $2"
 }
 
@@ -36,7 +36,7 @@ _set grbi "git rebase upstream/master -i"
 _set gph "git push heroku master"
 _set gaa "git add -A"
 _set gd "git diff"
-_set gs "git status"
+_set gs "git status --short"
 _set gco "git checkout"
 _set gcp "git cherry-pick"
 _set gci "git commit"
@@ -47,13 +47,13 @@ _set gpp "git push"
 _set gfa "git fetch --all"
 _set gfu "git fetch upstream"
 _set grh "git reset --hard"
-_set grho 'git reset --hard origin/$(git branch --show-current)'
+_set grho "git reset --hard origin/$(git branch --show-current)"
 _set gmt "git mergetool"
 _set gl "git log --oneline --graph"
 _set shipit "npm run deploy"
 _set gpft "git push --follow-tags"
 _set npmv "npm version $1 && git push --follow-tags && npm publish"
-_set gif "~/scripts/gif"
+_set gif "$HOME/scripts/gif"
 _set hosts "sudo vim /etc/hosts && sudo /etc/init.d/dns-clean restart && sudo /etc/init.d/networking restart"
 _set amisafe "ps auxwww | grep sshd"
 _set empty-trash "rm -rf ~/.local/share/Trash/*"
@@ -63,16 +63,16 @@ _set os "neofetch"
 _set pr "gh pr checkout $1"
 
 killport() {
-  lsof -i :$1 | grep LISTEN | awk '{print $2}' | xargs kill -9
+  lsof -i ":$1" | grep LISTEN | awk '{print $2}' | xargs kill -9
 }
 
 killname() {
-    for pid in $(ps -e | grep $1 | awk '{print $1}'); do
-        process_name=$(ps -p $pid -o comm=)
+    for pid in $(ps -e | grep "$1" | awk '{print $1}'); do
+        process_name=$(ps -p "$pid" -o comm=)
         echo "Are you sure you want to kill process $pid ($process_name)? [y/N]"
         read response
         if [[ $response =~ ^([yY][eE][sS]|[yY])$ ]]; then
-            sudo kill -9 $pid
+            sudo kill -9 "$pid"
             echo "Killed process $pid ($process_name)"
         else
             echo "Skipped process $pid ($process_name)"
@@ -111,7 +111,7 @@ power() {
 }
 
 denode() {
-  deno run -A --unstable npm:$1
+  deno run -A --unstable "npm:$1"
 }
 
 codeai() {
@@ -119,7 +119,7 @@ codeai() {
     prompt=$2
     echo "starting AI analysis for $file..."
     fullprompt="file: '$file':\n \`\`\`\n$(cat $file)\n\n\`\`\`\n\nplease rewrite its content to satisfy the following: $prompt\n\n"
-    echo "$fullprompt" | ollama run codellama:13b > $file & echo "to stop: \n kill $!";
+    echo "$fullprompt" | ollama run codellama:13b > "$file" & echo "to stop: \n kill $!";
 }
 
 speakai() {
@@ -131,12 +131,13 @@ speakai() {
 if [[ $SHELL == *zsh* ]]; then
   bindkey '[C' forward-word
   bindkey '[D' backward-word
+  echo "test"
 fi
 
 ai() {
   model=${1:-"tinyllama"}
   echo "Using model $model"
-  ollama run $model
+  ollama run "$model"
 }
 
 pie_score() {
@@ -148,6 +149,7 @@ cd() {
   builtin cd "$@" || return
   check_for_devbox
 }
+
 check_for_devbox() {
   if [[ -f "devbox.json" && -z "$DEVBOX_SHELL" ]]; then
     echo "Found devbox.json. Entering devbox shell..."
@@ -156,6 +158,7 @@ check_for_devbox() {
     devbox shell
   fi
 }
+
 # also call on shell open for when you split your terminal on an existing devbox path
 # remove this line if you find this behavior too intrusive
 check_for_devbox
