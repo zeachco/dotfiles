@@ -1,5 +1,8 @@
 #!/bin/env sh
 
+export EDITOR="nvim"
+export SUDO_EDITOR="$EDITOR"
+
 DOT_DIR=~/dotfiles
 dotfiles_update() {
     cd $DOT_DIR || exit 1
@@ -99,7 +102,7 @@ alias clone="bun ~/dotfiles/advanced/clone.ts"
 
 git_test() {
     DEFAULT_FILTER="test.ts"
-    DEFAULT_RUNNER="yarn jest --watch"
+    DEFAULT_RUNNER="npx jest --watch"
     FILTER="${1:-$DEFAULT_FILTER}"
     RUNNER="${2:-$DEFAULT_RUNNER}"
     git diff origin/main --name-only | grep $FILTER |  fzf -m | xargs $RUNNER
@@ -131,7 +134,6 @@ speakai() {
 if [[ $SHELL == *zsh* ]]; then
   bindkey '[C' forward-word
   bindkey '[D' backward-word
-  echo "test"
 fi
 
 ai() {
