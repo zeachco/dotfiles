@@ -31,6 +31,7 @@ _set() {
   alias $1="use '$2' && $2"
 }
 
+_set "devup" "devbox run env && devbox run install && devbox run dev" 
 _set ll "ls -al"
 _set p "pnpm"
 _set gba "git branch -a"
