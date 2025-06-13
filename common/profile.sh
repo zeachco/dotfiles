@@ -155,11 +155,15 @@ cd() {
 }
 
 check_for_devbox() {
-  if [[ -f "devbox.json" && -z "$DEVBOX_SHELL" ]]; then
-    echo "Found devbox.json. Entering devbox shell..."
-    which devbox > /dev/null || curl -fsSL https://get.jetify.com/devbox | bash
-    export DEVBOX_SHELL=1
-    devbox shell
+  if [[ -f "devbox.json" ]]; then
+    if [[ -n "$DEVBOX_WORKING_DIR" && "$DEVBOX_WORKING_DIR" != "$(pwd)" ]]; then
+      echo "DEVBOX_WORKING_DIR is set to '$DEVBOX_WORKING_DIR' but the current directory is '$(pwd)'. Please exit and run the shell again from the correct directory."
+    elif [[ -z "$DEVBOX_WORKING_DIR" ]]; then
+      echo "Found devbox.json. Entering devbox shell..."
+      which devbox > /dev/null || curl -fsSL https://get.jetify.com/devbox | bash
+      export DEVBOX_WORKING_DIR="$(pwd)"
+      devbox shell
+    fi
   fi
 }
 
