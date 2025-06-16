@@ -169,5 +169,5 @@ check_for_devbox() {
 
 # also call on shell open for when you split your terminal on an existing devbox path
 # remove this line if you find this behavior too intrusive
-check_for_devbox
+#check_for_devbox
 
