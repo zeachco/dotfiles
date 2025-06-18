@@ -13,7 +13,10 @@ Darwin*) OS_DIR=osx ;;
 *) echo "No setup for this OS (${unameOut})" ;;
 esac
 
-if [[ "$(lsb_release -a)" =~ "Ubuntu" ]]; then
+# Check for Termux environment
+if [[ -n "$TERMUX_VERSION" ]] || [[ "$PREFIX" == *"com.termux"* ]]; then
+  OS_DIR=termux
+elif [[ "$(lsb_release -a 2>/dev/null)" =~ "Ubuntu" ]]; then
   OS_DIR=ubuntu
 fi
 
