@@ -79,7 +79,10 @@ function install() {
     then
         echo -e "${WARN}installing ${NORM}$pkg_name..."
         sleep 1
-        if command -v apt &> /dev/null
+        # Check for Termux environment first
+        if [[ -n "$TERMUX_VERSION" ]] || [[ "$PREFIX" == *"com.termux"* ]]; then
+            pkg install -y $pkg_name
+        elif command -v apt &> /dev/null
         then
             sudo apt install -y $pkg_name
         else
