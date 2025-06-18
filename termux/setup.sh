@@ -11,7 +11,7 @@ install git
 install curl
 install wget
 install tree
-install ripgrep rg
+script_install rg "pkg install -y ripgrep"
 install fzf
 install jq
 install htop
@@ -22,9 +22,9 @@ install fish
 # Programming languages and tools
 install nodejs
 install python
-install golang go
+script_install golang "pkg install -y golang"
 install rust
-install bun
+script_install bun "curl -fsSL https://bun.sh/install | bash"
 
 # Text editors (nvim already installed via LazyVim)
 exists nvim
@@ -54,11 +54,11 @@ if [ ! -d ~/storage ]; then
     termux-setup-storage
 fi
 
-# Set default shell to zsh if available
+# Set default shell to zsh if available (Termux doesn't have chsh)
 if command -v zsh >/dev/null 2>&1; then
     if [ "$SHELL" != "$(which zsh)" ]; then
-        echo "Changing default shell to zsh..."
-        chsh -s $(which zsh)
+        echo "To set zsh as default shell, add this to your ~/.bashrc:"
+        echo "exec zsh"
     fi
 fi
 
