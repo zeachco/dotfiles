@@ -148,26 +148,26 @@ pie_score() {
     echo "Generate a PIE score by listing 3 score for Physical, Intellectual and Emotional, each line starts with the name of the score followed by 'is <score>, because <make up a casual reason matching the category>'" | ollama run mistral
 }
 
-# replace normal to call hook after the command
-cd() {
-  builtin cd "$@" || return
-  check_for_devbox
-}
-
-check_for_devbox() {
-  if [[ -f "devbox.json" ]]; then
-    if [[ -n "$DEVBOX_WORKING_DIR" && "$DEVBOX_WORKING_DIR" != "$(pwd)" ]]; then
-      echo "DEVBOX_WORKING_DIR is set to '$DEVBOX_WORKING_DIR' but the current directory is '$(pwd)'. Please exit and run the shell again from the correct directory."
-    elif [[ -z "$DEVBOX_WORKING_DIR" ]]; then
-      echo "Found devbox.json. Entering devbox shell..."
-      which devbox > /dev/null || curl -fsSL https://get.jetify.com/devbox | bash
-      export DEVBOX_WORKING_DIR="$(pwd)"
-      devbox shell
-    fi
-  fi
-}
-
-# also call on shell open for when you split your terminal on an existing devbox path
-# remove this line if you find this behavior too intrusive
-#check_for_devbox
-
+# # replace normal to call hook after the command
+# cd() {
+#   builtin cd "$@" || return
+#   check_for_devbox
+# }
+#
+# check_for_devbox() {
+#   if [[ -f "devbox.json" ]]; then
+#     if [[ -n "$DEVBOX_WORKING_DIR" && "$DEVBOX_WORKING_DIR" != "$(pwd)" ]]; then
+#       echo "DEVBOX_WORKING_DIR is set to '$DEVBOX_WORKING_DIR' but the current directory is '$(pwd)'. Please exit and run the shell again from the correct directory."
+#     elif [[ -z "$DEVBOX_WORKING_DIR" ]]; then
+#       echo "Found devbox.json. Entering devbox shell..."
+#       which devbox > /dev/null || curl -fsSL https://get.jetify.com/devbox | bash
+#       export DEVBOX_WORKING_DIR="$(pwd)"
+#       devbox shell
+#     fi
+#   fi
+# }
+#
+# # also call on shell open for when you split your terminal on an existing devbox path
+# # remove this line if you find this behavior too intrusive
+# #check_for_devbox
+#
