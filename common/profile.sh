@@ -31,7 +31,7 @@ _set() {
   alias $1="use '$2' && $2"
 }
 
-_set "devup" "devbox run env && devbox run install && devbox run dev" 
+_set "devup" "devbox run env && devbox run install && devbox run dev"
 _set ll "ls -al"
 _set p "pnpm"
 _set gba "git branch -a"
@@ -66,6 +66,7 @@ _set v "nvim"
 _set e "nvim"
 _set os "neofetch"
 _set pr "gh pr checkout $1"
+_set cc "claude --dangerously-skip-permissions"
 
 killport() {
   lsof -i ":$1" | grep LISTEN | awk '{print $2}' | xargs kill -9
