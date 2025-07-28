@@ -67,6 +67,7 @@ _set e "nvim"
 _set os "neofetch"
 _set pr "gh pr checkout $1"
 _set cc "claude --dangerously-skip-permissions"
+_set ccc "claude --dangerously-skip-permissions"
 
 killport() {
   lsof -i ":$1" | grep LISTEN | awk '{print $2}' | xargs kill -9
