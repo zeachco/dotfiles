@@ -1,4 +1,5 @@
 #!/bin/env sh
+set -e
 
 export EDITOR="nvim"
 export SUDO_EDITOR="$EDITOR"
@@ -31,7 +32,6 @@ _set() {
   alias $1="use '$2' && $2"
 }
 
-_set "devup" "devbox run env && devbox run install && devbox run dev"
 _set ll "ls -al"
 _set p "pnpm"
 _set gba "git branch -a"
@@ -151,25 +151,26 @@ pie_score() {
 }
 
 # # replace normal to call hook after the command
-# cd() {
-#   builtin cd "$@" || return
-#   check_for_devbox
-# }
-#
-# check_for_devbox() {
-#   if [[ -f "devbox.json" ]]; then
-#     if [[ -n "$DEVBOX_WORKING_DIR" && "$DEVBOX_WORKING_DIR" != "$(pwd)" ]]; then
-#       echo "DEVBOX_WORKING_DIR is set to '$DEVBOX_WORKING_DIR' but the current directory is '$(pwd)'. Please exit and run the shell again from the correct directory."
-#     elif [[ -z "$DEVBOX_WORKING_DIR" ]]; then
-#       echo "Found devbox.json. Entering devbox shell..."
-#       which devbox > /dev/null || curl -fsSL https://get.jetify.com/devbox | bash
-#       export DEVBOX_WORKING_DIR="$(pwd)"
-#       devbox shell
-#     fi
-#   fi
-# }
-#
-# # also call on shell open for when you split your terminal on an existing devbox path
-# # remove this line if you find this behavior too intrusive
-# #check_for_devbox
-#
+cd() {
+  builtin cd "$@" || return
+  check_for_devbox
+}
+
+check_for_devbox() {
+  if [[ -f "devbox.json" ]]; then
+    if [[ -n "$DEVBOX_WORKING_DIR" && "$DEVBOX_WORKING_DIR" != "$(pwd)" ]]; then
+      echo "switching to devbox shell ($(pwd))..."
+      eval "$(devbox shellenv --preserve-path-stack -c "/Users/olivierr/dev/brownbags")" && hash -r
+    elif [[ -z "$DEVBOX_WORKING_DIR" ]]; then
+      echo "Found devbox.json. Entering devbox shell..."
+      which devbox > /dev/null || curl -fsSL https://get.jetify.com/devbox | bash
+      export DEVBOX_WORKING_DIR="$(pwd)"
+      devbox shell
+    fi
+  fi
+}
+
+# also call on shell open for when you split your terminal on an existing devbox path
+# remove this line if you find this behavior too intrusive
+check_for_devbox
+
