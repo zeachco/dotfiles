@@ -179,3 +179,6 @@ check_for_devbox
 # Fix for terminal closing on any error
 # Disable errexit mode that causes shell to exit on command errors
 set +e
+
+# Make bash completion case-sensitive
+bind 'set completion-ignore-case off' 2>/dev/null || true
