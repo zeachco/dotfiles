@@ -1,9 +1,9 @@
-#!/bin/env sh
+#!/bin/sh
 
 export EDITOR="nvim"
 export SUDO_EDITOR="$EDITOR"
 
-DOT_DIR=~/dotfiles
+DOT_DIR="$HOME/dotfiles"
 dotfiles_update() {
     cd $DOT_DIR || exit 1
     git fetch
@@ -93,7 +93,7 @@ killname() {
         process_name=$(ps -p "$pid" -o comm= 2>/dev/null || echo "unknown")
         echo "Are you sure you want to kill process $pid ($process_name)? [y/N]"
         read response
-        if [[ $response =~ ^([yY][eE][sS]|[yY])$ ]]; then
+        if echo "$response" | grep -q '^[yY]\([eE][sS]\)\?$'; then
             kill -9 "$pid"
             echo "Killed process $pid ($process_name)"
         else
@@ -158,10 +158,10 @@ cd() {
 }
 
 check_for_devbox() {
-  if [[ -f "devbox.json" ]]; then
-    if [[ -n "$DEVBOX_WORKING_DIR" && "$DEVBOX_WORKING_DIR" != "$(pwd)" ]]; then
+  if [ -f "devbox.json" ]; then
+    if [ -n "$DEVBOX_WORKING_DIR" ] && [ "$DEVBOX_WORKING_DIR" != "$(pwd)" ]; then
       echo "DEVBOX_WORKING_DIR is set to '$DEVBOX_WORKING_DIR' but the current directory is '$(pwd)'. Please exit and run the shell again from the correct directory."
-    elif [[ -z "$DEVBOX_WORKING_DIR" ]]; then
+    elif [ -z "$DEVBOX_WORKING_DIR" ]; then
       echo "Found devbox.json. Entering devbox shell..."
       which devbox > /dev/null || curl -fsSL https://get.jetify.com/devbox | bash
       export DEVBOX_WORKING_DIR="$(pwd)"

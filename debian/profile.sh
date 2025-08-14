@@ -1,4 +1,4 @@
-#!/bin/env sh
+#!/bin/sh
 
 # hack to remap caps lock to escape
 setxkbmap -option caps:escape

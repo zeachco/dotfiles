@@ -1,6 +1,6 @@
-#!/bin/env sh
+#!/usr/bin/env bash
 
-DOT_DIR=~/dotfiles
+DOT_DIR="$HOME/dotfiles"
 USER_SOURCE_FILE=~/.profile
 
 # colors

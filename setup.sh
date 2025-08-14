@@ -1,4 +1,4 @@
-#!/bin/env sh
+#!/usr/bin/env bash
 . ~/dotfiles/utils.sh
 
 clean_imports

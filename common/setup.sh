@@ -1,7 +1,7 @@
-#!/bin/env sh
-source ~/dotfiles/utils.sh
+#!/usr/bin/env bash
+source "$HOME/dotfiles/utils.sh"
 
-function configureGitIdentity() {
+configureGitIdentity() {
     echo "Email for git config: "
     read git_email
     echo "Full name for git config: "

@@ -1,4 +1,4 @@
-#!/bin/env sh
+#!/bin/sh
 
 # When xcode needs to be reinstalled or is corrupted
 xcode_reinstall() {

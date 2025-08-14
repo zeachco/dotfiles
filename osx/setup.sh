@@ -1,5 +1,5 @@
-#!/bin/sh
-source ~/dotfiles/utils.sh
+#!/usr/bin/env bash
+source "$HOME/dotfiles/utils.sh"
 
 if needs neofetch; then
   brew install neofetch

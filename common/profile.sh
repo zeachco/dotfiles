@@ -1,10 +1,10 @@
-#!/bin/env sh
+#!/bin/sh
 set -e
 
 export EDITOR="nvim"
 export SUDO_EDITOR="$EDITOR"
 
-DOT_DIR=~/dotfiles
+DOT_DIR="$HOME/dotfiles"
 dotfiles_update() {
     cd $DOT_DIR || exit 1
     git fetch
@@ -78,7 +78,7 @@ killname() {
         process_name=$(ps -p "$pid" -o comm=)
         echo "Are you sure you want to kill process $pid ($process_name)? [y/N]"
         read response
-        if [[ $response =~ ^([yY][eE][sS]|[yY])$ ]]; then
+        if echo "$response" | grep -q '^[yY]\([eE][sS]\)\?$'; then
             sudo kill -9 "$pid"
             echo "Killed process $pid ($process_name)"
         else
@@ -135,7 +135,7 @@ speakai() {
     echo "$prompt" | ollama run mistral | espeak -s150 -g4 -p55 -a 200 & echo "to stop: \n kill $!";
 }
 
-if [[ $SHELL == *zsh* ]]; then
+if [ "${SHELL##*/}" = "zsh" ]; then
   bindkey '[C' forward-word
   bindkey '[D' backward-word
 fi
@@ -150,27 +150,27 @@ pie_score() {
     echo "Generate a PIE score by listing 3 score for Physical, Intellectual and Emotional, each line starts with the name of the score followed by 'is <score>, because <make up a casual reason matching the category>'" | ollama run mistral
 }
 
-# # replace normal to call hook after the command
-cd() {
-  builtin cd "$@" || return
-  check_for_devbox
-}
-
-check_for_devbox() {
-  if [[ -f "devbox.json" ]]; then
-    if [[ -n "$DEVBOX_WORKING_DIR" && "$DEVBOX_WORKING_DIR" != "$(pwd)" ]]; then
-      echo "switching to devbox shell ($(pwd))..."
-      eval "$(devbox shellenv --preserve-path-stack -c "/Users/olivierr/dev/brownbags")" && hash -r
-    elif [[ -z "$DEVBOX_WORKING_DIR" ]]; then
-      echo "Found devbox.json. Entering devbox shell..."
-      which devbox > /dev/null || curl -fsSL https://get.jetify.com/devbox | bash
-      export DEVBOX_WORKING_DIR="$(pwd)"
-      devbox shell
-    fi
-  fi
-}
-
-# also call on shell open for when you split your terminal on an existing devbox path
-# remove this line if you find this behavior too intrusive
-check_for_devbox
+# replace normal to call hook after the command
+# cd() {
+#   builtin cd "$@" || return
+#   check_for_devbox
+# }
+#
+# check_for_devbox() {
+#   if [[ -f "devbox.json" ]]; then
+#     if [[ -n "$DEVBOX_WORKING_DIR" && "$DEVBOX_WORKING_DIR" != "$(pwd)" ]]; then
+#       echo "switching to devbox shell ($(pwd))..."
+#       eval "$(devbox shellenv --preserve-path-stack -c "/Users/olivierr/dev/brownbags")" && hash -r
+#     elif [[ -z "$DEVBOX_WORKING_DIR" ]]; then
+#       echo "Found devbox.json. Entering devbox shell..."
+#       which devbox > /dev/null || curl -fsSL https://get.jetify.com/devbox | bash
+#       export DEVBOX_WORKING_DIR="$(pwd)"
+#       devbox shell
+#     fi
+#   fi
+# }
+#
+# # also call on shell open for when you split your terminal on an existing devbox path
+# # remove this line if you find this behavior too intrusive
+# check_for_devbox
 

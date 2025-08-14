@@ -1,5 +1,5 @@
-#!/bin/env sh
-source ~/dotfiles/utils.sh
+#!/usr/bin/env bash
+source "$HOME/dotfiles/utils.sh"
 
 install neofetch
 

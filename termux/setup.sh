@@ -1,5 +1,5 @@
-#!/bin/env sh
-. ~/dotfiles/utils.sh
+#!/usr/bin/env bash
+source "$HOME/dotfiles/utils.sh"
 
 echo "Setting up Termux environment..."
 
