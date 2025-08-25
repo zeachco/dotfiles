@@ -109,7 +109,7 @@ git_test() {
   DEFAULT_RUNNER="npx jest --watch"
   FILTER="${1:-$DEFAULT_FILTER}"
   RUNNER="${2:-$DEFAULT_RUNNER}"
-  git diff origin/main --name-only | grep $FILTER | fzf -m | xargs $RUNNER
+  git diff origin/main --name-only | grep "$FILTER" | fzf -m | xargs "$RUNNER"
 }
 _set gt "git_test"
 
@@ -125,16 +125,16 @@ codeai() {
   file=$1
   prompt=$2
   echo "starting AI analysis for $file..."
-  fullprompt="file: '$file':\n \`\`\`\n$(cat $file)\n\n\`\`\`\n\nplease rewrite its content to satisfy the following: $prompt\n\n"
+  fullprompt="file: '$file':\n \`\`\`\n$(cat "$file")\n\n\`\`\`\n\nplease rewrite its content to satisfy the following: $prompt\n\n"
   echo "$fullprompt" | ollama run codellama:13b >"$file" &
-  echo "to stop: \n kill $!"
+  printf "to stop: \n kill %s" "$!"
 }
 
 speakai() {
   prompt=$1
   echo "starting AI..."
   echo "$prompt" | ollama run mistral | espeak -s150 -g4 -p55 -a 200 &
-  echo "to stop: \n kill $!"
+  printf "to stop: \n kill %s" "$!"
 }
 
 if [ "${SHELL##*/}" = "zsh" ]; then
@@ -161,13 +161,12 @@ cd() {
 check_for_devbox() {
   if [[ -f "devbox.json" ]]; then
     if [[ -n "$DEVBOX_WORKING_DIR" && "$DEVBOX_WORKING_DIR" != "$(pwd)" ]]; then
-      echo "switching to devbox shell ($(pwd))..."
-      eval "$(devbox shellenv --preserve-path-stack -c "/Users/olivierr/dev/brownbags")" && hash -r
+      eval "$(devbox shellenv --recompute)"
+      echo "Updated devbox shell ($(pwd))..."
     elif [[ -z "$DEVBOX_WORKING_DIR" ]]; then
       echo "Found devbox.json. Entering devbox shell..."
       which devbox >/dev/null || curl -fsSL https://get.jetify.com/devbox | bash
-      export DEVBOX_WORKING_DIR="$(pwd)"
-      devbox shell
+      DEVBOX_WORKING_DIR="$(pwd)" devbox shell
     fi
   fi
 }
