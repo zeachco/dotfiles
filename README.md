@@ -1,16 +1,10 @@
 # Execute
 
-For ubuntu, use [omakub](https://omakub.org/) instead, it's just better
-
-```sh
-wget -qO- https://omakub.org/install | bash
-```
-
-For arch, mac or any other debian forks
-
 ```sh
 git clone git@github.com:zeachco/dotfiles.git ~/dotfiles && bash ~/dotfiles/setup.sh
 ```
+
+For ubuntu, it also installs [omakub](https://omakub.org/) it's just too good to ignore, other OS manually installs the good parts of omakub that I want there like zellij, nvim, sh utils configs
 
 # Supports
 
@@ -24,11 +18,7 @@ git clone git@github.com:zeachco/dotfiles.git ~/dotfiles && bash ~/dotfiles/setu
 
 ## Programing languages
 
-- pyenv - Python environment manager
-- nvm - Node environment manager
-- rust
-- deno
-- bun
+Uses [mise](https://mise.jdx.dev/) and [devbox](https://www.jetify.com/devbox) to control all envs for python, node, rust, go, etc...
 
 ## Tools
 
