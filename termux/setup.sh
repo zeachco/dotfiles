@@ -20,14 +20,11 @@ install zsh
 install fish
 
 # Programming languages and tools
-install nodejs
 install python
 script_install golang "pkg install -y golang"
-install rust
-script_install bun "curl -fsSL https://bun.sh/install | bash"
 
-# Text editors (nvim already installed via LazyVim)
-exists nvim
+# Text editors
+install neovim
 
 # Terminal multiplexers and tools
 exists zellij || pkg install -y zellij
@@ -41,17 +38,19 @@ install cmake
 install clang
 install pkg-config
 
-# Android-specific packages
-install termux-api
-install termux-tools
+# Android-specific packages (check if already available)
+exists termux-setup-storage || install termux-api
+exists termux-info || install termux-tools
 
 # Optional: neofetch for system info
 install neofetch
 
-# Set up storage access
+# Set up storage access (only if not already set up)
 if [ ! -d ~/storage ]; then
     echo "Setting up storage access..."
     termux-setup-storage
+else
+    echo "Storage access already configured"
 fi
 
 # Set default shell to zsh if available (Termux doesn't have chsh)

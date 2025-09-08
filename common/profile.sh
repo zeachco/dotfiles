@@ -66,7 +66,7 @@ _set v "nvim"
 _set e "nvim"
 _set os "neofetch"
 _set pr "gh pr checkout $1"
-_set cc "claude --dangerously-skip-permissions"
+_set cc "deno run -A npm:@anthropic-ai/claude-code --dangerously-skip-permissions"
 _set ccc "claude --dangerously-skip-permissions"
 
 killport() {
