@@ -161,12 +161,17 @@ cd() {
 check_for_devbox() {
   if [[ -f "devbox.json" ]]; then
     if [[ -n "$DEVBOX_WORKING_DIR" && "$DEVBOX_WORKING_DIR" != "$(pwd)" ]]; then
+      # We are already in a devbox shell but from a different path
+      # Let's initialize the shell again to match the current path
+      export DEVBOX_WORKING_DIR="$(pwd)"
+      echo "Updating devbox shell to ($DEVBOX_WORKING_DIR)..."
       eval "$(devbox shellenv --recompute)"
-      echo "Updated devbox shell ($(pwd))..."
     elif [[ -z "$DEVBOX_WORKING_DIR" ]]; then
       echo "Found devbox.json. Entering devbox shell..."
       which devbox >/dev/null || curl -fsSL https://get.jetify.com/devbox | bash
-      DEVBOX_WORKING_DIR="$(pwd)" devbox shell
+      export DEVBOX_WORKING_DIR="$(pwd)"
+      devbox shell
+      echo "You've exited devbox from!"
     fi
   fi
 }
