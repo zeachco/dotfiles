@@ -68,6 +68,7 @@ _set os "neofetch"
 _set pr "gh pr checkout $1"
 _set cc "deno run -A --no-lock npm:@anthropic-ai/claude-code --dangerously-skip-permissions"
 _set ccc "claude --dangerously-skip-permissions"
+_set theirs "git checkout --theirs"
 
 killport() {
   lsof -i ":$1" | grep LISTEN | awk '{print $2}' | xargs kill -9

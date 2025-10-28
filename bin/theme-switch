@@ -1,0 +1,94 @@
+#!/bin/bash
+
+# Theme switcher for dotfiles
+# Supports: tmux, neovim (to be extended with alacritty, btop, etc.)
+
+set -e
+
+DOTFILES_PATH="${DOTFILES_PATH:-$HOME/dotfiles}"
+THEMES_PATH="$DOTFILES_PATH/themes"
+
+# Available themes
+THEME_NAMES=("Tokyo Night" "Catppuccin" "Gruvbox" "Nord")
+
+# Check if gum is installed for interactive selection
+if command -v gum &>/dev/null; then
+  THEME=$(gum choose "${THEME_NAMES[@]}" --header "Choose your theme" --height 8 | \
+          tr '[:upper:]' '[:lower:]' | sed 's/ /-/g')
+else
+  # Fallback to basic selection
+  echo "Available themes:"
+  select theme_name in "${THEME_NAMES[@]}"; do
+    if [ -n "$theme_name" ]; then
+      THEME=$(echo "$theme_name" | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g')
+      break
+    fi
+  done
+fi
+
+if [ -z "$THEME" ]; then
+  echo "No theme selected"
+  exit 1
+fi
+
+echo "Applying theme: $THEME"
+
+# Apply tmux theme
+if command -v tmux &>/dev/null && [ -f "$THEMES_PATH/$THEME/tmux.conf" ]; then
+  echo "  → Applying tmux theme..."
+  cp "$THEMES_PATH/$THEME/tmux.conf" "$HOME/.config/tmux/theme.conf"
+
+  # Reload tmux if running
+  if [ -n "$TMUX" ]; then
+    tmux source-file "$HOME/.config/tmux/tmux.conf" 2>/dev/null || true
+  fi
+fi
+
+# Apply neovim theme
+if command -v nvim &>/dev/null && [ -d "$HOME/.config/nvim" ] && [ -f "$THEMES_PATH/$THEME/neovim.lua" ]; then
+  echo "  → Applying neovim theme..."
+  mkdir -p "$HOME/.config/nvim/lua/plugins"
+  cp "$THEMES_PATH/$THEME/neovim.lua" "$HOME/.config/nvim/lua/plugins/theme.lua"
+fi
+
+# Apply alacritty theme (if config exists)
+if [ -d "$HOME/.config/alacritty" ] && [ -f "$THEMES_PATH/$THEME/alacritty.toml" ]; then
+  echo "  → Applying alacritty theme..."
+  cp "$THEMES_PATH/$THEME/alacritty.toml" "$HOME/.config/alacritty/theme.toml"
+fi
+
+# Apply zellij theme (if config exists)
+if command -v zellij &>/dev/null && [ -d "$HOME/.config/zellij" ] && [ -f "$THEMES_PATH/$THEME/zellij.kdl" ]; then
+  echo "  → Applying zellij theme..."
+  mkdir -p "$HOME/.config/zellij/themes"
+  cp "$THEMES_PATH/$THEME/zellij.kdl" "$HOME/.config/zellij/themes/$THEME.kdl"
+
+  # Update zellij config if it exists
+  if [ -f "$HOME/.config/zellij/config.kdl" ]; then
+    sed -i.bak "s/theme \".*\"/theme \"$THEME\"/g" "$HOME/.config/zellij/config.kdl"
+    rm -f "$HOME/.config/zellij/config.kdl.bak"
+  fi
+fi
+
+# Apply btop theme (if config exists)
+if command -v btop &>/dev/null && [ -f "$THEMES_PATH/$THEME/btop.theme" ]; then
+  echo "  → Applying btop theme..."
+  mkdir -p "$HOME/.config/btop/themes"
+  cp "$THEMES_PATH/$THEME/btop.theme" "$HOME/.config/btop/themes/$THEME.theme"
+
+  # Update btop config if it exists
+  if [ -f "$HOME/.config/btop/btop.conf" ]; then
+    sed -i.bak "s/color_theme = \".*\"/color_theme = \"$THEME\"/g" "$HOME/.config/btop/btop.conf"
+    rm -f "$HOME/.config/btop/btop.conf.bak"
+  fi
+fi
+
+# Apply VS Code theme
+if [ -f "$THEMES_PATH/$THEME/vscode.sh" ]; then
+  echo "  → Applying VS Code theme..."
+  source "$THEMES_PATH/$THEME/vscode.sh"
+fi
+
+echo "✓ Theme '$THEME' applied successfully!"
+echo ""
+echo "Note: Some applications may require a restart to see changes."
