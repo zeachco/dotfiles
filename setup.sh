@@ -8,7 +8,14 @@ echo "Will install using $SHELL ($0)"
 # run the correct setup file
 unameOut="$(uname -s)"
 case "${unameOut}" in
-Linux*) OS_DIR=debian ;;
+Linux*)
+  # Check for Arch Linux first
+  if [[ -f /etc/arch-release ]] || command -v pacman &> /dev/null; then
+    OS_DIR=archlinux
+  else
+    OS_DIR=debian
+  fi
+  ;;
 Darwin*) OS_DIR=osx ;;
 *) echo "No setup for this OS (${unameOut})" ;;
 esac
