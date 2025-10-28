@@ -3,6 +3,10 @@
 # Source utils.sh for shared functions
 source "$HOME/dotfiles/utils.sh"
 
+os() {
+  fastfetch
+}
+
 # Arch Linux specific aliases and functions using utils.sh
 
 # Enhanced install function for Arch Linux
