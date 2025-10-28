@@ -1,7 +1,9 @@
 #!/bin/sh
 
-# hack to remap caps lock to escape
-setxkbmap -option caps:escape
+# hack to remap caps lock to escape (only on X11, not Wayland)
+if [ "$XDG_SESSION_TYPE" != "wayland" ] && [ -z "$WAYLAND_DISPLAY" ]; then
+  setxkbmap -option caps:escape
+fi
 
 wifi() {
   lspci -nnk | grep -iA2 net
