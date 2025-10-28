@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 source "$HOME/dotfiles/utils.sh"
 
-install neofetch
-
 # tools
 install unzip
 install net-tools
