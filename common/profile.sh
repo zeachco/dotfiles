@@ -143,9 +143,7 @@ if [ "${SHELL##*/}" = "zsh" ]; then
 fi
 
 ai() {
-  model=${1:-"tinyllama"}
-  echo "Using model $model"
-  ollama run "$model"
+  opencode "$@"
 }
 
 pie_score() {
