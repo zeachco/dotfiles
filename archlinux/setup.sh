@@ -3,13 +3,12 @@ source "$HOME/dotfiles/utils.sh"
 
 # tools
 install unzip
-install net-tools
-install bind-tools  # for dig
+# install net-tools
+# install bind-tools  # for dig
 install curl
 install htop
 install gcc
 install make
-install github-cli
 install tmux
 install zsh
 
@@ -55,10 +54,6 @@ then
     rm -rf /tmp/yay
 fi
 
-# Install additional packages that might be needed for development
-install alacritty
-install zellij
-install ripgrep
 install fd
 install fzf
 install bat
