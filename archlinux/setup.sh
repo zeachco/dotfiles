@@ -59,5 +59,6 @@ install fzf
 install bat
 install exa
 install starship
+install bitwarden-cli
 
 echo -e "${PASS}Arch Linux setup complete!${NORM}"
