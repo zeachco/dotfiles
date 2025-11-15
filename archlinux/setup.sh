@@ -9,7 +9,7 @@ install curl
 install htop
 install gcc
 install make
-install tmux
+install zellij
 install zsh
 
 script_install ollama "curl -fsS https://ollama.com/install.sh | $SHELL"

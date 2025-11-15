@@ -13,7 +13,7 @@ fi
 install unzip
 # install gdebi
 # install zsh
-install tmux
+install zellij
 install ifconfig net-tools
 install dig dnsutils
 install curl

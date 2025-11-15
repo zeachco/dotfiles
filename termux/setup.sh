@@ -15,7 +15,7 @@ script_install rg "pkg install -y ripgrep"
 install fzf
 install jq
 install htop
-install tmux
+install zellij
 install zsh
 install fish
 
