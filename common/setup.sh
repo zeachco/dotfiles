@@ -74,3 +74,5 @@ fi
     } || {
     echo -e "${PASS}found ${NORM}~/dev folder"
 }
+
+cp ~/dotfiles/configs/alacritty.toml ~/.config/alacritty/alacritty.toml

@@ -1,0 +1,37 @@
+[general]
+import = ["~/dotfiles/themes/tokyo-night/alacritty.toml"]
+
+[window]
+opacity = 0.90
+padding = { x = 10, y = 10 }
+
+decorations = "buttonless"
+blur = true
+
+[font]
+size = 14.0
+
+[font.normal]
+family = "VictorMono Nerd Font"
+style = "Regular"
+
+[font.bold]
+family = "VictorMono Nerd Font"
+style = "Bold"
+
+[font.italic]
+family = "VictorMono Nerd Font"
+style = "Italic"
+
+[cursor]
+style = "Block"
+unfocused_hollow = true
+
+[scrolling]
+history = 10000
+multiplier = 3
+
+[[keyboard.bindings]]
+key = "F"
+mods = "Command|Shift"
+action = "ToggleFullscreen"
