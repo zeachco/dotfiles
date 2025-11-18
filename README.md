@@ -3,9 +3,11 @@
 ## Direct Installation (Recommended)
 
 ```sh
-bash <(curl -fsSL https://raw.githubusercontent.com/zeachco/dotfiles/main/setup.sh)
+git clone git@github.com:zeachco/dotfiles.git && cd dotfiles && ./setup.sh
+```
 ```
 
+```
 ## Or clone and run manually
 
 ```sh
