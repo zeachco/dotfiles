@@ -3,6 +3,7 @@ source "$HOME/dotfiles/utils.sh"
 
 install rg # ripgrep
 install fd # fast find
+install gh #github-cli
 
 if needs nvim; then
   brew tap homebrew/cask-fonts
