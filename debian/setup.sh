@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 source "$HOME/dotfiles/utils.sh"
 
-install neofetch
-
 # linux based spin envs are already configured
 if [ -d /opt/spin ]
 then

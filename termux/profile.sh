@@ -56,7 +56,6 @@ _set gl "git log --oneline --graph"
 _set gpft "git push --follow-tags"
 _set v "nvim"
 _set e "nvim"
-_set os "neofetch"
 _set pr "gh pr checkout $1"
 _set lg "lazygit"
 

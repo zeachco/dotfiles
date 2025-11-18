@@ -42,9 +42,6 @@ install pkg-config
 exists termux-setup-storage || install termux-api
 exists termux-info || install termux-tools
 
-# Optional: neofetch for system info
-install neofetch
-
 # Set up storage access (only if not already set up)
 if [ ! -d ~/storage ]; then
     echo "Setting up storage access..."

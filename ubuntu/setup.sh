@@ -3,8 +3,6 @@ source "$HOME/dotfiles/utils.sh"
 
 # Assuming Ubuntu is using Omakub
 
-install neofetch
-
 # tools
 install unzip
 install ifconfig net-tools

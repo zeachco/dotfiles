@@ -47,6 +47,7 @@ git config --global --replace-all init.defaultBranch main
 # script_install rustc "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | $SHELL"
 # script_install bun "curl -fsSL https://bun.sh/install | $SHELL"
 
+install fastfetch
 script_install opencode "curl -fsSL https://opencode.ai/install | bash"
 
 # # not using OMZSH

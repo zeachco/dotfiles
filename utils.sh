@@ -85,13 +85,14 @@ function install() {
         elif command -v apt &> /dev/null
         then
             sudo apt install -y $pkg_name
+        elif command -v pacman &> /dev/null
+        then
+            sudo pacman -S $pkg_name --noconfirm
+        elif command -v brew &> /dev/null
+        then
+            brew install $pkg_name
         else
-            if command -v pacman &> /dev/null
-            then
-                sudo pacman -S $pkg_name --noconfirm
-            else
-                echo -e "${FAIL} I don't know how to install $pkg_name ${NORM}"
-            fi
+            echo -e "${FAIL} I don't know how to install $pkg_name ${NORM}"
         fi
     fi
 }

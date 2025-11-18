@@ -64,7 +64,6 @@ _set amisafe "ps auxwww | grep sshd"
 _set empty-trash "rm -rf ~/.local/share/Trash/*"
 _set v "nvim"
 _set e "nvim"
-_set os "neofetch"
 _set pr "gh pr checkout $1"
 _set cc "deno run -A --no-lock npm:@anthropic-ai/claude-code --dangerously-skip-permissions"
 _set ccc "claude --dangerously-skip-permissions"
@@ -104,6 +103,31 @@ node_admin() {
 }
 
 alias clone="bun ~/dotfiles/advanced/clone.ts"
+
+env() {
+  if [ ! -f "example.env" ]; then
+    echo "No example.env file found in current directory"
+    return 1
+  fi
+
+  # Extract item name from quotes in example.env (first quoted string found)
+  item_name=$(grep -o '"[^"]*"' example.env | head -n 1 | tr -d '"')
+
+  if [ -z "$item_name" ]; then
+    echo "No quoted item name found in example.env"
+    return 1
+  fi
+
+  echo "Fetching '$item_name' from Bitwarden..."
+  bw get notes "$item_name" > .env
+
+  if [ $? -eq 0 ]; then
+    echo ".env file created successfully"
+  else
+    echo "Failed to fetch from Bitwarden. Make sure you're logged in (bw login) and unlocked (bw unlock)"
+    return 1
+  fi
+}
 
 git_test() {
   DEFAULT_FILTER="test.ts"

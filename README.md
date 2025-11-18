@@ -43,6 +43,3 @@ Uses [mise](https://mise.jdx.dev/) and [devbox](https://www.jetify.com/devbox) t
 
 - ipp - public ip print
 - ipl - local ip print
-- clone - github shorhand to clone ie: `clone zeachco/dotfiles`
-- neofetch - print detailed os information for support help and forums
-- ai [ollama model] - starts an AI model locally, default to tinyllama
