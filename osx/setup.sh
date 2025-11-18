@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 source "$HOME/dotfiles/utils.sh"
 
-if needs neofetch; then
-  brew install neofetch
-fi
+install rg # ripgrep
+install fd # fast find
 
 if needs nvim; then
   brew tap homebrew/cask-fonts
