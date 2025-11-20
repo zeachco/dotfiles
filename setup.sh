@@ -10,7 +10,7 @@ unameOut="$(uname -s)"
 case "${unameOut}" in
 Linux*)
   # Check for Arch Linux first
-  if [[ -f /etc/arch-release ]] || command -v pacman &> /dev/null; then
+  if [[ -f /etc/arch-release ]] || command -v pacman &>/dev/null; then
     OS_DIR=archlinux
   else
     OS_DIR=debian

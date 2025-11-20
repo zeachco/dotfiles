@@ -11,6 +11,25 @@ dotfiles_update() {
   cd - || exit 1
 
   $SHELL "$DOT_DIR/setup.sh"
+
+  USER_SOURCE_FILE=~/.profile
+
+  # Profile target
+  if [[ $SHELL == *bash* ]]; then
+    if [[ -f ~/.bashrc ]]; then
+      USER_SOURCE_FILE=~/.bashrc
+    elif [[ -f ~/.bash_profile ]]; then
+      USER_SOURCE_FILE=~/.bash_profile
+    elif [[ -f ~/.bash_login ]]; then
+      USER_SOURCE_FILE=~/.bash_login
+    elif [[ -f ~/.profile ]]; then
+      USER_SOURCE_FILE=~/.profile
+    fi
+  elif [[ $SHELL == *zsh* ]]; then
+    USER_SOURCE_FILE=~/.zshrc
+  fi
+
+  source $USER_SOURCE_FILE
 }
 
 alias update_dotfiles="dotfiles_update"
@@ -65,7 +84,8 @@ _set empty-trash "rm -rf ~/.local/share/Trash/*"
 _set v "nvim"
 _set e "nvim"
 _set pr "gh pr checkout $1"
-_set cc "deno run -A --no-lock npm:@anthropic-ai/claude-code --dangerously-skip-permissions"
+_set cc "claude --dangerously-skip-permissions"
+# _set cc "deno run -A --no-lock npm:@anthropic-ai/claude-code --dangerously-skip-permissions"
 _set ccc "claude --dangerously-skip-permissions"
 _set theirs "git checkout --theirs"
 
@@ -119,7 +139,7 @@ env() {
   fi
 
   echo "Fetching '$item_name' from Bitwarden..."
-  bw get notes "$item_name" > .env
+  bw get notes "$item_name" >.env
 
   if [ $? -eq 0 ]; then
     echo ".env file created successfully"
