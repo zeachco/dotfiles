@@ -41,6 +41,18 @@ function clean_imports {
     sed '/zeachco-dotfiles/d' "$USER_SOURCE_FILE.backup" > $USER_SOURCE_FILE
 }
 
+function prehook {
+    os="$1"
+    init_script="$DOT_DIR/$os/init.sh"
+
+    if [[ -f "$init_script" ]]; then
+        echo -e "${INFO}running prehook for ${NORM}$os..."
+        $SHELL "$init_script"
+    else
+        echo -e "${WARN}no prehook found for ${NORM}$os"
+    fi
+}
+
 function print_needs {
     echo -e "${WARN}missing ${NORM}$1"
 }

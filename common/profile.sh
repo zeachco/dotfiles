@@ -2,6 +2,7 @@
 
 export EDITOR="nvim"
 export SUDO_EDITOR="$EDITOR"
+export PATH="/usr/local/bin:$PATH"
 
 DOT_DIR="$HOME/dotfiles"
 dotfiles_update() {
