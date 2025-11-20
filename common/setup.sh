@@ -2,18 +2,18 @@
 source "$HOME/dotfiles/utils.sh"
 
 configureGitIdentity() {
-    echo "Email for git config: "
-    read git_email
-    echo "Full name for git config: "
-    read git_name
-    git config --global --replace-all user.email $git_email
-    git config --global --replace-all user.name $git_name
+  echo "Email for git config: "
+  read git_email
+  echo "Full name for git config: "
+  read git_name
+  git config --global --replace-all user.email $git_email
+  git config --global --replace-all user.name $git_name
 }
 
-foundEmail=`git config --list | grep email`
+foundEmail=$(git config --list | grep email)
 
 if [[ $foundEmail != *"@"* ]]; then
-    configureGitIdentity
+  configureGitIdentity
 fi
 
 git config --global --replace-all credential.helper cache
@@ -50,6 +50,9 @@ git config --global --replace-all init.defaultBranch main
 install fastfetch
 script_install opencode "curl -fsSL https://opencode.ai/install | bash"
 
+# Configure alacritty
+$SHELL ~/dotfiles/configs/alacritty.sh
+
 # # not using OMZSH
 # if [ -d "$HOME/.oh-my-zsh" ] && [ -f "$HOME/.zshrc" ]; then
 #     print_exists "Oh My Zsh"
@@ -60,19 +63,17 @@ script_install opencode "curl -fsSL https://opencode.ai/install | bash"
 
 # backup .zshrc
 if [ "$SHELL" = "/bin/zsh" ] || [ "$SHELL" = "/usr/bin/zsh" ]; then
-    cp ~/.zshrc ~/.zshrc.backup
-    # replace theme
-    awk '/ZSH_THEME=/ {sub(/=.*/, "=\"pmcgee\"")} 1' ~/.zshrc > temp.zshrc && mv temp.zshrc ~/.zshrc
+  cp ~/.zshrc ~/.zshrc.backup
+  # replace theme
+  awk '/ZSH_THEME=/ {sub(/=.*/, "=\"pmcgee\"")} 1' ~/.zshrc >temp.zshrc && mv temp.zshrc ~/.zshrc
 else
-    cp ~/.bashrc ~/.bashrc.backup
+  cp ~/.bashrc ~/.bashrc.backup
 fi
-
 
 # projets's dev folder
 {
-    mkdir ~/dev >/dev/null 2>&1 && echo -e "${WARN}create ${NORM}~/dev folder"
-    } || {
-    echo -e "${PASS}found ${NORM}~/dev folder"
+  mkdir ~/dev >/dev/null 2>&1 && echo -e "${WARN}create ${NORM}~/dev folder"
+} || {
+  echo -e "${PASS}found ${NORM}~/dev folder"
 }
 
-cp ~/dotfiles/configs/alacritty.toml ~/.config/alacritty/alacritty.toml
