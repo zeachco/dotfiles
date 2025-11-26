@@ -6,14 +6,15 @@ xcode_reinstall() {
   xcode-select --install
 }
 
-export DOCKER_HOST=unix:///$HOME/.colima/docker.sock
+export DOCKER_HOST=unix://$HOME/.colima/default/docker.sock
 
 dark() {
   enabled=${1:-true}
   osascript -e "tell application \"System Events\" to tell appearance preferences to set dark mode to $enabled"
 }
 
-original_docker=`which docker`
+# Set original_docker to the actual docker binary path
+original_docker="/opt/homebrew/bin/docker"
 
 docker() {
   which colima > /dev/null || { brew install colima && sleep 1} # ensures we have colima
