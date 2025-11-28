@@ -10,19 +10,6 @@ THEMES_PATH="$DOTFILES_PATH/themes"
 CURRENT_THEME_PATH="$THEMES_PATH/current"
 SKIP_NVIM="${SKIP_NVIM:-false}"
 
-# Discover available themes
-THEME_NAMES=()
-for theme_dir in "$THEMES_PATH"/*/ ; do
-  if [ -d "$theme_dir" ]; then
-    theme_basename=$(basename "$theme_dir")
-    [ "$theme_basename" = "current" ] && continue
-    theme_name=$(echo "$theme_basename" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2));}1')
-    THEME_NAMES+=("$theme_name")
-  fi
-done
-
-[ ${#THEME_NAMES[@]} -eq 0 ] && echo "No themes found in $THEMES_PATH" && exit 1
-
 # Select theme
 if [ -n "$1" ]; then
   THEME="$1"
@@ -35,13 +22,12 @@ if [ -n "$1" ]; then
     exit 1
   fi
 else
-  if command -v gum &>/dev/null; then
-    THEME=$(gum choose "${THEME_NAMES[@]}" --header "Choose your theme" --height 8 | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g')
+  if command -v fzf &>/dev/null; then
+    THEME=$(find "$THEMES_PATH" -mindepth 1 -maxdepth 1 -type d ! -name "current" -exec basename {} \; | fzf --prompt="Choose your theme: " --height=~50% --border)
   else
-    echo "Available themes:"
-    select theme_name in "${THEME_NAMES[@]}"; do
-      [ -n "$theme_name" ] && THEME=$(echo "$theme_name" | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g') && break
-    done
+    echo "Error: fzf is required for theme selection"
+    echo "Install it with: brew install fzf (macOS) or apt install fzf (Linux)"
+    exit 1
   fi
 fi
 
