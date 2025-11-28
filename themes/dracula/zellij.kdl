@@ -2,16 +2,130 @@
 
 themes {
   dracula {
-    bg "#282a36"
-    fg "#f8f8f2"
-    red "#ff5555"
-    green "#50fa7b"
-    blue "#bd93f9"
-    yellow "#f1fa8c"
-    magenta "#ff79c6"
-    orange "#ffb86c"
-    cyan "#8be9fd"
-    black "#000000"
-    white "#f8f8f2"
+    text_unselected {
+      base 248 248 242
+      background 40 42 54
+      emphasis_0 255 85 85
+      emphasis_1 80 250 123
+      emphasis_2 139 233 253
+      emphasis_3 255 184 108
+    }
+
+    text_selected {
+      base 0 0 0
+      background 189 147 249
+      emphasis_0 255 85 85
+      emphasis_1 248 248 242
+      emphasis_2 139 233 253
+      emphasis_3 255 121 198
+    }
+
+    ribbon_unselected {
+      base 248 248 242
+      background 0 0 0
+      emphasis_0 255 85 85
+      emphasis_1 80 250 123
+      emphasis_2 139 233 253
+      emphasis_3 255 184 108
+    }
+
+    ribbon_selected {
+      base 248 248 242
+      background 189 147 249
+      emphasis_0 255 85 85
+      emphasis_1 80 250 123
+      emphasis_2 139 233 253
+      emphasis_3 255 184 108
+    }
+
+    table_title {
+      base 189 147 249
+      background 40 42 54
+      emphasis_0 255 85 85
+      emphasis_1 80 250 123
+      emphasis_2 139 233 253
+      emphasis_3 255 184 108
+    }
+
+    table_cell_unselected {
+      base 248 248 242
+      background 40 42 54
+      emphasis_0 255 85 85
+      emphasis_1 80 250 123
+      emphasis_2 139 233 253
+      emphasis_3 255 184 108
+    }
+
+    table_cell_selected {
+      base 248 248 242
+      background 189 147 249
+      emphasis_0 255 85 85
+      emphasis_1 80 250 123
+      emphasis_2 139 233 253
+      emphasis_3 255 184 108
+    }
+
+    list_unselected {
+      base 248 248 242
+      background 40 42 54
+      emphasis_0 255 85 85
+      emphasis_1 80 250 123
+      emphasis_2 139 233 253
+      emphasis_3 255 184 108
+    }
+
+    list_selected {
+      base 248 248 242
+      background 189 147 249
+      emphasis_0 255 85 85
+      emphasis_1 80 250 123
+      emphasis_2 139 233 253
+      emphasis_3 255 184 108
+    }
+
+    frame_unselected {
+      base 0 0 0
+      background 40 42 54
+      emphasis_0 255 85 85
+      emphasis_1 80 250 123
+      emphasis_2 139 233 253
+      emphasis_3 255 184 108
+    }
+
+    frame_selected {
+      base 189 147 249
+      background 40 42 54
+      emphasis_0 255 85 85
+      emphasis_1 80 250 123
+      emphasis_2 139 233 253
+      emphasis_3 255 184 108
+    }
+
+    frame_highlight {
+      base 255 184 108
+      background 40 42 54
+      emphasis_0 255 85 85
+      emphasis_1 80 250 123
+      emphasis_2 139 233 253
+      emphasis_3 255 121 198
+    }
+
+    exit_code_success {
+      base 80 250 123
+      background 40 42 54
+      emphasis_0 255 85 85
+      emphasis_1 80 250 123
+      emphasis_2 139 233 253
+      emphasis_3 255 184 108
+    }
+
+    exit_code_error {
+      base 255 85 85
+      background 40 42 54
+      emphasis_0 255 85 85
+      emphasis_1 80 250 123
+      emphasis_2 139 233 253
+      emphasis_3 255 184 108
+    }
   }
 }

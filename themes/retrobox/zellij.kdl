@@ -2,16 +2,130 @@
 
 themes {
   retrobox {
-    bg "#1c1c1c"
-    fg "#ebdbb2"
-    red "#fb4934"
-    green "#b8bb26"
-    blue "#83a598"
-    yellow "#fabd2f"
-    magenta "#d3869b"
-    orange "#fe8019"
-    cyan "#8ec07c"
-    black "#1c1c1c"
-    white "#ebdbb2"
+    text_unselected {
+      base 235 219 178
+      background 28 28 28
+      emphasis_0 251 73 52
+      emphasis_1 184 187 38
+      emphasis_2 142 192 124
+      emphasis_3 254 128 25
+    }
+
+    text_selected {
+      base 28 28 28
+      background 131 165 152
+      emphasis_0 251 73 52
+      emphasis_1 235 219 178
+      emphasis_2 131 165 152
+      emphasis_3 211 134 155
+    }
+
+    ribbon_unselected {
+      base 235 219 178
+      background 28 28 28
+      emphasis_0 251 73 52
+      emphasis_1 184 187 38
+      emphasis_2 142 192 124
+      emphasis_3 254 128 25
+    }
+
+    ribbon_selected {
+      base 235 219 178
+      background 131 165 152
+      emphasis_0 251 73 52
+      emphasis_1 184 187 38
+      emphasis_2 142 192 124
+      emphasis_3 254 128 25
+    }
+
+    table_title {
+      base 131 165 152
+      background 28 28 28
+      emphasis_0 251 73 52
+      emphasis_1 184 187 38
+      emphasis_2 142 192 124
+      emphasis_3 254 128 25
+    }
+
+    table_cell_unselected {
+      base 235 219 178
+      background 28 28 28
+      emphasis_0 251 73 52
+      emphasis_1 184 187 38
+      emphasis_2 142 192 124
+      emphasis_3 254 128 25
+    }
+
+    table_cell_selected {
+      base 235 219 178
+      background 131 165 152
+      emphasis_0 251 73 52
+      emphasis_1 184 187 38
+      emphasis_2 142 192 124
+      emphasis_3 254 128 25
+    }
+
+    list_unselected {
+      base 235 219 178
+      background 28 28 28
+      emphasis_0 251 73 52
+      emphasis_1 184 187 38
+      emphasis_2 142 192 124
+      emphasis_3 254 128 25
+    }
+
+    list_selected {
+      base 235 219 178
+      background 131 165 152
+      emphasis_0 251 73 52
+      emphasis_1 184 187 38
+      emphasis_2 142 192 124
+      emphasis_3 254 128 25
+    }
+
+    frame_unselected {
+      base 28 28 28
+      background 28 28 28
+      emphasis_0 251 73 52
+      emphasis_1 184 187 38
+      emphasis_2 142 192 124
+      emphasis_3 254 128 25
+    }
+
+    frame_selected {
+      base 131 165 152
+      background 28 28 28
+      emphasis_0 251 73 52
+      emphasis_1 184 187 38
+      emphasis_2 142 192 124
+      emphasis_3 254 128 25
+    }
+
+    frame_highlight {
+      base 254 128 25
+      background 28 28 28
+      emphasis_0 251 73 52
+      emphasis_1 184 187 38
+      emphasis_2 142 192 124
+      emphasis_3 211 134 155
+    }
+
+    exit_code_success {
+      base 184 187 38
+      background 28 28 28
+      emphasis_0 251 73 52
+      emphasis_1 184 187 38
+      emphasis_2 142 192 124
+      emphasis_3 254 128 25
+    }
+
+    exit_code_error {
+      base 251 73 52
+      background 28 28 28
+      emphasis_0 251 73 52
+      emphasis_1 184 187 38
+      emphasis_2 142 192 124
+      emphasis_3 254 128 25
+    }
   }
 }

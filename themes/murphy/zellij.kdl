@@ -2,16 +2,130 @@
 
 themes {
   murphy {
-    bg "#000000"
-    fg "#90ee90"
-    red "#ff0000"
-    green "#90ee90"
-    blue "#0000ff"
-    yellow "#ffff00"
-    magenta "#ff00ff"
-    orange "#ffa500"
-    cyan "#00ffff"
-    black "#000000"
-    white "#ffffff"
+    text_unselected {
+      base 144 238 144
+      background 0 0 0
+      emphasis_0 255 0 0
+      emphasis_1 144 238 144
+      emphasis_2 0 255 255
+      emphasis_3 255 165 0
+    }
+
+    text_selected {
+      base 0 0 0
+      background 0 0 255
+      emphasis_0 255 0 0
+      emphasis_1 255 255 255
+      emphasis_2 0 0 255
+      emphasis_3 255 0 255
+    }
+
+    ribbon_unselected {
+      base 144 238 144
+      background 0 0 0
+      emphasis_0 255 0 0
+      emphasis_1 144 238 144
+      emphasis_2 0 255 255
+      emphasis_3 255 165 0
+    }
+
+    ribbon_selected {
+      base 255 255 255
+      background 0 0 255
+      emphasis_0 255 0 0
+      emphasis_1 144 238 144
+      emphasis_2 0 255 255
+      emphasis_3 255 165 0
+    }
+
+    table_title {
+      base 0 0 255
+      background 0 0 0
+      emphasis_0 255 0 0
+      emphasis_1 144 238 144
+      emphasis_2 0 255 255
+      emphasis_3 255 165 0
+    }
+
+    table_cell_unselected {
+      base 144 238 144
+      background 0 0 0
+      emphasis_0 255 0 0
+      emphasis_1 144 238 144
+      emphasis_2 0 255 255
+      emphasis_3 255 165 0
+    }
+
+    table_cell_selected {
+      base 255 255 255
+      background 0 0 255
+      emphasis_0 255 0 0
+      emphasis_1 144 238 144
+      emphasis_2 0 255 255
+      emphasis_3 255 165 0
+    }
+
+    list_unselected {
+      base 144 238 144
+      background 0 0 0
+      emphasis_0 255 0 0
+      emphasis_1 144 238 144
+      emphasis_2 0 255 255
+      emphasis_3 255 165 0
+    }
+
+    list_selected {
+      base 255 255 255
+      background 0 0 255
+      emphasis_0 255 0 0
+      emphasis_1 144 238 144
+      emphasis_2 0 255 255
+      emphasis_3 255 165 0
+    }
+
+    frame_unselected {
+      base 0 0 0
+      background 0 0 0
+      emphasis_0 255 0 0
+      emphasis_1 144 238 144
+      emphasis_2 0 255 255
+      emphasis_3 255 165 0
+    }
+
+    frame_selected {
+      base 0 0 255
+      background 0 0 0
+      emphasis_0 255 0 0
+      emphasis_1 144 238 144
+      emphasis_2 0 255 255
+      emphasis_3 255 165 0
+    }
+
+    frame_highlight {
+      base 255 165 0
+      background 0 0 0
+      emphasis_0 255 0 0
+      emphasis_1 144 238 144
+      emphasis_2 0 255 255
+      emphasis_3 255 0 255
+    }
+
+    exit_code_success {
+      base 144 238 144
+      background 0 0 0
+      emphasis_0 255 0 0
+      emphasis_1 144 238 144
+      emphasis_2 0 255 255
+      emphasis_3 255 165 0
+    }
+
+    exit_code_error {
+      base 255 0 0
+      background 0 0 0
+      emphasis_0 255 0 0
+      emphasis_1 144 238 144
+      emphasis_2 0 255 255
+      emphasis_3 255 165 0
+    }
   }
 }

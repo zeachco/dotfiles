@@ -4,16 +4,130 @@
 
 themes {
   noctis-bordo {
-    bg "#322a2d"
-    fg "#cbbec2"
-    red "#e66533"       // Used for active tabs and borders
-    green "#e949a6"
-    blue "#49ace9"
-    yellow "#e4b781"
-    magenta "#df769b"   // Used for focused elements
-    orange "#e66533"    // Orange mapped to red for consistency
-    cyan "#49d6e9"
-    black "#47393e"
-    white "#b9acb0"
+    text_unselected {
+      base 203 190 194
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    text_selected {
+      base 71 57 62
+      background 73 172 233
+      emphasis_0 230 101 51
+      emphasis_1 185 172 176
+      emphasis_2 73 172 233
+      emphasis_3 223 118 155
+    }
+
+    ribbon_unselected {
+      base 203 190 194
+      background 71 57 62
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    ribbon_selected {
+      base 185 172 176
+      background 73 172 233
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    table_title {
+      base 73 172 233
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    table_cell_unselected {
+      base 203 190 194
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    table_cell_selected {
+      base 185 172 176
+      background 73 172 233
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    list_unselected {
+      base 203 190 194
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    list_selected {
+      base 185 172 176
+      background 73 172 233
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    frame_unselected {
+      base 71 57 62
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    frame_selected {
+      base 73 172 233
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    frame_highlight {
+      base 230 101 51
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 223 118 155
+    }
+
+    exit_code_success {
+      base 233 73 166
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    exit_code_error {
+      base 230 101 51
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
   }
 }

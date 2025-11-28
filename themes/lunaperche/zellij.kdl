@@ -2,16 +2,130 @@
 
 themes {
   lunaperche {
-    bg "#000000"
-    fg "#c6c6c6"
-    red "#af5f5f"
-    green "#5faf5f"
-    blue "#5f87af"
-    yellow "#af875f"
-    magenta "#d787d7"
-    orange "#ff5f5f"
-    cyan "#5fafaf"
-    black "#000000"
-    white "#c6c6c6"
+    text_unselected {
+      base 198 198 198
+      background 0 0 0
+      emphasis_0 175 95 95
+      emphasis_1 95 175 95
+      emphasis_2 95 175 175
+      emphasis_3 255 95 95
+    }
+
+    text_selected {
+      base 0 0 0
+      background 95 135 175
+      emphasis_0 175 95 95
+      emphasis_1 198 198 198
+      emphasis_2 95 135 175
+      emphasis_3 215 135 215
+    }
+
+    ribbon_unselected {
+      base 198 198 198
+      background 0 0 0
+      emphasis_0 175 95 95
+      emphasis_1 95 175 95
+      emphasis_2 95 175 175
+      emphasis_3 255 95 95
+    }
+
+    ribbon_selected {
+      base 198 198 198
+      background 95 135 175
+      emphasis_0 175 95 95
+      emphasis_1 95 175 95
+      emphasis_2 95 175 175
+      emphasis_3 255 95 95
+    }
+
+    table_title {
+      base 95 135 175
+      background 0 0 0
+      emphasis_0 175 95 95
+      emphasis_1 95 175 95
+      emphasis_2 95 175 175
+      emphasis_3 255 95 95
+    }
+
+    table_cell_unselected {
+      base 198 198 198
+      background 0 0 0
+      emphasis_0 175 95 95
+      emphasis_1 95 175 95
+      emphasis_2 95 175 175
+      emphasis_3 255 95 95
+    }
+
+    table_cell_selected {
+      base 198 198 198
+      background 95 135 175
+      emphasis_0 175 95 95
+      emphasis_1 95 175 95
+      emphasis_2 95 175 175
+      emphasis_3 255 95 95
+    }
+
+    list_unselected {
+      base 198 198 198
+      background 0 0 0
+      emphasis_0 175 95 95
+      emphasis_1 95 175 95
+      emphasis_2 95 175 175
+      emphasis_3 255 95 95
+    }
+
+    list_selected {
+      base 198 198 198
+      background 95 135 175
+      emphasis_0 175 95 95
+      emphasis_1 95 175 95
+      emphasis_2 95 175 175
+      emphasis_3 255 95 95
+    }
+
+    frame_unselected {
+      base 0 0 0
+      background 0 0 0
+      emphasis_0 175 95 95
+      emphasis_1 95 175 95
+      emphasis_2 95 175 175
+      emphasis_3 255 95 95
+    }
+
+    frame_selected {
+      base 95 135 175
+      background 0 0 0
+      emphasis_0 175 95 95
+      emphasis_1 95 175 95
+      emphasis_2 95 175 175
+      emphasis_3 255 95 95
+    }
+
+    frame_highlight {
+      base 255 95 95
+      background 0 0 0
+      emphasis_0 175 95 95
+      emphasis_1 95 175 95
+      emphasis_2 95 175 175
+      emphasis_3 215 135 215
+    }
+
+    exit_code_success {
+      base 95 175 95
+      background 0 0 0
+      emphasis_0 175 95 95
+      emphasis_1 95 175 95
+      emphasis_2 95 175 175
+      emphasis_3 255 95 95
+    }
+
+    exit_code_error {
+      base 175 95 95
+      background 0 0 0
+      emphasis_0 175 95 95
+      emphasis_1 95 175 95
+      emphasis_2 95 175 175
+      emphasis_3 255 95 95
+    }
   }
 }
