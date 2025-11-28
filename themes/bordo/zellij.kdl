@@ -1,0 +1,18 @@
+// Noctis Bordo theme for Zellij
+// Based on VS Code's Noctis Bordo by Liviu Schera
+
+themes {
+  bordo {
+    bg "#322a2d"
+    fg "#cbbec2"
+    red "#e66533"
+    green "#49e9a6"
+    blue "#49ace9"
+    yellow "#e4b781"
+    magenta "#df769b"
+    orange "#d5971a"
+    cyan "#49d6e9"
+    black "#47393e"
+    white "#b9acb0"
+  }
+}

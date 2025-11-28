@@ -1,0 +1,30 @@
+# Noctis Bordo theme for Alacritty
+# Based on VS Code's Noctis Bordo by Liviu Schera
+
+[colors.primary]
+background = "#322a2d"
+foreground = "#cbbec2"
+
+[colors.normal]
+black = "#47393e"
+red = "#e66533"
+green = "#49e9a6"
+yellow = "#e4b781"
+blue = "#49ace9"
+magenta = "#df769b"
+cyan = "#49d6e9"
+white = "#b9acb0"
+
+[colors.bright]
+black = "#69545b"
+red = "#e97749"
+green = "#60ebb1"
+yellow = "#e69533"
+blue = "#60b6eb"
+magenta = "#e798b3"
+cyan = "#60dbeb"
+white = "#cbbec2"
+
+[colors.selection]
+background = "#715b63"
+foreground = "#cbbec2"
