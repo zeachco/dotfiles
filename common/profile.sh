@@ -89,6 +89,7 @@ _set cc "claude --dangerously-skip-permissions"
 # _set cc "deno run -A --no-lock npm:@anthropic-ai/claude-code --dangerously-skip-permissions"
 _set ccc "claude --dangerously-skip-permissions"
 _set theirs "git checkout --theirs"
+_set theme "$DOT_DIR/bin/theme-switch"
 
 killport() {
   lsof -i ":$1" | grep LISTEN | awk '{print $2}' | xargs kill -9

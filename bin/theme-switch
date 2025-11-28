@@ -1,94 +1,98 @@
 #!/bin/bash
 
 # Theme switcher for dotfiles
-# Supports: tmux, neovim (to be extended with alacritty, btop, etc.)
+# Copies selected theme to themes/current for configs to reference
 
 set -e
 
 DOTFILES_PATH="${DOTFILES_PATH:-$HOME/dotfiles}"
 THEMES_PATH="$DOTFILES_PATH/themes"
+CURRENT_THEME_PATH="$THEMES_PATH/current"
+SKIP_NVIM="${SKIP_NVIM:-false}"
 
-# Available themes
-THEME_NAMES=("Tokyo Night" "Catppuccin" "Gruvbox" "Nord")
+# Discover available themes
+THEME_NAMES=()
+for theme_dir in "$THEMES_PATH"/*/ ; do
+  if [ -d "$theme_dir" ]; then
+    theme_basename=$(basename "$theme_dir")
+    [ "$theme_basename" = "current" ] && continue
+    theme_name=$(echo "$theme_basename" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2));}1')
+    THEME_NAMES+=("$theme_name")
+  fi
+done
 
-# Check if gum is installed for interactive selection
-if command -v gum &>/dev/null; then
-  THEME=$(gum choose "${THEME_NAMES[@]}" --header "Choose your theme" --height 8 | \
-          tr '[:upper:]' '[:lower:]' | sed 's/ /-/g')
+[ ${#THEME_NAMES[@]} -eq 0 ] && echo "No themes found in $THEMES_PATH" && exit 1
+
+# Select theme
+if [ -n "$1" ]; then
+  THEME="$1"
+  if [ ! -d "$THEMES_PATH/$THEME" ]; then
+    echo "Error: Theme '$THEME' not found"
+    echo "Available themes:"
+    for theme_dir in "$THEMES_PATH"/*/ ; do
+      [ -d "$theme_dir" ] && [ "$(basename "$theme_dir")" != "current" ] && echo "  - $(basename "$theme_dir")"
+    done
+    exit 1
+  fi
 else
-  # Fallback to basic selection
-  echo "Available themes:"
-  select theme_name in "${THEME_NAMES[@]}"; do
-    if [ -n "$theme_name" ]; then
-      THEME=$(echo "$theme_name" | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g')
-      break
-    fi
-  done
-fi
-
-if [ -z "$THEME" ]; then
-  echo "No theme selected"
-  exit 1
-fi
-
-echo "Applying theme: $THEME"
-
-# Apply tmux theme
-if command -v tmux &>/dev/null && [ -f "$THEMES_PATH/$THEME/tmux.conf" ]; then
-  echo "  → Applying tmux theme..."
-  cp "$THEMES_PATH/$THEME/tmux.conf" "$HOME/.config/tmux/theme.conf"
-
-  # Reload tmux if running
-  if [ -n "$TMUX" ]; then
-    tmux source-file "$HOME/.config/tmux/tmux.conf" 2>/dev/null || true
+  if command -v gum &>/dev/null; then
+    THEME=$(gum choose "${THEME_NAMES[@]}" --header "Choose your theme" --height 8 | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g')
+  else
+    echo "Available themes:"
+    select theme_name in "${THEME_NAMES[@]}"; do
+      [ -n "$theme_name" ] && THEME=$(echo "$theme_name" | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g') && break
+    done
   fi
 fi
 
-# Apply neovim theme
-if command -v nvim &>/dev/null && [ -d "$HOME/.config/nvim" ] && [ -f "$THEMES_PATH/$THEME/neovim.lua" ]; then
-  echo "  → Applying neovim theme..."
-  mkdir -p "$HOME/.config/nvim/lua/plugins"
-  cp "$THEMES_PATH/$THEME/neovim.lua" "$HOME/.config/nvim/lua/plugins/theme.lua"
+[ -z "$THEME" ] && echo "No theme selected" && exit 1
+
+echo "Switching to theme: $THEME"
+
+# Copy theme to current
+[ -d "$CURRENT_THEME_PATH" ] && rm -rf "$CURRENT_THEME_PATH"
+cp -r "$THEMES_PATH/$THEME" "$CURRENT_THEME_PATH"
+
+# Update nvim references (unless skipped)
+if [ "$SKIP_NVIM" != "true" ] && [ -f "$CURRENT_THEME_PATH/neovim.lua" ]; then
+  COLORSCHEME=$(grep -o 'colorscheme = "[^"]*"' "$CURRENT_THEME_PATH/neovim.lua" | sed 's/colorscheme = "\([^"]*\)"/\1/')
+  if [ -n "$COLORSCHEME" ]; then
+    mkdir -p "$HOME/.config/nvim"
+    echo "$COLORSCHEME" > "$HOME/.config/nvim/theme-dark"
+    echo "$COLORSCHEME" > "$HOME/.config/nvim/theme-light"
+  fi
 fi
 
-# Apply alacritty theme (if config exists)
-if [ -d "$HOME/.config/alacritty" ] && [ -f "$THEMES_PATH/$THEME/alacritty.toml" ]; then
-  echo "  → Applying alacritty theme..."
-  cp "$THEMES_PATH/$THEME/alacritty.toml" "$HOME/.config/alacritty/theme.toml"
-fi
-
-# Apply zellij theme (if config exists)
-if command -v zellij &>/dev/null && [ -d "$HOME/.config/zellij" ] && [ -f "$THEMES_PATH/$THEME/zellij.kdl" ]; then
-  echo "  → Applying zellij theme..."
+# Update zellij
+if command -v zellij &>/dev/null && [ -f "$CURRENT_THEME_PATH/zellij.kdl" ]; then
   mkdir -p "$HOME/.config/zellij/themes"
-  cp "$THEMES_PATH/$THEME/zellij.kdl" "$HOME/.config/zellij/themes/$THEME.kdl"
-
-  # Update zellij config if it exists
-  if [ -f "$HOME/.config/zellij/config.kdl" ]; then
-    sed -i.bak "s/theme \".*\"/theme \"$THEME\"/g" "$HOME/.config/zellij/config.kdl"
-    rm -f "$HOME/.config/zellij/config.kdl.bak"
-  fi
+  sed 's/themes {$/themes {\n  current {/; /^  [a-z-]* {$/d' "$CURRENT_THEME_PATH/zellij.kdl" > "$HOME/.config/zellij/themes/current.kdl"
+  [ -n "$ZELLIJ" ] && zellij action switch-mode normal 2>/dev/null && zellij action switch-theme "current" 2>/dev/null || true
 fi
 
-# Apply btop theme (if config exists)
-if command -v btop &>/dev/null && [ -f "$THEMES_PATH/$THEME/btop.theme" ]; then
-  echo "  → Applying btop theme..."
+# Update btop
+if command -v btop &>/dev/null && [ -f "$CURRENT_THEME_PATH/btop.theme" ]; then
   mkdir -p "$HOME/.config/btop/themes"
-  cp "$THEMES_PATH/$THEME/btop.theme" "$HOME/.config/btop/themes/$THEME.theme"
+  cp -f "$CURRENT_THEME_PATH/btop.theme" "$HOME/.config/btop/themes/current.theme" 2>/dev/null || true
+fi
 
-  # Update btop config if it exists
-  if [ -f "$HOME/.config/btop/btop.conf" ]; then
-    sed -i.bak "s/color_theme = \".*\"/color_theme = \"$THEME\"/g" "$HOME/.config/btop/btop.conf"
-    rm -f "$HOME/.config/btop/btop.conf.bak"
+# Update Claude
+if [ -f "$HOME/.claude/settings.json" ] && [ -f "$CURRENT_THEME_PATH/claude-theme" ]; then
+  CLAUDE_THEME=$(cat "$CURRENT_THEME_PATH/claude-theme" | tr -d '[:space:]')
+  if command -v jq &>/dev/null; then
+    jq --arg theme "$CLAUDE_THEME" '. + {theme: $theme}' "$HOME/.claude/settings.json" > "$HOME/.claude/settings.json.tmp"
+    mv "$HOME/.claude/settings.json.tmp" "$HOME/.claude/settings.json"
+  else
+    if grep -q '"theme"' "$HOME/.claude/settings.json"; then
+      sed -i.bak "s/\"theme\": \".*\"/\"theme\": \"$CLAUDE_THEME\"/g" "$HOME/.claude/settings.json"
+    else
+      sed -i.bak "s/}$/,\n  \"theme\": \"$CLAUDE_THEME\"\n}/g" "$HOME/.claude/settings.json"
+    fi
+    rm -f "$HOME/.claude/settings.json.bak"
   fi
 fi
 
-# Apply VS Code theme
-if [ -f "$THEMES_PATH/$THEME/vscode.sh" ]; then
-  echo "  → Applying VS Code theme..."
-  source "$THEMES_PATH/$THEME/vscode.sh"
-fi
+# Run vscode theme script if exists
+[ -f "$CURRENT_THEME_PATH/vscode.sh" ] && source "$CURRENT_THEME_PATH/vscode.sh"
 
 echo "✓ Theme '$THEME' applied successfully!"
-echo ""
-echo "Note: Some applications may require a restart to see changes."

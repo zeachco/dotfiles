@@ -38,7 +38,7 @@ theme[proc_box]="#f7768e"
 
 # Graph colors (CPU)
 theme[cpu_start]="#7aa2f7"
-theme[cpu_mid]="#bb9af7"
+theme[cpu_mid]="#ad8ee6"
 theme[cpu_end]="#f7768e"
 
 # Graph colors (Memory)
@@ -49,7 +49,7 @@ theme[mem_end]="#f7768e"
 # Graph colors (Network)
 theme[net_start]="#449dab"
 theme[net_mid]="#7aa2f7"
-theme[net_end]="#bb9af7"
+theme[net_end]="#ad8ee6"
 
 # Temperature gradient
 theme[temp_start]="#9ece6a"

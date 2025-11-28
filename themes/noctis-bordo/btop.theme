@@ -1,0 +1,58 @@
+# Noctis Bordo theme for btop
+# Based on VS Code's Noctis Bordo by Liviu Schera
+
+# Main background
+theme[main_bg]="#322a2d"
+
+# Main text color
+theme[main_fg]="#cbbec2"
+
+# Title color for boxes
+theme[title]="#49ace9"
+
+# Highlight color for keyboard shortcuts
+theme[hi_fg]="#49ace9"
+
+# Background color of selected item in processes box
+theme[selected_bg]="#715b63"
+
+# Foreground color of selected item in processes box
+theme[selected_fg]="#cbbec2"
+
+# Color of inactive/disabled text
+theme[inactive_fg]="#69545b"
+
+# Color of text appearing on top of graphs
+theme[graph_text]="#cbbec2"
+
+# Background color of the percentage meters
+theme[meter_bg]="#47393e"
+
+# Misc colors for processes box
+theme[proc_misc]="#49ace9"
+
+# CPU, Memory, Network, Proc box outline color
+theme[cpu_box]="#49ace9"
+theme[mem_box]="#49e9a6"
+theme[net_box]="#e4b781"
+theme[proc_box]="#e66533"
+
+# Graph colors (CPU)
+theme[cpu_start]="#49ace9"
+theme[cpu_mid]="#df769b"
+theme[cpu_end]="#e66533"
+
+# Graph colors (Memory)
+theme[mem_start]="#49e9a6"
+theme[mem_mid]="#e4b781"
+theme[mem_end]="#e66533"
+
+# Graph colors (Network)
+theme[net_start]="#49d6e9"
+theme[net_mid]="#49ace9"
+theme[net_end]="#df769b"
+
+# Temperature gradient
+theme[temp_start]="#49e9a6"
+theme[temp_mid]="#e4b781"
+theme[temp_end]="#e66533"

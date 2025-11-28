@@ -1,0 +1,17 @@
+// Catppuccin Latte theme for Zellij
+
+themes {
+  catppuccin-latte {
+    bg "#eff1f5"
+    fg "#4c4f69"
+    red "#d20f39"
+    green "#40a02b"
+    blue "#1e66f5"
+    yellow "#df8e1d"
+    magenta "#ea76cb"
+    orange "#fe640b"
+    cyan "#179299"
+    black "#5c5f77"
+    white "#acb0be"
+  }
+}

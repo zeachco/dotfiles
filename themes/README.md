@@ -5,10 +5,9 @@ Cross-platform theme switching for terminal applications, based on [Omakub's the
 ## Overview
 
 This system provides a unified way to switch themes across multiple applications:
-- **tmux** - Terminal multiplexer
 - **Neovim** - Text editor
 - **Alacritty** - Terminal emulator
-- **Zellij** - Terminal multiplexer (alternative to tmux)
+- **Zellij** - Terminal multiplexer
 - **btop** - System monitor
 - **VS Code** - Code editor
 
@@ -47,7 +46,6 @@ Each theme is a directory under `themes/` containing application-specific theme 
 ```
 themes/
 └── tokyo-night/
-    ├── tmux.conf          # tmux theme
     ├── neovim.lua         # Neovim/LazyVim theme plugin
     ├── alacritty.toml     # Alacritty terminal colors
     ├── zellij.kdl         # Zellij theme
@@ -56,11 +54,6 @@ themes/
 ```
 
 ### File Descriptions
-
-#### `tmux.conf`
-tmux theme configuration with status bar colors, pane borders, and window status styling.
-
-**Applied to:** `~/.config/tmux/theme.conf`
 
 #### `neovim.lua`
 LazyVim plugin configuration that installs and sets the colorscheme.
@@ -152,10 +145,9 @@ fi
    ```
 
 2. **Add theme files** (at minimum, create files for the applications you use):
-   - `tmux.conf`
    - `neovim.lua`
    - `alacritty.toml`
-   - `zellij.kdl` (optional)
+   - `zellij.kdl`
    - `btop.theme` (optional)
    - `vscode.sh` (optional)
 
@@ -181,21 +173,12 @@ The theme switcher follows these principles:
 
 ## Integration with Your Dotfiles
 
-### tmux Integration
-
-Make sure your `~/.config/tmux/tmux.conf` sources the theme file:
-
-```tmux
-# Load theme
-source-file ~/.config/tmux/theme.conf
-```
-
 ### Alacritty Integration
 
 Make sure your `~/.config/alacritty/alacritty.toml` imports the theme:
 
 ```toml
-import = ["~/.config/alacritty/theme.toml"]
+import = ["~/dotfiles/themes/current/alacritty.toml"]
 ```
 
 ### Zellij Integration
@@ -203,7 +186,7 @@ import = ["~/.config/alacritty/theme.toml"]
 Make sure your `~/.config/zellij/config.kdl` references the theme:
 
 ```kdl
-theme "tokyo-night"
+theme "current"
 ```
 
 ### btop Integration
@@ -229,10 +212,9 @@ Note: GNOME desktop themes and desktop backgrounds are intentionally excluded fo
 ## Automatic Reloading
 
 The theme switcher automatically reloads configurations where possible:
-- **tmux**: Reloaded automatically if running in tmux
 - **Neovim**: Requires restart or `:Lazy reload`
 - **Alacritty**: Reloads automatically
-- **Zellij**: May require restart
+- **Zellij**: Switches immediately in running sessions
 - **btop**: Reloads automatically
 - **VS Code**: Requires restart
 

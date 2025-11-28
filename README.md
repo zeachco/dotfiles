@@ -38,7 +38,7 @@ Uses [mise](https://mise.jdx.dev/) and [devbox](https://www.jetify.com/devbox) t
 - neovim (text editor)
 - ligature nerd fonts
 - fzf (fast file searching)
-- tmux (multi session and space management terminal)
+- zellij (terminal multiplexer with session and workspace management)
 - g++ compiler
 
 ## bash functions

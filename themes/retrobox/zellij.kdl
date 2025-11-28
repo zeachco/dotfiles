@@ -1,0 +1,17 @@
+// Retrobox theme for Zellij
+
+themes {
+  retrobox {
+    bg "#1c1c1c"
+    fg "#ebdbb2"
+    red "#fb4934"
+    green "#b8bb26"
+    blue "#83a598"
+    yellow "#fabd2f"
+    magenta "#d3869b"
+    orange "#fe8019"
+    cyan "#8ec07c"
+    black "#1c1c1c"
+    white "#ebdbb2"
+  }
+}

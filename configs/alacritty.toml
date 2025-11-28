@@ -1,5 +1,5 @@
 [general]
-import = ["~/dotfiles/themes/tokyo-night/alacritty.toml"]
+import = ["~/dotfiles/themes/bordo/alacritty.toml"]
 
 [window]
 opacity = 0.90
