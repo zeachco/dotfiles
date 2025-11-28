@@ -53,6 +53,10 @@ script_install opencode "curl -fsSL https://opencode.ai/install | bash"
 # Configure alacritty
 $SHELL ~/dotfiles/configs/alacritty.sh
 
+# Configure neovim keymaps
+mkdir -p ~/.config/nvim/lua/config
+cp ~/dotfiles/configs/keymaps.lua ~/.config/nvim/lua/config/keymaps.lua
+
 # # not using OMZSH
 # if [ -d "$HOME/.oh-my-zsh" ] && [ -f "$HOME/.zshrc" ]; then
 #     print_exists "Oh My Zsh"
