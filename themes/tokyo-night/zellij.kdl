@@ -8,10 +8,10 @@ themes {
     green "#9ece6a"
     blue "#7aa2f7"
     yellow "#e0af68"
-    magenta "#bb9af7"
+    magenta "#ad8ee6"
     orange "#ff9e64"
     cyan "#449dab"
     black "#32344a"
-    white "#c0caf5"
+    white "#787c99"
   }
 }

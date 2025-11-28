@@ -47,13 +47,26 @@ if [ "$SKIP_NVIM" != "true" ] && [ -f "$CURRENT_THEME_PATH/neovim.lua" ]; then
     echo "$COLORSCHEME" > "$HOME/.config/nvim/theme-dark"
     echo "$COLORSCHEME" > "$HOME/.config/nvim/theme-light"
   fi
+
+  # Copy custom neovim colorscheme if exists
+  if [ -f "$CURRENT_THEME_PATH/colors.lua" ]; then
+    mkdir -p "$HOME/.config/nvim/colors"
+    cp -f "$CURRENT_THEME_PATH/colors.lua" "$HOME/.config/nvim/colors/${THEME}.lua"
+  fi
 fi
 
 # Update zellij
 if command -v zellij &>/dev/null && [ -f "$CURRENT_THEME_PATH/zellij.kdl" ]; then
   mkdir -p "$HOME/.config/zellij/themes"
   sed 's/themes {$/themes {\n  current {/; /^  [a-z-]* {$/d' "$CURRENT_THEME_PATH/zellij.kdl" > "$HOME/.config/zellij/themes/current.kdl"
-  [ -n "$ZELLIJ" ] && zellij action switch-mode normal 2>/dev/null && zellij action switch-theme "current" 2>/dev/null || true
+
+  # Reload config for all running sessions
+  sessions=$(zellij list-sessions 2>/dev/null | grep -v "EXITED" | awk '{print $1}' || true)
+  if [ -n "$sessions" ]; then
+    for session in $sessions; do
+      zellij action --session "$session" reload-config 2>/dev/null || true
+    done
+  fi
 fi
 
 # Update btop
