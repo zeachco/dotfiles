@@ -83,13 +83,15 @@ _set hosts "sudo vim /etc/hosts && sudo /etc/init.d/dns-clean restart && sudo /e
 _set amisafe "ps auxwww | grep sshd"
 _set empty-trash "rm -rf ~/.local/share/Trash/*"
 _set v "nvim"
-_set e "nvim"
 _set pr "gh pr checkout $1"
 _set cc "claude --dangerously-skip-permissions"
 # _set cc "deno run -A --no-lock npm:@anthropic-ai/claude-code --dangerously-skip-permissions"
 _set ccc "claude --dangerously-skip-permissions"
 _set theirs "git checkout --theirs"
 _set theme "$DOT_DIR/bin/theme-switch"
+
+alias e="nvim"
+alias v="nvim"
 
 killport() {
   lsof -i ":$1" | grep LISTEN | awk '{print $2}' | xargs kill -9
