@@ -205,10 +205,12 @@ pie_score() {
 cd() {
   builtin cd "$@" || return
   check_for_devbox
+  set_zellij_name
 }
 
 check_for_devbox() {
   if [[ -f "devbox.json" ]]; then
+
     if [[ -n "$DEVBOX_WORKING_DIR" && "$DEVBOX_WORKING_DIR" != "$(pwd)" ]]; then
       # We are already in a devbox shell but from a different path
       # Let's initialize the shell again to match the current path
@@ -222,6 +224,13 @@ check_for_devbox() {
       devbox shell
       echo "You've exited devbox from!"
     fi
+  fi
+}
+
+set_zellij_name() {
+  if command -v zellij >/dev/null 2>&1 && [[ -n "$ZELLIJ" ]]; then
+    local folder_name=$(basename "$(pwd)")
+    zellij action rename-tab "$folder_name" 2>/dev/null
   fi
 }
 

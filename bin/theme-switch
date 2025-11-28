@@ -8,15 +8,15 @@ set -e
 DOTFILES_PATH="${DOTFILES_PATH:-$HOME/dotfiles}"
 THEMES_PATH="$DOTFILES_PATH/themes"
 CURRENT_THEME_PATH="$THEMES_PATH/current"
-SKIP_NVIM="${SKIP_NVIM:-false}"
 
 # Select theme
 if [ -n "$1" ]; then
   THEME="$1"
+  # say "theme $THEME"
   if [ ! -d "$THEMES_PATH/$THEME" ]; then
     echo "Error: Theme '$THEME' not found"
     echo "Available themes:"
-    for theme_dir in "$THEMES_PATH"/*/ ; do
+    for theme_dir in "$THEMES_PATH"/*/; do
       [ -d "$theme_dir" ] && [ "$(basename "$theme_dir")" != "current" ] && echo "  - $(basename "$theme_dir")"
     done
     exit 1
@@ -40,14 +40,7 @@ echo "Switching to theme: $THEME"
 cp -r "$THEMES_PATH/$THEME" "$CURRENT_THEME_PATH"
 
 # Update nvim references (unless skipped)
-if [ "$SKIP_NVIM" != "true" ] && [ -f "$CURRENT_THEME_PATH/neovim.lua" ]; then
-  COLORSCHEME=$(grep -o 'colorscheme = "[^"]*"' "$CURRENT_THEME_PATH/neovim.lua" | sed 's/colorscheme = "\([^"]*\)"/\1/')
-  if [ -n "$COLORSCHEME" ]; then
-    mkdir -p "$HOME/.config/nvim"
-    echo "$COLORSCHEME" > "$HOME/.config/nvim/theme-dark"
-    echo "$COLORSCHEME" > "$HOME/.config/nvim/theme-light"
-  fi
-
+if [ "$SKIP_NVIM" != "true" ]; then
   # Copy custom neovim colorscheme if exists
   if [ -f "$CURRENT_THEME_PATH/colors.lua" ]; then
     mkdir -p "$HOME/.config/nvim/colors"
@@ -58,7 +51,7 @@ fi
 # Update zellij
 if command -v zellij &>/dev/null && [ -f "$CURRENT_THEME_PATH/zellij.kdl" ]; then
   mkdir -p "$HOME/.config/zellij/themes"
-  sed 's/themes {$/themes {\n  current {/; /^  [a-z-]* {$/d' "$CURRENT_THEME_PATH/zellij.kdl" > "$HOME/.config/zellij/themes/current.kdl"
+  sed 's/themes {$/themes {\n  current {/; /^  [a-z-]* {$/d' "$CURRENT_THEME_PATH/zellij.kdl" >"$HOME/.config/zellij/themes/current.kdl"
 
   # Reload config for all running sessions
   sessions=$(zellij list-sessions 2>/dev/null | grep -v "EXITED" | awk '{print $1}' || true)
@@ -79,7 +72,7 @@ fi
 if [ -f "$HOME/.claude/settings.json" ] && [ -f "$CURRENT_THEME_PATH/claude-theme" ]; then
   CLAUDE_THEME=$(cat "$CURRENT_THEME_PATH/claude-theme" | tr -d '[:space:]')
   if command -v jq &>/dev/null; then
-    jq --arg theme "$CLAUDE_THEME" '. + {theme: $theme}' "$HOME/.claude/settings.json" > "$HOME/.claude/settings.json.tmp"
+    jq --arg theme "$CLAUDE_THEME" '. + {theme: $theme}' "$HOME/.claude/settings.json" >"$HOME/.claude/settings.json.tmp"
     mv "$HOME/.claude/settings.json.tmp" "$HOME/.claude/settings.json"
   else
     if grep -q '"theme"' "$HOME/.claude/settings.json"; then
