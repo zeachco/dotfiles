@@ -18,7 +18,7 @@ update_zellij_theme() {
     ZELLIJ_CONFIG="$HOME/.config/zellij/config.kdl"
     if [ -f "$ZELLIJ_CONFIG" ]; then
       sed -i '' 's/theme "current"/theme "updating"/' "$ZELLIJ_CONFIG"
-      sleep 0.5
+      sleep 1
       sed -i '' 's/theme "updating"/theme "current"/' "$ZELLIJ_CONFIG"
     fi
   fi
@@ -87,8 +87,5 @@ if [ -f "$HOME/.claude/settings.json" ] && [ -f "$CURRENT_THEME_PATH/claude-them
     rm -f "$HOME/.claude/settings.json.bak"
   fi
 fi
-
-# Run vscode theme script if exists
-[ -f "$CURRENT_THEME_PATH/vscode.sh" ] && source "$CURRENT_THEME_PATH/vscode.sh"
 
 echo "✓ Theme '$THEME' applied successfully!"
