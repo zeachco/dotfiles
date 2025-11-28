@@ -7,7 +7,8 @@ fi
 
 install rg # ripgrep
 install fd # fast find
-install gh #github-cli
+install gh # github-cli
+install jq # json parser
 
 if needs nvim; then
   brew tap homebrew/cask-fonts

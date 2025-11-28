@@ -16,6 +16,10 @@ original_docker="/opt/homebrew/bin/docker"
 
 docker() {
   which colima >/dev/null || { brew install colima && sleep 1; } # ensures we have colima
-  $original_docker version >/dev/null || { colima start && sleep 1; }
+  $original_docker version >/dev/null || {
+    colima start && sleep 1
+    DOCKER_HOST=$(colima status -j 2>/dev/null | jq -r '.docker_socket')
+    export DOCKER_HOST
+  }
   $original_docker "$@"
 }
