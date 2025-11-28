@@ -1,0 +1,29 @@
+# Industry theme for Alacritty
+
+[colors.primary]
+background = "#000000"
+foreground = "#dadada"
+
+[colors.normal]
+black = "#303030"
+red = "#870000"
+green = "#5fd75f"
+yellow = "#afaf00"
+blue = "#87afff"
+magenta = "#af00af"
+cyan = "#00afaf"
+white = "#6c6c6c"
+
+[colors.bright]
+black = "#444444"
+red = "#ff0000"
+green = "#00ff00"
+yellow = "#ffff00"
+blue = "#005fff"
+magenta = "#ff00ff"
+cyan = "#00ffff"
+white = "#ffffff"
+
+[colors.selection]
+background = "#6c6c6c"
+foreground = "#dadada"

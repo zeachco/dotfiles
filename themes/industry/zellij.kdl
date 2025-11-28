@@ -1,0 +1,17 @@
+// Industry theme for Zellij
+
+themes {
+  industry {
+    bg "#000000"
+    fg "#dadada"
+    red "#870000"
+    green "#5fd75f"
+    blue "#87afff"
+    yellow "#afaf00"
+    magenta "#af00af"
+    orange "#ff8700"
+    cyan "#00afaf"
+    black "#303030"
+    white "#6c6c6c"
+  }
+}

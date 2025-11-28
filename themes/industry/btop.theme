@@ -1,0 +1,57 @@
+# Industry theme for btop
+
+# Main background
+theme[main_bg]="#000000"
+
+# Main text color
+theme[main_fg]="#dadada"
+
+# Title color for boxes
+theme[title]="#87afff"
+
+# Highlight color for keyboard shortcuts
+theme[hi_fg]="#87afff"
+
+# Background color of selected item in processes box
+theme[selected_bg]="#6c6c6c"
+
+# Foreground color of selected item in processes box
+theme[selected_fg]="#ffffff"
+
+# Color of inactive/disabled text
+theme[inactive_fg]="#444444"
+
+# Color of text appearing on top of graphs
+theme[graph_text]="#dadada"
+
+# Background color of the percentage meters
+theme[meter_bg]="#303030"
+
+# Misc colors for processes box
+theme[proc_misc]="#87afff"
+
+# CPU, Memory, Network, Proc box outline color
+theme[cpu_box]="#87afff"
+theme[mem_box]="#5fd75f"
+theme[net_box]="#afaf00"
+theme[proc_box]="#870000"
+
+# Graph colors (CPU)
+theme[cpu_start]="#87afff"
+theme[cpu_mid]="#af00af"
+theme[cpu_end]="#870000"
+
+# Graph colors (Memory)
+theme[mem_start]="#5fd75f"
+theme[mem_mid]="#afaf00"
+theme[mem_end]="#870000"
+
+# Graph colors (Network)
+theme[net_start]="#00afaf"
+theme[net_mid]="#87afff"
+theme[net_end]="#af00af"
+
+# Temperature gradient
+theme[temp_start]="#5fd75f"
+theme[temp_mid]="#afaf00"
+theme[temp_end]="#870000"
