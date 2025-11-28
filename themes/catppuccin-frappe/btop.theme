@@ -1,0 +1,57 @@
+# Catppuccin Frappe theme for btop
+
+# Main background
+theme[main_bg]="#303446"
+
+# Main text color
+theme[main_fg]="#c6d0f5"
+
+# Title color for boxes
+theme[title]="#8caaee"
+
+# Highlight color for keyboard shortcuts
+theme[hi_fg]="#8caaee"
+
+# Background color of selected item in processes box
+theme[selected_bg]="#51576d"
+
+# Foreground color of selected item in processes box
+theme[selected_fg]="#c6d0f5"
+
+# Color of inactive/disabled text
+theme[inactive_fg]="#737994"
+
+# Color of text appearing on top of graphs
+theme[graph_text]="#c6d0f5"
+
+# Background color of the percentage meters
+theme[meter_bg]="#292c3c"
+
+# Misc colors for processes box
+theme[proc_misc]="#8caaee"
+
+# CPU, Memory, Network, Proc box outline color
+theme[cpu_box]="#8caaee"
+theme[mem_box]="#a6d189"
+theme[net_box]="#e5c890"
+theme[proc_box]="#e78284"
+
+# Graph colors (CPU)
+theme[cpu_start]="#8caaee"
+theme[cpu_mid]="#f4b8e4"
+theme[cpu_end]="#e78284"
+
+# Graph colors (Memory)
+theme[mem_start]="#a6d189"
+theme[mem_mid]="#e5c890"
+theme[mem_end]="#e78284"
+
+# Graph colors (Network)
+theme[net_start]="#81c8be"
+theme[net_mid]="#8caaee"
+theme[net_end]="#f4b8e4"
+
+# Temperature gradient
+theme[temp_start]="#a6d189"
+theme[temp_mid]="#e5c890"
+theme[temp_end]="#e78284"

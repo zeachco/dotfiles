@@ -1,0 +1,17 @@
+// Tokyo Night Day theme for Zellij
+
+themes {
+  tokyonight-day {
+    bg "#e1e2e7"
+    fg "#3760bf"
+    red "#f52a65"
+    green "#587539"
+    blue "#2e7de9"
+    yellow "#8c6c3e"
+    magenta "#9854f1"
+    orange "#b15c00"
+    cyan "#007197"
+    black "#b4b5b9"
+    white "#6172b0"
+  }
+}

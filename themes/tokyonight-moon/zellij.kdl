@@ -1,0 +1,17 @@
+// Tokyo Night Moon theme for Zellij
+
+themes {
+  tokyonight-moon {
+    bg "#222436"
+    fg "#c8d3f5"
+    red "#ff757f"
+    green "#c3e88d"
+    blue "#82aaff"
+    yellow "#ffc777"
+    magenta "#c099ff"
+    orange "#ff966c"
+    cyan "#86e1fc"
+    black "#1b1d2b"
+    white "#828bb8"
+  }
+}
