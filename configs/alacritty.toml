@@ -2,12 +2,12 @@
 import=["~/dotfiles/themes/current/alacritty.toml"]
 
 [window]
-opacity = 0.90
+# opacity = 0.90
 padding = { x = 10, y = 10 }
 startup_mode = "Maximized"
 
 decorations = "buttonless"
-blur = true
+# blur = true
 
 [font]
 size = 14.0
