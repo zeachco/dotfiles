@@ -1,0 +1,29 @@
+# Monokai Octagon theme for Alacritty
+
+[colors.primary]
+background = "#282a3a"
+foreground = "#eaf2f1"
+
+[colors.normal]
+black = "#3a3d4b"
+red = "#ff657a"
+green = "#bad761"
+yellow = "#ffd76d"
+blue = "#9cd1bb"
+magenta = "#c39ac9"
+cyan = "#9cd1bb"
+white = "#eaf2f1"
+
+[colors.bright]
+black = "#696d77"
+red = "#ff657a"
+green = "#bad761"
+yellow = "#ffd76d"
+blue = "#9cd1bb"
+magenta = "#c39ac9"
+cyan = "#9cd1bb"
+white = "#ffffff"
+
+[colors.selection]
+background = "#535763"
+foreground = "#eaf2f1"

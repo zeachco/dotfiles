@@ -1,0 +1,131 @@
+// Monokai Pro theme for Zellij
+
+themes {
+  monokai-pro {
+    text_unselected {
+      base 252 252 250
+      background 45 42 46
+      emphasis_0 255 97 136
+      emphasis_1 169 220 118
+      emphasis_2 120 220 232
+      emphasis_3 252 152 103
+    }
+
+    text_selected {
+      base 91 89 92
+      background 171 157 242
+      emphasis_0 255 97 136
+      emphasis_1 252 252 250
+      emphasis_2 171 157 242
+      emphasis_3 255 208 102
+    }
+
+    ribbon_unselected {
+      base 252 252 250
+      background 91 89 92
+      emphasis_0 255 97 136
+      emphasis_1 169 220 118
+      emphasis_2 120 220 232
+      emphasis_3 252 152 103
+    }
+
+    ribbon_selected {
+      base 252 252 250
+      background 171 157 242
+      emphasis_0 255 97 136
+      emphasis_1 169 220 118
+      emphasis_2 120 220 232
+      emphasis_3 252 152 103
+    }
+
+    table_title {
+      base 171 157 242
+      background 45 42 46
+      emphasis_0 255 97 136
+      emphasis_1 169 220 118
+      emphasis_2 120 220 232
+      emphasis_3 252 152 103
+    }
+
+    table_cell_unselected {
+      base 252 252 250
+      background 45 42 46
+      emphasis_0 255 97 136
+      emphasis_1 169 220 118
+      emphasis_2 120 220 232
+      emphasis_3 252 152 103
+    }
+
+    table_cell_selected {
+      base 252 252 250
+      background 171 157 242
+      emphasis_0 255 97 136
+      emphasis_1 169 220 118
+      emphasis_2 120 220 232
+      emphasis_3 252 152 103
+    }
+
+    list_unselected {
+      base 252 252 250
+      background 45 42 46
+      emphasis_0 255 97 136
+      emphasis_1 169 220 118
+      emphasis_2 120 220 232
+      emphasis_3 252 152 103
+    }
+
+    list_selected {
+      base 252 252 250
+      background 171 157 242
+      emphasis_0 255 97 136
+      emphasis_1 169 220 118
+      emphasis_2 120 220 232
+      emphasis_3 252 152 103
+    }
+
+    frame_unselected {
+      base 91 89 92
+      background 45 42 46
+      emphasis_0 255 97 136
+      emphasis_1 169 220 118
+      emphasis_2 120 220 232
+      emphasis_3 252 152 103
+    }
+
+    frame_selected {
+      base 171 157 242
+      background 45 42 46
+      emphasis_0 255 97 136
+      emphasis_1 169 220 118
+      emphasis_2 120 220 232
+      emphasis_3 252 152 103
+    }
+
+    frame_highlight {
+      base 252 152 103
+      background 45 42 46
+      emphasis_0 255 97 136
+      emphasis_1 169 220 118
+      emphasis_2 120 220 232
+      emphasis_3 171 157 242
+    }
+
+    exit_code_success {
+      base 169 220 118
+      background 45 42 46
+      emphasis_0 255 97 136
+      emphasis_1 169 220 118
+      emphasis_2 120 220 232
+      emphasis_3 252 152 103
+    }
+
+    exit_code_error {
+      base 255 97 136
+      background 45 42 46
+      emphasis_0 255 97 136
+      emphasis_1 169 220 118
+      emphasis_2 120 220 232
+      emphasis_3 252 152 103
+    }
+  }
+}

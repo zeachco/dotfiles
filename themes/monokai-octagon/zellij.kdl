@@ -1,0 +1,131 @@
+// Monokai Octagon theme for Zellij
+
+themes {
+  monokai-octagon {
+    text_unselected {
+      base 234 242 241
+      background 40 42 58
+      emphasis_0 255 101 122
+      emphasis_1 186 215 97
+      emphasis_2 156 209 187
+      emphasis_3 255 155 94
+    }
+
+    text_selected {
+      base 83 87 99
+      background 195 154 201
+      emphasis_0 255 101 122
+      emphasis_1 234 242 241
+      emphasis_2 195 154 201
+      emphasis_3 255 215 109
+    }
+
+    ribbon_unselected {
+      base 234 242 241
+      background 83 87 99
+      emphasis_0 255 101 122
+      emphasis_1 186 215 97
+      emphasis_2 156 209 187
+      emphasis_3 255 155 94
+    }
+
+    ribbon_selected {
+      base 234 242 241
+      background 195 154 201
+      emphasis_0 255 101 122
+      emphasis_1 186 215 97
+      emphasis_2 156 209 187
+      emphasis_3 255 155 94
+    }
+
+    table_title {
+      base 195 154 201
+      background 40 42 58
+      emphasis_0 255 101 122
+      emphasis_1 186 215 97
+      emphasis_2 156 209 187
+      emphasis_3 255 155 94
+    }
+
+    table_cell_unselected {
+      base 234 242 241
+      background 40 42 58
+      emphasis_0 255 101 122
+      emphasis_1 186 215 97
+      emphasis_2 156 209 187
+      emphasis_3 255 155 94
+    }
+
+    table_cell_selected {
+      base 234 242 241
+      background 195 154 201
+      emphasis_0 255 101 122
+      emphasis_1 186 215 97
+      emphasis_2 156 209 187
+      emphasis_3 255 155 94
+    }
+
+    list_unselected {
+      base 234 242 241
+      background 40 42 58
+      emphasis_0 255 101 122
+      emphasis_1 186 215 97
+      emphasis_2 156 209 187
+      emphasis_3 255 155 94
+    }
+
+    list_selected {
+      base 234 242 241
+      background 195 154 201
+      emphasis_0 255 101 122
+      emphasis_1 186 215 97
+      emphasis_2 156 209 187
+      emphasis_3 255 155 94
+    }
+
+    frame_unselected {
+      base 83 87 99
+      background 40 42 58
+      emphasis_0 255 101 122
+      emphasis_1 186 215 97
+      emphasis_2 156 209 187
+      emphasis_3 255 155 94
+    }
+
+    frame_selected {
+      base 195 154 201
+      background 40 42 58
+      emphasis_0 255 101 122
+      emphasis_1 186 215 97
+      emphasis_2 156 209 187
+      emphasis_3 255 155 94
+    }
+
+    frame_highlight {
+      base 255 155 94
+      background 40 42 58
+      emphasis_0 255 101 122
+      emphasis_1 186 215 97
+      emphasis_2 156 209 187
+      emphasis_3 195 154 201
+    }
+
+    exit_code_success {
+      base 186 215 97
+      background 40 42 58
+      emphasis_0 255 101 122
+      emphasis_1 186 215 97
+      emphasis_2 156 209 187
+      emphasis_3 255 155 94
+    }
+
+    exit_code_error {
+      base 255 101 122
+      background 40 42 58
+      emphasis_0 255 101 122
+      emphasis_1 186 215 97
+      emphasis_2 156 209 187
+      emphasis_3 255 155 94
+    }
+  }
+}

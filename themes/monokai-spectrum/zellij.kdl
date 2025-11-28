@@ -1,0 +1,131 @@
+// Monokai Spectrum theme for Zellij
+
+themes {
+  monokai-spectrum {
+    text_unselected {
+      base 247 241 255
+      background 34 34 34
+      emphasis_0 252 97 141
+      emphasis_1 123 216 143
+      emphasis_2 90 212 230
+      emphasis_3 253 147 83
+    }
+
+    text_selected {
+      base 82 80 83
+      background 148 138 227
+      emphasis_0 252 97 141
+      emphasis_1 247 241 255
+      emphasis_2 148 138 227
+      emphasis_3 252 229 102
+    }
+
+    ribbon_unselected {
+      base 247 241 255
+      background 82 80 83
+      emphasis_0 252 97 141
+      emphasis_1 123 216 143
+      emphasis_2 90 212 230
+      emphasis_3 253 147 83
+    }
+
+    ribbon_selected {
+      base 247 241 255
+      background 148 138 227
+      emphasis_0 252 97 141
+      emphasis_1 123 216 143
+      emphasis_2 90 212 230
+      emphasis_3 253 147 83
+    }
+
+    table_title {
+      base 148 138 227
+      background 34 34 34
+      emphasis_0 252 97 141
+      emphasis_1 123 216 143
+      emphasis_2 90 212 230
+      emphasis_3 253 147 83
+    }
+
+    table_cell_unselected {
+      base 247 241 255
+      background 34 34 34
+      emphasis_0 252 97 141
+      emphasis_1 123 216 143
+      emphasis_2 90 212 230
+      emphasis_3 253 147 83
+    }
+
+    table_cell_selected {
+      base 247 241 255
+      background 148 138 227
+      emphasis_0 252 97 141
+      emphasis_1 123 216 143
+      emphasis_2 90 212 230
+      emphasis_3 253 147 83
+    }
+
+    list_unselected {
+      base 247 241 255
+      background 34 34 34
+      emphasis_0 252 97 141
+      emphasis_1 123 216 143
+      emphasis_2 90 212 230
+      emphasis_3 253 147 83
+    }
+
+    list_selected {
+      base 247 241 255
+      background 148 138 227
+      emphasis_0 252 97 141
+      emphasis_1 123 216 143
+      emphasis_2 90 212 230
+      emphasis_3 253 147 83
+    }
+
+    frame_unselected {
+      base 82 80 83
+      background 34 34 34
+      emphasis_0 252 97 141
+      emphasis_1 123 216 143
+      emphasis_2 90 212 230
+      emphasis_3 253 147 83
+    }
+
+    frame_selected {
+      base 148 138 227
+      background 34 34 34
+      emphasis_0 252 97 141
+      emphasis_1 123 216 143
+      emphasis_2 90 212 230
+      emphasis_3 253 147 83
+    }
+
+    frame_highlight {
+      base 253 147 83
+      background 34 34 34
+      emphasis_0 252 97 141
+      emphasis_1 123 216 143
+      emphasis_2 90 212 230
+      emphasis_3 148 138 227
+    }
+
+    exit_code_success {
+      base 123 216 143
+      background 34 34 34
+      emphasis_0 252 97 141
+      emphasis_1 123 216 143
+      emphasis_2 90 212 230
+      emphasis_3 253 147 83
+    }
+
+    exit_code_error {
+      base 252 97 141
+      background 34 34 34
+      emphasis_0 252 97 141
+      emphasis_1 123 216 143
+      emphasis_2 90 212 230
+      emphasis_3 253 147 83
+    }
+  }
+}

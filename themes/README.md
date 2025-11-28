@@ -87,14 +87,10 @@ Alacritty color scheme in TOML format.
 [colors.primary]
 background = "#1a1b26"
 foreground = "#a9b1d6"
-
-[colors.normal]
-black = "#32344a"
-# ... more colors
 ```
 
 #### `zellij.kdl`
-Zellij theme in KDL format.
+Zellij theme in KDL format using component-based structure.
 
 **Applied to:** `~/.config/zellij/themes/<theme-name>.kdl`
 
@@ -102,12 +98,48 @@ Zellij theme in KDL format.
 ```kdl
 themes {
   theme-name {
-    bg "#1a1b26"
-    fg "#a9b1d6"
-    # ... more colors
+    text_unselected {
+      base 169 177 214      # RGB format
+      background 26 27 38
+      emphasis_0 247 118 142
+      emphasis_1 158 206 106
+      emphasis_2 68 157 171
+      emphasis_3 255 158 100
+    }
+
+    text_selected {
+      base 50 52 74
+      background 122 162 247
+      emphasis_0 247 118 142
+      emphasis_1 248 248 248
+      emphasis_2 122 162 247
+      emphasis_3 173 142 230
+    }
+
+    # Additional components:
+    # - ribbon_unselected / ribbon_selected
+    # - table_title / table_cell_unselected / table_cell_selected
+    # - list_unselected / list_selected
+    # - frame_unselected / frame_selected / frame_highlight
+    # - exit_code_success / exit_code_error
   }
 }
 ```
+
+**UI Components:**
+- `text_unselected` / `text_selected` - Base text parts of UI
+- `ribbon_unselected` / `ribbon_selected` - Tabs and keybinding modes
+- `table_title` / `table_cell_*` - Table components
+- `list_unselected` / `list_selected` - List items
+- `frame_unselected` / `frame_selected` / `frame_highlight` - Pane frames
+- `exit_code_success` / `exit_code_error` - Command exit status
+
+Each component requires these attributes in RGB format:
+- `base` - Base color of the component
+- `background` - Background color
+- `emphasis_0` through `emphasis_3` - Text emphasis colors for differentiation
+
+For more details, see the [Zellij Theme Documentation](https://zellij.dev/documentation/themes.html)
 
 #### `btop.theme`
 btop system monitor theme with color definitions for CPU, memory, network graphs.

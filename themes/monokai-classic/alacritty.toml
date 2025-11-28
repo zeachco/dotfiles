@@ -1,0 +1,29 @@
+# Monokai Classic theme for Alacritty
+
+[colors.primary]
+background = "#272822"
+foreground = "#fdfff1"
+
+[colors.normal]
+black = "#3b3c35"
+red = "#f92672"
+green = "#a6e22e"
+yellow = "#e6db74"
+blue = "#66d9ef"
+magenta = "#ae81ff"
+cyan = "#66d9ef"
+white = "#fdfff1"
+
+[colors.bright]
+black = "#6e7066"
+red = "#f92672"
+green = "#a6e22e"
+yellow = "#e6db74"
+blue = "#66d9ef"
+magenta = "#ae81ff"
+cyan = "#66d9ef"
+white = "#ffffff"
+
+[colors.selection]
+background = "#57584f"
+foreground = "#fdfff1"

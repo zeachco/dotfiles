@@ -1,0 +1,29 @@
+# Monokai Spectrum theme for Alacritty
+
+[colors.primary]
+background = "#222222"
+foreground = "#f7f1ff"
+
+[colors.normal]
+black = "#363537"
+red = "#fc618d"
+green = "#7bd88f"
+yellow = "#fce566"
+blue = "#5ad4e6"
+magenta = "#948ae3"
+cyan = "#5ad4e6"
+white = "#f7f1ff"
+
+[colors.bright]
+black = "#69676c"
+red = "#fc618d"
+green = "#7bd88f"
+yellow = "#fce566"
+blue = "#5ad4e6"
+magenta = "#948ae3"
+cyan = "#5ad4e6"
+white = "#ffffff"
+
+[colors.selection]
+background = "#525053"
+foreground = "#f7f1ff"
