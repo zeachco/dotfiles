@@ -1,0 +1,29 @@
+# Murphy theme for Alacritty
+
+[colors.primary]
+background = "#000000"
+foreground = "#90ee90"
+
+[colors.normal]
+black = "#000000"
+red = "#ff0000"
+green = "#90ee90"
+yellow = "#ffff00"
+blue = "#0000ff"
+magenta = "#ff00ff"
+cyan = "#00ffff"
+white = "#bebebe"
+
+[colors.bright]
+black = "#bebebe"
+red = "#ff0000"
+green = "#90ee90"
+yellow = "#ffff00"
+blue = "#0000ff"
+magenta = "#ff00ff"
+cyan = "#00ffff"
+white = "#ffffff"
+
+[colors.selection]
+background = "#0000ff"
+foreground = "#ffffff"

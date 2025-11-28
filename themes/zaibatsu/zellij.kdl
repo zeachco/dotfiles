@@ -1,0 +1,17 @@
+// Zaibatsu theme for Zellij
+
+themes {
+  zaibatsu {
+    bg "#0e0024"
+    fg "#D7D5DB"
+    red "#510039"
+    green "#5faf00"
+    blue "#5f00d7"
+    yellow "#ffaf00"
+    magenta "#d700ff"
+    orange "#ff5faf"
+    cyan "#00afff"
+    black "#0e0024"
+    white "#ffffff"
+  }
+}

@@ -1,0 +1,29 @@
+# Zaibatsu theme for Alacritty
+
+[colors.primary]
+background = "#0e0024"
+foreground = "#D7D5DB"
+
+[colors.normal]
+black = "#0e0024"
+red = "#510039"
+green = "#5faf00"
+yellow = "#ffaf00"
+blue = "#5f00d7"
+magenta = "#d700ff"
+cyan = "#00afff"
+white = "#D7D5DB"
+
+[colors.bright]
+black = "#362B49"
+red = "#ff5faf"
+green = "#87ff00"
+yellow = "#ffff5f"
+blue = "#afafff"
+magenta = "#ffafff"
+cyan = "#87ffff"
+white = "#ffffff"
+
+[colors.selection]
+background = "#5FD7FF"
+foreground = "#0e0024"

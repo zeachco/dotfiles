@@ -1,0 +1,17 @@
+// Lunaperche theme for Zellij
+
+themes {
+  lunaperche {
+    bg "#000000"
+    fg "#c6c6c6"
+    red "#af5f5f"
+    green "#5faf5f"
+    blue "#5f87af"
+    yellow "#af875f"
+    magenta "#d787d7"
+    orange "#ff5f5f"
+    cyan "#5fafaf"
+    black "#000000"
+    white "#c6c6c6"
+  }
+}

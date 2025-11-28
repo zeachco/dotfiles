@@ -1,0 +1,29 @@
+# Sorbet theme for Alacritty
+
+[colors.primary]
+background = "#161821"
+foreground = "#dadada"
+
+[colors.normal]
+black = "#000000"
+red = "#d75f5f"
+green = "#87d75f"
+yellow = "#d7af5f"
+blue = "#87afd7"
+magenta = "#af87d7"
+cyan = "#5fafaf"
+white = "#dadada"
+
+[colors.bright]
+black = "#707070"
+red = "#ff5f5f"
+green = "#87ff5f"
+yellow = "#ffd75f"
+blue = "#87d7ff"
+magenta = "#d787ff"
+cyan = "#5fd7d7"
+white = "#ffffff"
+
+[colors.selection]
+background = "#363841"
+foreground = "#ffffff"

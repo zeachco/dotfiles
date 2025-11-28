@@ -1,0 +1,29 @@
+# Desert theme for Alacritty
+
+[colors.primary]
+background = "#333333"
+foreground = "#ffffff"
+
+[colors.normal]
+black = "#7f7f8c"
+red = "#cd5c5c"
+green = "#9acd32"
+yellow = "#bdb76b"
+blue = "#75a0ff"
+magenta = "#eeee00"
+cyan = "#cd853f"
+white = "#666666"
+
+[colors.bright]
+black = "#8a7f7f"
+red = "#ff0000"
+green = "#89fb98"
+yellow = "#f0e68c"
+blue = "#6dceeb"
+magenta = "#ffde9b"
+cyan = "#ffa0a0"
+white = "#c2bfa5"
+
+[colors.selection]
+background = "#7f7f8c"
+foreground = "#f0e68c"

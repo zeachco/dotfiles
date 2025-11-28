@@ -1,0 +1,17 @@
+// Sorbet theme for Zellij
+
+themes {
+  sorbet {
+    bg "#161821"
+    fg "#dadada"
+    red "#d75f5f"
+    green "#87d75f"
+    blue "#87afd7"
+    yellow "#d7af5f"
+    magenta "#af87d7"
+    orange "#ff5f5f"
+    cyan "#5fafaf"
+    black "#000000"
+    white "#ffffff"
+  }
+}

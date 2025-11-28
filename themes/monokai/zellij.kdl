@@ -1,0 +1,17 @@
+// Monokai theme for Zellij
+
+themes {
+  monokai {
+    bg "#272a30"
+    fg "#f8f8f0"
+    red "#f92672"
+    green "#a6e22e"
+    blue "#66d9ef"
+    yellow "#e6db74"
+    magenta "#ae81ff"
+    orange "#fd971f"
+    cyan "#66d9ef"
+    black "#272a30"
+    white "#f8f8f0"
+  }
+}

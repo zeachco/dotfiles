@@ -1,0 +1,17 @@
+// Desert theme for Zellij
+
+themes {
+  desert {
+    bg "#333333"
+    fg "#ffffff"
+    red "#cd5c5c"
+    green "#9acd32"
+    blue "#75a0ff"
+    yellow "#bdb76b"
+    magenta "#eeee00"
+    orange "#cd853f"
+    cyan "#6dceeb"
+    black "#7f7f8c"
+    white "#c2bfa5"
+  }
+}

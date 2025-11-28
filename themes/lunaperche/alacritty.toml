@@ -1,0 +1,29 @@
+# Lunaperche theme for Alacritty
+
+[colors.primary]
+background = "#000000"
+foreground = "#c6c6c6"
+
+[colors.normal]
+black = "#000000"
+red = "#af5f5f"
+green = "#5faf5f"
+yellow = "#af875f"
+blue = "#5f87af"
+magenta = "#d787d7"
+cyan = "#5fafaf"
+white = "#c6c6c6"
+
+[colors.bright]
+black = "#767676"
+red = "#ff5f5f"
+green = "#5fd75f"
+yellow = "#ffd787"
+blue = "#5fafff"
+magenta = "#ff87ff"
+cyan = "#5fd7d7"
+white = "#ffffff"
+
+[colors.selection]
+background = "#5f87af"
+foreground = "#ffffff"

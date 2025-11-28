@@ -1,0 +1,29 @@
+# Habamax theme for Alacritty
+
+[colors.primary]
+background = "#1c1c1c"
+foreground = "#bcbcbc"
+
+[colors.normal]
+black = "#1c1c1c"
+red = "#af5f5f"
+green = "#5faf5f"
+yellow = "#af875f"
+blue = "#5f87af"
+magenta = "#af87af"
+cyan = "#5f8787"
+white = "#9e9e9e"
+
+[colors.bright]
+black = "#767676"
+red = "#d75f87"
+green = "#87d787"
+yellow = "#d7af87"
+blue = "#87afd7"
+magenta = "#d787d7"
+cyan = "#87afaf"
+white = "#bcbcbc"
+
+[colors.selection]
+background = "#5f87af"
+foreground = "#ffffff"
