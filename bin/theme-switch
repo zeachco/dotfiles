@@ -9,6 +9,21 @@ DOTFILES_PATH="${DOTFILES_PATH:-$HOME/dotfiles}"
 THEMES_PATH="$DOTFILES_PATH/themes"
 CURRENT_THEME_PATH="$THEMES_PATH/current"
 
+update_zellij_theme() {
+  if command -v zellij &>/dev/null && [ -f "$CURRENT_THEME_PATH/zellij.kdl" ]; then
+    mkdir -p "$HOME/.config/zellij/themes"
+    sed 's/themes {$/themes {\n  current {/; /^  [a-z-]* {$/d' "$CURRENT_THEME_PATH/zellij.kdl" >"$HOME/.config/zellij/themes/current.kdl"
+
+    # Reload config by toggling theme value (forces zellij to detect change)
+    ZELLIJ_CONFIG="$HOME/.config/zellij/config.kdl"
+    if [ -f "$ZELLIJ_CONFIG" ]; then
+      sed -i '' 's/theme "current"/theme "updating"/' "$ZELLIJ_CONFIG"
+      sleep 0.5
+      sed -i '' 's/theme "updating"/theme "current"/' "$ZELLIJ_CONFIG"
+    fi
+  fi
+}
+
 # Select theme
 if [ -n "$1" ]; then
   THEME="$1"
@@ -49,18 +64,7 @@ if [ "$SKIP_NVIM" != "true" ]; then
 fi
 
 # Update zellij
-if command -v zellij &>/dev/null && [ -f "$CURRENT_THEME_PATH/zellij.kdl" ]; then
-  mkdir -p "$HOME/.config/zellij/themes"
-  sed 's/themes {$/themes {\n  current {/; /^  [a-z-]* {$/d' "$CURRENT_THEME_PATH/zellij.kdl" >"$HOME/.config/zellij/themes/current.kdl"
-
-  # Reload config for all running sessions
-  sessions=$(zellij list-sessions 2>/dev/null | grep -v "EXITED" | awk '{print $1}' || true)
-  if [ -n "$sessions" ]; then
-    for session in $sessions; do
-      zellij action --session "$session" reload-config 2>/dev/null || true
-    done
-  fi
-fi
+update_zellij_theme &
 
 # Update btop
 if command -v btop &>/dev/null && [ -f "$CURRENT_THEME_PATH/btop.theme" ]; then
