@@ -69,7 +69,7 @@ cp ~/dotfiles/configs/keymaps.lua ~/.config/nvim/lua/config/keymaps.lua
 if [ "$SHELL" = "/bin/zsh" ] || [ "$SHELL" = "/usr/bin/zsh" ]; then
   cp ~/.zshrc ~/.zshrc.backup
   # replace theme
-  awk '/ZSH_THEME=/ {sub(/=.*/, "=\"kiwi\"")} 1' ~/.zshrc >temp.zshrc && mv temp.zshrc ~/.zshrc
+  awk '/ZSH_THEME=/ {sub(/=.*/, "=\"amuse\"")} 1' ~/.zshrc >temp.zshrc && mv temp.zshrc ~/.zshrc
 else
   cp ~/.bashrc ~/.bashrc.backup
 fi
