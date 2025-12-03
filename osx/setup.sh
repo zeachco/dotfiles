@@ -9,6 +9,7 @@ install rg # ripgrep
 install fd # fast find
 install gh # github-cli
 install jq # json parser
+install eza # list tree for ls
 
 if needs nvim; then
   brew tap homebrew/cask-fonts
