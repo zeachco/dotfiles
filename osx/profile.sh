@@ -24,4 +24,4 @@ docker() {
   $original_docker "$@"
 }
 
-alias lt="eza --tree --level=2 --long --icons --git"
+alias lt="eza --tree --level=2 --long --icons --git --git-ignore --ignore-glob='.git'"
