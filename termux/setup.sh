@@ -13,7 +13,6 @@ install wget
 install tree
 script_install rg "pkg install -y ripgrep"
 install fzf
-install jq
 install htop
 install zellij
 install zsh
