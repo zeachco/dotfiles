@@ -130,6 +130,7 @@ node_admin() {
 alias clone="bun ~/dotfiles/advanced/clone.ts"
 
 env() {
+  bw sync
   if [ ! -f "example.env" ]; then
     echo "No example.env file found in current directory"
     return 1
