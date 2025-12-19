@@ -7,7 +7,7 @@ if [ -d ~/.config/hypr ]; then
 
 [terminal.shell]
 program = "$(which zellij)"
-args = ["attach", "--create", "1"]
+# args = ["attach", "--create", "1"]
 
 [window]
 padding = { x = 10, y = 10 }
