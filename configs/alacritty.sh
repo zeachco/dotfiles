@@ -32,5 +32,21 @@ import = ["~/dotfiles/configs/alacritty.toml"]
 [terminal.shell]
 program = "$(which zellij)"
 args = ["attach", "--create", "1"]
+
+[font]
+size = 14.0
+
+[font.normal]
+family = "VictorMono Nerd Font"
+style = "Regular"
+
+[font.bold]
+family = "VictorMono Nerd Font"
+style = "Bold"
+
+[font.italic]
+family = "VictorMono Nerd Font"
+style = "Italic"
+#
 EOF
 fi

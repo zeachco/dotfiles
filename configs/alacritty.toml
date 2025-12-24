@@ -9,21 +9,7 @@ startup_mode = "Maximized"
 decorations = "buttonless"
 # blur = true
 #
-# [font]
-# size = 14.0
-#
-# [font.normal]
-# family = "VictorMono Nerd Font"
-# style = "Regular"
-#
-# [font.bold]
-# family = "VictorMono Nerd Font"
-# style = "Bold"
-#
-# [font.italic]
-# family = "VictorMono Nerd Font"
-# style = "Italic"
-#
+
 [cursor]
 style = "Block"
 unfocused_hollow = true
