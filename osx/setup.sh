@@ -17,6 +17,7 @@ if needs colima; then
 fi
 
 install aerospace
+install alacritty
 
 # call `defaults delete <property>` to reset to default
 defaults write NSGlobalDomain NSWindowResizeTime -float 0.001
