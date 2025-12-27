@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 source "$HOME/dotfiles/utils.sh"
 
+# install ohmyzsh
+yes | sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+
+souce ~/.zshrc
+
 if needs brew; then
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi
@@ -16,12 +21,15 @@ if needs colima; then
   brew install colima
 fi
 
-install aerospace
-install alacritty
-install chromium
+# arg 1 is the brew namespace, arg 2 is the Application namespace
+function force_install {
+  install $1 && \
+  xattr -d com.apple.quarantine /Applications/$2.app || echo "$2 already autorized"
+}
 
-xattr -d com.apple.quarantine /Applications/Alacritty.app
-xattr -d com.apple.quarantine /Applications/Chromium.app
+force_install aerospace Aerospace
+force_install alacritty Alacritty
+force_install chromium Chromium
 
 # call `defaults delete <property>` to reset to default
 defaults write NSGlobalDomain NSWindowResizeTime -float 0.001
