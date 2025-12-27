@@ -20,6 +20,9 @@ install aerospace
 install alacritty
 install chromium
 
+xattr -d com.apple.quarantine /Applications/Alacritty.app
+xattr -d com.apple.quarantine /Applications/Chromium.app
+
 # call `defaults delete <property>` to reset to default
 defaults write NSGlobalDomain NSWindowResizeTime -float 0.001
 defaults write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false
@@ -29,6 +32,6 @@ defaults write com.apple.finder DisableAllAnimations -bool true
 defaults write com.apple.dock springboard-show-duration -float .1
 defaults write com.apple.dock springboard-hide-duration -float .1
 defaults write com.apple.dock expose-animation-duration -float 0.1
-# Allows grad windows with Ctrl+CMD
+# Allows grab windows with Ctrl+CMD
 defaults write -g NSWindowShouldDragOnGesture -bool true
 
