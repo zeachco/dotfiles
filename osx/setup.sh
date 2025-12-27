@@ -16,6 +16,8 @@ if needs colima; then
   brew install colima
 fi
 
+install aerospace
+
 # call `defaults delete <property>` to reset to default
 defaults write NSGlobalDomain NSWindowResizeTime -float 0.001
 defaults write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false
