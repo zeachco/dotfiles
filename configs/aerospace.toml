@@ -197,6 +197,16 @@ on-mode-changed = []
     alt-shift-y = ['move-node-to-workspace Y', 'workspace Y']
     alt-shift-z = ['move-node-to-workspace Z', 'workspace Z']
 
+[workspace-to-monitor-force-assignment]
+1 = 'main'
+2 = ['secondary', 'main']
+3 = 'main'
+4 = ['secondary', 'main']
+5 = 'main'
+6 = ['secondary', 'main']
+7 = 'main'
+8 = ['secondary', 'main']
+9 = 'main'
     # See: https://nikitabobko.github.io/AeroSpace/commands#workspace-back-and-forth
     alt-tab = 'workspace-back-and-forth'
     # See: https://nikitabobko.github.io/AeroSpace/commands#move-workspace-to-monitor

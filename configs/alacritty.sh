@@ -31,7 +31,7 @@ import = ["~/dotfiles/configs/alacritty.toml"]
 
 [terminal.shell]
 program = "$(which zellij)"
-args = ["attach", "--create", "1"]
+# args = ["attach", "--create", "1"]
 
 [font]
 size = 14.0
