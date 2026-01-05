@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 source "$HOME/dotfiles/utils.sh"
 
-# install ohmyzsh
-yes | sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
-
-souce ~/.zshrc
+if [ -d "$HOME/.oh-my-zsh" ]; then
+  echo "ohmyzsh is already installed"
+else
+  echo "installing ohmyzsh..."
+  yes | sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+  source ~/.zshrc
+fi
 
 if needs brew; then
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi
-
 
 if needs nvim; then
   brew tap homebrew/cask-fonts
@@ -23,8 +25,10 @@ fi
 
 # arg 1 is the brew namespace, arg 2 is the Application namespace
 function force_install {
-  install $1 && \
-  xattr -d com.apple.quarantine /Applications/$2.app || echo "$2 already autorized"
+  if needs "$1"; then
+    install "$1" &&
+      xattr -d com.apple.quarantine /Applications/$2.app || echo "$2 already autorized"
+  fi
 }
 
 force_install aerospace Aerospace
@@ -42,4 +46,3 @@ defaults write com.apple.dock springboard-hide-duration -float .1
 defaults write com.apple.dock expose-animation-duration -float 0.1
 # Allows grab windows with Ctrl+CMD
 defaults write -g NSWindowShouldDragOnGesture -bool true
-

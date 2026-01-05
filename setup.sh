@@ -31,3 +31,5 @@ install_profile "common"
 
 # note: the debian profile is also adapted to arch/manjaroo
 install_profile "$OS_DIR"
+
+echo "All done!"
