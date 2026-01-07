@@ -234,6 +234,9 @@ check_for_devbox() {
 # remove this line if you find this behavior too intrusive
 check_for_devbox
 
+# GOTCHA: on linux, nix dedamon might not be automatically starteed
+# sudo systemctl enable --now nix-daemon
+
 # Fix for terminal closing on any error
 # Disable errexit mode that causes shell to exit on command errors
 set +e
