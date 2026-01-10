@@ -130,14 +130,15 @@ node_admin() {
 alias clone="bun ~/dotfiles/advanced/clone.ts"
 
 env() {
+  local filename=".env.example"
   bw sync
-  if [ ! -f "example.env" ]; then
-    echo "No example.env file found in current directory"
+  if [ ! -f "$filename" ]; then
+    echo "No $filename file found in current directory"
     return 1
   fi
 
-  # Extract item name from quotes in example.env (first quoted string found)
-  item_name=$(grep -o '"[^"]*"' example.env | head -n 1 | tr -d '"')
+  # Extract item name from quotes in "$filename" (first quoted string found)
+  item_name=$(grep -o '"[^"]*"' $filename | head -n 1 | tr -d '"')
 
   if [ -z "$item_name" ]; then
     echo "No quoted item name found in example.env"
