@@ -90,6 +90,7 @@ _set ccc "claude --dangerously-skip-permissions"
 _set theirs "git checkout --theirs"
 _set theme "$DOT_DIR/bin/theme-switch"
 _set lt "eza --tree --level=2 --long --icons --git --git-ignore --ignore-glob='.git'"
+_set lg "lazygit"
 
 alias e="nvim"
 alias v="nvim"
