@@ -131,20 +131,35 @@ node_admin() {
 alias clone="bun ~/dotfiles/advanced/clone.ts"
 
 env() {
+  # Declare array of supported env file templates
+  local supported_files=(".env.example" "example.env" ".env.bw")
+  local env_file=""
+
   bw sync
-  if [ ! -f "example.env" ]; then
-    echo "No example.env file found in current directory"
+
+  # Find the first supported file that exists
+  for file in "${supported_files[@]}"; do
+    if [ -f "$file" ]; then
+      env_file="$file"
+      break
+    fi
+  done
+
+  if [ -z "$env_file" ]; then
+    echo "No supported env file found in current directory"
+    echo "Supported files: ${supported_files[*]}"
     return 1
   fi
 
-  # Extract item name from quotes in example.env (first quoted string found)
-  item_name=$(grep -o '"[^"]*"' example.env | head -n 1 | tr -d '"')
+  # Extract item name from quotes in the found file (first quoted string found)
+  item_name=$(grep -o '"[^"]*"' "$env_file" | head -n 1 | tr -d '"')
 
   if [ -z "$item_name" ]; then
-    echo "No quoted item name found in example.env"
+    echo "No quoted item name found in $env_file"
     return 1
   fi
 
+  echo "Using $env_file"
   echo "Fetching '$item_name' from Bitwarden..."
   bw get notes "$item_name" >.env
 
