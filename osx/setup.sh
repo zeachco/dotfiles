@@ -13,6 +13,9 @@ if needs brew; then
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi
 
+# Install tiles
+[ -d /Applications/Tiles.app] || brew install tiles
+
 if needs nvim; then
   brew tap homebrew/cask-fonts
   brew install --cask font-victor-mono-nerd-font
