@@ -14,7 +14,7 @@ if needs brew; then
 fi
 
 # Install tiles
-[ -d /Applications/Tiles.app] || brew install tiles
+[[ -d /Applications/Tiles.app ]] || brew install tiles
 
 if needs nvim; then
   brew tap homebrew/cask-fonts
