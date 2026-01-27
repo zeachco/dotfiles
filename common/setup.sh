@@ -48,13 +48,14 @@ git config --global --replace-all init.defaultBranch main
 # script_install bun "curl -fsSL https://bun.sh/install | $SHELL"
 
 install fastfetch
-install rg # ripgrep
-install fd # fast find
-install gh # github-cli
-install jq # json parser
+install rg  # ripgrep
+install fd  # fast find
+install gh  # github-cli
+install jq  # json parser
 install eza # list tree for ls
 install lazygit
 script_install opencode "curl -fsSL https://opencode.ai/install | bash"
+script_install claude "curl -fsSL https://claude.ai/install.sh | bash"
 
 # Configure alacritty
 $SHELL ~/dotfiles/configs/alacritty.sh
