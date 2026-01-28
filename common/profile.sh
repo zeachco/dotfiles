@@ -213,9 +213,9 @@ ai() {
   opencode "$@"
 }
 
-gemini() {
-  deno run -A --no-lock npm:@google/gemini-cli "$@"
-}
+# gemini() {
+#   deno run -A --no-lock npm:@google/gemini-cli "$@"
+# }
 
 pie_score() {
   echo "Generate a PIE score by listing 3 score for Physical, Intellectual and Emotional, each line starts with the name of the score followed by 'is <score>, because <make up a casual reason matching the category>'" | ollama run mistral
