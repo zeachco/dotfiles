@@ -1,6 +1,6 @@
-// Zellij keybindings configuration
-// Ctrl+1..9 to switch to tabs 1..9, Ctrl+0 to go to last tab
-// Works across all platforms (Linux, macOS, etc.)
+// Zellij configuration
+theme "dracula"
+simplified_ui true
 
 keybinds {
     normal {

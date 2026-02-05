@@ -34,7 +34,7 @@ program = "$(which zellij)"
 # args = ["attach", "--create", "1"]
 
 [font]
-size = 14.0
+size = 13.0
 
 [font.normal]
 family = "VictorMono Nerd Font"

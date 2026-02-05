@@ -64,6 +64,10 @@ $SHELL ~/dotfiles/configs/alacritty.sh
 mkdir -p ~/.config/nvim/lua/config
 cp ~/dotfiles/configs/keymaps.lua ~/.config/nvim/lua/config/keymaps.lua
 
+# Configure zellij
+mkdir -p ~/.config/zellij
+ln -sf ~/dotfiles/configs/zellij.kdl ~/.config/zellij/config.kdl
+
 # # not using OMZSH
 # if [ -d "$HOME/.oh-my-zsh" ] && [ -f "$HOME/.zshrc" ]; then
 #     print_exists "Oh My Zsh"
