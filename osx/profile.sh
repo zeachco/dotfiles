@@ -11,16 +11,23 @@ dark() {
   osascript -e "tell application \"System Events\" to tell appearance preferences to set dark mode to $enabled"
 }
 
-# Set original_docker to the actual docker binary path
-original_docker="/opt/homebrew/bin/docker"
-
 docker() {
-  which colima >/dev/null || { brew install colima && sleep 1; } # ensures we have colima
-  $original_docker version >/dev/null || {
+  # Use local variable to avoid scope issues in subshells
+  local docker_bin="/opt/homebrew/bin/docker"
+
+  # Ensure docker is installed
+  which docker >/dev/null || brew install docker
+
+  # Ensure colima is installed
+  which colima >/dev/null || { brew install colima && sleep 1; }
+
+  # Start colima if docker daemon isn't responding
+  $docker_bin version >/dev/null 2>&1 || {
     colima start && sleep 1
     DOCKER_HOST=$(colima status -j 2>/dev/null | jq -r '.docker_socket')
     export DOCKER_HOST
   }
-  $original_docker "$@"
+
+  $docker_bin "$@"
 }
 

@@ -1,5 +1,9 @@
 // Zellij configuration
+// theme "kanagawa"
+// theme "molokai-dark"
 theme "dracula"
+theme "nord"
+
 simplified_ui true
 
 keybinds {
