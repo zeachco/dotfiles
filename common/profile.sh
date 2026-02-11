@@ -259,3 +259,10 @@ set +e
 
 # Make bash completion case-sensitive
 bind 'set completion-ignore-case off' 2>/dev/null || true
+
+dockersh() {
+  docker run -it --entrypoint sh "$1"
+}
+
+
+
