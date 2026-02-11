@@ -130,7 +130,7 @@ node_admin() {
 
 alias clone="bun ~/dotfiles/advanced/clone.ts"
 
-env() {
+bwload() {
   # Declare array of supported env file templates
   local supported_files=(".env.example" "example.env" ".env.bw")
   local env_file=""
