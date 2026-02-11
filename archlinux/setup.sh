@@ -61,4 +61,8 @@ install exa
 install starship
 script_install bw "install bitwarden-cli"
 
+# Configure mpv for Orion (Flatpak) - fix black video on Wayland
+mkdir -p ~/.var/app/com.ktechpit.orion/config/mpv
+echo "vo=wlshm" > ~/.var/app/com.ktechpit.orion/config/mpv/mpv.conf
+
 echo -e "${PASS}Arch Linux setup complete!${NORM}"
