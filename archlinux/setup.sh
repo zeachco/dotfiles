@@ -54,6 +54,9 @@ then
     rm -rf /tmp/yay
 fi
 
+install flatpak
+script_install orion "flatpak install -y flathub com.ktechpit.orion"
+
 install fd
 install fzf
 install bat
