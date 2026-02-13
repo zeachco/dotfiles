@@ -12,6 +12,8 @@ program = "$(which zellij)"
 [window]
 padding = { x = 10, y = 10 }
 
+[font]
+size = 16.0
 EOF
 
   # Add hypr binding for super+shift+enter to use this config
