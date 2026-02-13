@@ -68,6 +68,37 @@ cp ~/dotfiles/configs/keymaps.lua ~/.config/nvim/lua/config/keymaps.lua
 mkdir -p ~/.config/zellij
 ln -sf ~/dotfiles/configs/zellij.kdl ~/.config/zellij/config.kdl
 
+# Configure hyprland numpad bindings
+HYPR_BINDINGS="$HOME/.config/hypr/bindings.conf"
+if [ -f "$HYPR_BINDINGS" ] && ! grep -q "KP_End" "$HYPR_BINDINGS"; then
+  cat >> "$HYPR_BINDINGS" << 'EOF'
+
+# Numpad workspace switching (dotfiles)
+bindd = SUPER, KP_End, Switch to workspace 1, workspace, 1
+bindd = SUPER, KP_Down, Switch to workspace 2, workspace, 2
+bindd = SUPER, KP_Next, Switch to workspace 3, workspace, 3
+bindd = SUPER, KP_Left, Switch to workspace 4, workspace, 4
+bindd = SUPER, KP_Begin, Switch to workspace 5, workspace, 5
+bindd = SUPER, KP_Right, Switch to workspace 6, workspace, 6
+bindd = SUPER, KP_Home, Switch to workspace 7, workspace, 7
+bindd = SUPER, KP_Up, Switch to workspace 8, workspace, 8
+bindd = SUPER, KP_Prior, Switch to workspace 9, workspace, 9
+bindd = SUPER, KP_Insert, Switch to workspace 10, workspace, 10
+
+# Numpad move window to workspace (dotfiles)
+bindd = SUPER SHIFT, KP_End, Move window to workspace 1, movetoworkspace, 1
+bindd = SUPER SHIFT, KP_Down, Move window to workspace 2, movetoworkspace, 2
+bindd = SUPER SHIFT, KP_Next, Move window to workspace 3, movetoworkspace, 3
+bindd = SUPER SHIFT, KP_Left, Move window to workspace 4, movetoworkspace, 4
+bindd = SUPER SHIFT, KP_Begin, Move window to workspace 5, movetoworkspace, 5
+bindd = SUPER SHIFT, KP_Right, Move window to workspace 6, movetoworkspace, 6
+bindd = SUPER SHIFT, KP_Home, Move window to workspace 7, movetoworkspace, 7
+bindd = SUPER SHIFT, KP_Up, Move window to workspace 8, movetoworkspace, 8
+bindd = SUPER SHIFT, KP_Prior, Move window to workspace 9, movetoworkspace, 9
+bindd = SUPER SHIFT, KP_Insert, Move window to workspace 10, movetoworkspace, 10
+EOF
+fi
+
 # # not using OMZSH
 # if [ -d "$HOME/.oh-my-zsh" ] && [ -f "$HOME/.zshrc" ]; then
 #     print_exists "Oh My Zsh"
