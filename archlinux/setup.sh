@@ -55,7 +55,12 @@ then
 fi
 
 install flatpak
-script_install orion "flatpak install -y flathub com.ktechpit.orion"
+if ! flatpak list --app 2>/dev/null | grep -q com.ktechpit.orion; then
+    echo -e "${WARN}installing ${NORM}orion..."
+    flatpak install -y flathub com.ktechpit.orion
+else
+    print_exists orion
+fi
 
 install fd
 install fzf
