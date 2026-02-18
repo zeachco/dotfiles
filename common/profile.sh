@@ -349,6 +349,82 @@ jira_worktree() {
 }
 _set jt "jira_worktree"
 
+jira_worktree_clean() {
+  # Check if we're in a git repository
+  if ! git rev-parse --git-dir > /dev/null 2>&1; then
+    echo "Error: Not in a git repository"
+    return 1
+  fi
+
+  # Get repository root and name
+  repo_root=$(git rev-parse --show-toplevel)
+  repo_name=$(basename "$repo_root")
+  worktree_base="$HOME/worktrees/$repo_name"
+
+  echo "Repository: $repo_name"
+  echo "Worktree directory: $worktree_base"
+  echo ""
+
+  # List all worktrees for this repo
+  echo "Current worktrees:"
+  git worktree list
+
+  echo ""
+  printf "Do you want to remove all worktrees and update the main repo? [y/N] "
+  read response
+
+  if ! echo "$response" | grep -qE '^[yY]([eE][sS])?$'; then
+    echo "Cancelled."
+    return 0
+  fi
+
+  # Change to repo root
+  cd "$repo_root" || return 1
+
+  # Remove all worktrees except the main one
+  echo "Removing worktrees..."
+  git worktree list --porcelain | grep "^worktree" | awk '{print $2}' | while read -r worktree; do
+    # Skip the main worktree (the repo root)
+    if [ "$worktree" != "$repo_root" ]; then
+      echo "Removing: $worktree"
+      git worktree remove "$worktree" --force 2>/dev/null || true
+    fi
+  done
+
+  # Clean up worktree directory if it exists
+  if [ -d "$worktree_base" ]; then
+    echo "Removing worktree directory: $worktree_base"
+    rm -rf "$worktree_base"
+  fi
+
+  # Prune stale worktree references
+  echo "Pruning stale worktree references..."
+  git worktree prune
+
+  # Delete all local branches that match JIRA ticket pattern (PROJECT-NUMBER)
+  echo "Cleaning up JIRA ticket branches..."
+  git branch | grep -E '^\s*[A-Z]+-[0-9]+$' | xargs -r git branch -D 2>/dev/null || true
+
+  # Update the main repository
+  echo "Updating main repository..."
+  git fetch --all --prune
+
+  # If on main/master, reset to origin
+  current_branch=$(git branch --show-current)
+  if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
+    echo "Resetting $current_branch to origin/$current_branch..."
+    git reset --hard "origin/$current_branch"
+  else
+    echo "On branch $current_branch - not resetting (switch to main/master to reset)"
+  fi
+
+  echo ""
+  echo "Cleanup complete!"
+  echo "Remaining worktrees:"
+  git worktree list
+}
+_set jtc "jira_worktree_clean"
+
 power() {
   upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep 'state\|percentage'
 }
