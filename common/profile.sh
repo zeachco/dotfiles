@@ -210,7 +210,7 @@ zellij_split() {
   echo "Created tab '$tab_name' with two panes"
   echo "Left pane: ready for nvim | Right pane: shell"
 }
-_set zs "zellij_split"
+_set wt "zellij_split"
 
 jira_claude() {
   input="$1"
@@ -305,8 +305,8 @@ jira_claude() {
     return 1
   fi
 
-  # Build tab name
-  tab_name="$branch_name"
+  # Build tab name with repo prefix
+  tab_name="${repo_name}:${branch_name}"
 
   # Create zellij split
   if [ -n "$ZELLIJ" ]; then
