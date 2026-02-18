@@ -180,6 +180,202 @@ git_test() {
 }
 _set gt "git_test"
 
+zellij_split() {
+  branch_name="$1"
+  tab_name="$2"
+
+  if [ -z "$branch_name" ] || [ -z "$tab_name" ]; then
+    echo "Error: branch_name and tab_name required"
+    echo "Usage: zellij_split <branch_name> <tab_name>"
+    return 1
+  fi
+
+  if [ -z "$ZELLIJ" ]; then
+    echo "Error: Not in a zellij session"
+    return 1
+  fi
+
+  # Create new tab
+  zellij action new-tab --name "$tab_name"
+
+  # Split pane vertically (50/50)
+  zellij action new-pane --direction right
+
+  # Focus left pane - will have nvim
+  zellij action move-focus left
+
+  # Focus right pane - will have shell
+  zellij action move-focus right
+
+  echo "Created tab '$tab_name' with two panes"
+  echo "Left pane: ready for nvim | Right pane: shell"
+}
+_set zs "zellij_split"
+
+jira_claude() {
+  input="$1"
+  namespace="${2:-}"
+
+  if [ -z "$input" ]; then
+    echo "Error: JIRA ticket number or URL required"
+    echo "Usage: jira_claude <JIRA_NUMBER|JIRA_URL> [namespace]"
+    echo "Examples:"
+    echo "  jira_claude PED-1234"
+    echo "  jira_claude https://stay22.atlassian.net/browse/PED-1234"
+    echo "  jira_claude PED-1234 my-work-namespace"
+    return 1
+  fi
+
+  # Extract JIRA ticket number from URL if input is a URL
+  jira_number="$input"
+  case "$input" in
+    http://*|https://*)
+      # Extract JIRA ticket number from URL using grep
+      jira_number=$(echo "$input" | grep -oE '[A-Z]+-[0-9]+' | head -n 1)
+
+      if [ -z "$jira_number" ]; then
+        echo "Error: Could not extract JIRA ticket number from URL"
+        echo "URL: $input"
+        return 1
+      fi
+
+      echo "Extracted ticket: $jira_number"
+      ;;
+  esac
+
+  # Validate JIRA ticket format (PROJECT-NUMBER)
+  if ! echo "$jira_number" | grep -qE '^[A-Z]+-[0-9]+$'; then
+    echo "Error: Invalid JIRA ticket format: $jira_number"
+    echo "Expected format: PROJECT-123 (e.g., PED-1234)"
+    return 1
+  fi
+
+  # Check if we're in a git repository
+  if ! git rev-parse --git-dir > /dev/null 2>&1; then
+    echo "Error: Not in a git repository"
+    return 1
+  fi
+
+  # Get repository root and name
+  repo_root=$(git rev-parse --show-toplevel)
+  repo_name=$(basename "$repo_root")
+
+  # Build branch name and worktree path
+  branch_name="$jira_number"
+  if [ -n "$namespace" ]; then
+    branch_name="${jira_number}-${namespace}"
+  fi
+
+  worktree_base="$HOME/worktrees/$repo_name"
+  worktree_path="$worktree_base/$branch_name"
+
+  # Create worktree base directory if it doesn't exist
+  mkdir -p "$worktree_base"
+
+  # Check if worktree already exists
+  if [ -d "$worktree_path" ]; then
+    echo "Worktree already exists at: $worktree_path"
+    printf "Do you want to delete it and start fresh? [y/N] "
+    read response
+
+    if echo "$response" | grep -qE '^[yY]([eE][sS])?$'; then
+      echo "Removing existing worktree..."
+      cd "$repo_root" || return 1
+      git worktree remove "$worktree_path" --force
+
+      # Also delete the branch if it exists
+      if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+        echo "Deleting branch $branch_name..."
+        git branch -D "$branch_name"
+      fi
+
+      echo "Creating new worktree..."
+    else
+      echo "Keeping existing worktree. Exiting..."
+      return 0
+    fi
+  fi
+
+  # Create new worktree
+  echo "Creating worktree for $branch_name..."
+  git worktree add -b "$branch_name" "$worktree_path"
+
+  if [ $? -ne 0 ]; then
+    echo "Error: Failed to create worktree"
+    return 1
+  fi
+
+  # Build tab name
+  tab_name="$branch_name"
+
+  # Create zellij split
+  if [ -n "$ZELLIJ" ]; then
+    echo "Creating zellij workspace: $tab_name"
+    zellij_split "$branch_name" "$tab_name"
+
+    # Wait for panes to initialize with user profile
+    echo "Waiting for panes to initialize..."
+    sleep 2
+
+    # Focus left pane and initialize
+    zellij action move-focus left
+
+    # Initialize left pane: cd, fetch, reset, then nvim
+    zellij action write-chars "cd \"$worktree_path\""
+    zellij action write 13  # Enter key
+
+    zellij action write-chars "git fetch origin && git reset --hard origin/main"
+    zellij action write 13  # Enter key
+
+    zellij action write-chars "nvim ."
+    zellij action write 13  # Enter key
+
+    # Focus right pane and initialize
+    zellij action move-focus right
+
+    # Build claude code prompt
+    cc_prompt="Please fetch the details for JIRA ticket ${jira_number} and create a plan to implement it."
+    if [ -n "$namespace" ]; then
+      cc_prompt="$cc_prompt Focus on: $namespace"
+    fi
+
+    # Initialize right pane: cd, fetch, reset, then claude
+    zellij action write-chars "cd \"$worktree_path\""
+    zellij action write 13  # Enter key
+
+    zellij action write-chars "git fetch origin && git reset --hard origin/main"
+    zellij action write 13  # Enter key
+
+    zellij action write-chars "cc '$cc_prompt'"
+    zellij action write 13  # Enter key
+
+    # Focus back to left pane (nvim)
+    zellij action move-focus left
+
+    echo "Workspace ready for $jira_number!"
+    echo "Left pane: nvim | Right pane: claude code"
+  else
+    # Not in zellij, just cd to worktree and start Claude Code
+    echo "Not in a zellij session."
+    cd "$worktree_path" || return 1
+
+    # Initialize the worktree
+    echo "Initializing worktree from clean main branch..."
+    git fetch origin
+    git reset --hard origin/main
+
+    # Start claude code
+    echo "Starting Claude Code to plan work for $jira_number..."
+    cc_prompt="Please fetch the details for JIRA ticket $jira_number and create a plan to implement it."
+    if [ -n "$namespace" ]; then
+      cc_prompt="$cc_prompt Focus on: $namespace"
+    fi
+
+    claude --dangerously-skip-permissions "$cc_prompt"
+  fi
+}
+_set jc "jira_claude"
+
 jira_worktree() {
   # Validate parameters
   input="$1"
