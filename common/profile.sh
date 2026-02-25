@@ -563,9 +563,6 @@ jira_claude() {
 
   # Build claude code prompt
   local cc_prompt="Please fetch the details for JIRA ticket ${ticket} and create a plan to implement it. If you see a devbox.json files, you might want to execute \`devbox shell\` before running any project related commands like using node, installing dependencies, etc"
-  if [ -n "$keyword" ]; then
-    cc_prompt="$cc_prompt Focus on: $keyword"
-  fi
 
   # Setup workspace
   if [ -n "$ZELLIJ" ]; then
@@ -579,77 +576,6 @@ jira_claude() {
   fi
 }
 _set jc "jira_claude"
-
-# Alternative function: Start work without Claude Code
-jira_worktree() {
-  local input="$1"
-  local keyword="${2:-}"
-
-  if [ -z "$input" ]; then
-    echo "Error: JIRA ticket number or URL required"
-    echo "Usage: jira_worktree <JIRA_NUMBER|JIRA_URL> [keyword]"
-    echo "Examples:"
-    echo "  jira_worktree PED-1234"
-    echo "  jira_worktree https://company.atlassian.net/browse/PED-1234"
-    echo "  jira_worktree PED-1234 auth-feature"
-    return 1
-  fi
-
-  # Check if in git repository
-  _git_check_repo || return 1
-
-  # Get repository info
-  local repo_info=$(_git_get_repo_info)
-  local repo_root=$(echo "$repo_info" | cut -d'|' -f1)
-  local repo_name=$(echo "$repo_info" | cut -d'|' -f2)
-
-  # Extract and validate JIRA ticket
-  local ticket=$(_extract_ticket "$input")
-  if [ -z "$ticket" ]; then
-    echo "Error: Could not extract JIRA ticket from: $input"
-    return 1
-  fi
-
-  echo "Extracted ticket: $ticket"
-  _validate_jira_ticket "$ticket" || return 1
-
-  # Worktree location: ~/worktrees/<repo_name>/<ticket>
-  local worktree_base="$HOME/worktrees/$repo_name"
-  local worktree_path="$worktree_base/$ticket"
-
-  # Create worktree base directory
-  mkdir -p "$worktree_base"
-
-  # Check if worktree exists
-  _worktree_check_exists "$worktree_path" "$ticket" "$repo_root" || return 0
-
-  # Create new worktree
-  _worktree_create "$ticket" "$worktree_path" || return 1
-
-  # Build tab name
-  local tab_name="$ticket"
-  if [ -n "$keyword" ]; then
-    tab_name="${ticket}-${keyword}"
-  fi
-
-  # Build claude code prompt
-  local cc_prompt="Please fetch the details for JIRA ticket ${ticket} and create a plan to implement it."
-  if [ -n "$keyword" ]; then
-    cc_prompt="$cc_prompt Focus on: $keyword"
-  fi
-
-  # Setup workspace
-  if [ -n "$ZELLIJ" ]; then
-    _zellij_setup_workspace "$worktree_path" "$tab_name" "cc '$cc_prompt'"
-  else
-    echo "Not in a zellij session."
-    _worktree_init "$worktree_path" || return 1
-
-    echo "Starting Claude Code to plan work for $ticket..."
-    claude --dangerously-skip-permissions "$cc_prompt"
-  fi
-}
-_set jt "jira_worktree"
 
 # Clean up all worktrees for current repository
 jira_worktree_clean() {
