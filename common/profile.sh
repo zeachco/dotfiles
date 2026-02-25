@@ -663,10 +663,10 @@ pie_score() {
 }
 
 # replace normal to call hook after the command
-cd() {
-  builtin cd "$@" || return
-  check_for_devbox
-}
+# cd() {
+#   builtin cd "$@" || return
+#   check_for_devbox
+# }
 
 check_for_devbox() {
   if [[ -f "devbox.json" ]]; then
@@ -689,7 +689,7 @@ check_for_devbox() {
 
 # also call on shell open for when you split your terminal on an existing devbox path
 # remove this line if you find this behavior too intrusive
-check_for_devbox
+# check_for_devbox
 
 # GOTCHA: on linux, nix dedamon might not be automatically starteed
 # sudo systemctl enable --now nix-daemon
