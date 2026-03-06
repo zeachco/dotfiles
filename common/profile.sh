@@ -521,4 +521,27 @@ jira_worktree_clean() {
 }
 _set jtc "jira_worktree_clean"
 
+# Clear all worktrees for current repo and close their zellij tabs
+jira_worktree_clean_all() {
+  _git_check_repo || return 1
+
+  local repo_info=$(_git_get_repo_info)
+  local repo_root=$(echo "$repo_info" | cut -d'|' -f1)
+  local repo_name=$(echo "$repo_info" | cut -d'|' -f2)
+  local worktree_base="$HOME/worktrees/$repo_name"
+
+  cd "$repo_root" || return 1
+
+  # Remove all worktrees except main
+  git worktree list --porcelain | grep "^worktree" | awk '{print $2}' | while read -r wt; do
+    [ "$wt" != "$repo_root" ] && git worktree remove "$wt" --force 2>/dev/null
+  done
+
+  [ -d "$worktree_base" ] && rm -rf "$worktree_base"
+  git worktree prune
+
+  echo "All worktrees cleaned for $repo_name"
+}
+_set jtca "jira_worktree_clean_all"
+
 
