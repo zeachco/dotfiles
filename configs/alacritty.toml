@@ -3,12 +3,11 @@ import=["~/dotfiles/themes/current/alacritty.toml"]
 
 [window]
 # opacity = 0.90
-padding = { x = 0, y = 0}
+padding = { x = 2, y = 8}
 startup_mode = "Maximized"
 
 decorations = "buttonless"
-# blur = true
-#
+blur = true
 
 [cursor]
 style = "Block"
