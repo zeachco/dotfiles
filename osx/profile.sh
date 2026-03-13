@@ -9,6 +9,11 @@ xcode_reinstall() {
 dark() {
   enabled=${1:-true}
   osascript -e "tell application \"System Events\" to tell appearance preferences to set dark mode to $enabled"
+  if [ "$enabled" = "true" ]; then
+    "$DOT_DIR/bin/theme-switch" catppuccin-mocha
+  else
+    "$DOT_DIR/bin/theme-switch" catppuccin-latte
+  fi
 }
 
 docker() {
