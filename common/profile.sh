@@ -492,12 +492,13 @@ jira_claude() {
   local keyword="${2:-}"
 
   if [ -z "$input" ]; then
-    echo "Error: JIRA ticket, JIRA URL, or GitHub PR URL required"
-    echo "Usage: jira_claude <JIRA_NUMBER|JIRA_URL|GITHUB_PR_URL> [keyword]"
+    echo "Error: JIRA ticket, JIRA URL, GitHub PR URL, or pr-NNN required"
+    echo "Usage: jira_claude <JIRA_NUMBER|JIRA_URL|GITHUB_PR_URL|pr-NNN> [keyword]"
     echo "Examples:"
     echo "  jira_claude PED-1234"
     echo "  jira_claude https://stay22.atlassian.net/browse/PED-1234"
     echo "  jira_claude https://github.com/owner/repo/pull/123"
+    echo "  jira_claude pr-123"
     echo "  jira_claude PED-1234 my-work-namespace"
     return 1
   fi
@@ -510,13 +511,23 @@ jira_claude() {
   local repo_root=$(echo "$repo_info" | cut -d'|' -f1)
   local repo_name=$(echo "$repo_info" | cut -d'|' -f2)
 
-  # Check if it's a GitHub PR URL
+  # Check if it's a GitHub PR URL or pr-NNN shorthand
+  local is_pr=false
+  local pr_ref="$input"
+
   if _is_github_pr_url "$input"; then
-    echo "Detected GitHub PR URL"
+    is_pr=true
+  elif echo "$input" | grep -qiE '^pr-[0-9]+$'; then
+    is_pr=true
+    pr_ref=$(echo "$input" | grep -oE '[0-9]+')
+  fi
+
+  if [ "$is_pr" = true ]; then
+    echo "Detected GitHub PR"
 
     # Checkout the PR branch
     cd "$repo_root" || return 1
-    _github_pr_checkout "$input" || return 1
+    _github_pr_checkout "$pr_ref" || return 1
 
     local branch_name=$(git branch --show-current)
     local tab_name="${repo_name}:${branch_name}"
