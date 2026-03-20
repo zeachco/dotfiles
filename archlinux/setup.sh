@@ -6,7 +6,6 @@ install unzip
 # install net-tools
 # install bind-tools  # for dig
 install curl
-install htop
 install gcc
 install make
 install zellij

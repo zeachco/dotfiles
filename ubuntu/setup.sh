@@ -7,7 +7,6 @@ source "$HOME/dotfiles/utils.sh"
 install unzip
 install ifconfig net-tools
 install dig dnsutils
-install htop
 install g++
 install make
 

@@ -15,7 +15,6 @@ install zellij
 install ifconfig net-tools
 install dig dnsutils
 install curl
-install htop
 install g++
 install make
 install gh github-cli
