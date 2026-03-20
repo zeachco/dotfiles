@@ -2,6 +2,13 @@
 
 ## Clone and run
 
+### With gh + auth
+
+```sh
+gh repo clone zeachco/dotfiles ~/dotfiles && bash ~/dotfiles/setup.sh
+```
+
+### or with git clone
 ```sh
 git clone git@github.com:zeachco/dotfiles.git ~/dotfiles && bash ~/dotfiles/setup.sh
 ```
