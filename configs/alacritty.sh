@@ -4,17 +4,21 @@ rm -rf .config/alacritty
 if [ -d ~/.config/hypr ]; then
   # On Omarchy: create separate config file for zellij profile
   cat >~/.dotfiles_alacritty.toml <<EOF
-
 [terminal.shell]
 program = "$(which zellij)"
 # args = ["attach", "--create", "1"]
 
 [window]
-padding = { x = 10, y = 10 }
+padding = { x = 16, y = 16 }
 
 [font]
 size = 16.0
 EOF
+
+  # Add dotfiles import if not already present
+  if ! grep -q "dotfiles/configs/alacritty.toml" ~/.config/alacritty/alacritty.toml; then
+    sed -i '1s/^/[general]\nimport = ["~\/dotfiles\/configs\/alacritty.toml"]\n\n/' ~/.config/alacritty/alacritty.toml
+  fi
 
   # Add hypr binding for super+shift+enter to use this config
   BINDINGS_FILE=~/.config/hypr/bindings.conf
@@ -24,7 +28,7 @@ EOF
       # Add the binding after the terminal binding (line 5)
       sed -i '5 a bindd = SUPER SHIFT, RETURN, Terminal with Zellij, exec, uwsm-app -- alacritty --config-file ~/.dotfiles_alacritty.toml' "$BINDINGS_FILE"
     fi
-  fi
+ fi
 else
   # Non-Omarchy: create default alacritty config with zellij
   cat >~/.alacritty.toml <<EOF
