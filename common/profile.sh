@@ -251,6 +251,47 @@ zellij_branch_repo() {
 }
 _set wt "zellij_branch_repo"
 
+zellij_branch_repo_delete() {
+  if ! git rev-parse --git-dir > /dev/null 2>&1; then
+    echo "Error: Not in a git repository"
+    return 1
+  fi
+
+  local repo_root=$(git rev-parse --show-toplevel)
+  local main_root=$(git -C "$repo_root" worktree list --porcelain | head -n 1 | awk '{print $2}')
+
+  if [ "$repo_root" = "$main_root" ]; then
+    echo "Error: Not in a worktree (you're in the main repo)"
+    return 1
+  fi
+
+  local branch_name=$(git branch --show-current)
+
+  # Move to main repo root before removing the worktree
+  cd "$main_root" || return 1
+
+  echo "Removing worktree at $repo_root..."
+  git worktree remove "$repo_root" --force
+
+  if [ $? -ne 0 ]; then
+    echo "Error: Failed to remove worktree"
+    return 1
+  fi
+
+  # Delete the branch
+  if [ -n "$branch_name" ] && git show-ref --verify --quiet "refs/heads/$branch_name"; then
+    echo "Deleting branch $branch_name..."
+    git branch -D "$branch_name"
+  fi
+
+  echo "Worktree removed. Closing tab in 2 seconds..."
+
+  # Close the zellij tab with a delay
+  if [ -n "$ZELLIJ" ]; then
+    zellij action close-tab
+  fi
+}
+_set wtd "zellij_branch_repo_delete"
 
 power() {
   upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep 'state\|percentage'
