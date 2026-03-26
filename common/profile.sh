@@ -183,37 +183,73 @@ git_test() {
 }
 _set gt "git_test"
 
-zellij_split() {
-  branch_name="$1"
-  tab_name="$2"
-
-  if [ -z "$branch_name" ] || [ -z "$tab_name" ]; then
-    echo "Error: branch_name and tab_name required"
-    echo "Usage: zellij_split <branch_name> <tab_name>"
-    return 1
-  fi
-
+zellij_branch_repo() {
   if [ -z "$ZELLIJ" ]; then
     echo "Error: Not in a zellij session"
     return 1
   fi
 
-  # Create new tab
+  if ! git rev-parse --git-dir > /dev/null 2>&1; then
+    echo "Error: Not in a git repository"
+    return 1
+  fi
+
+  local repo_root=$(git rev-parse --show-toplevel)
+  local repo_name=$(basename "$repo_root")
+  local branch_name="${1:-main}"
+  local tab_label="${2:-$branch_name}"
+  local tab_name="${repo_name}:${tab_label}"
+  local worktree_base="$HOME/worktrees/$repo_name"
+  local worktree_path="$worktree_base/$branch_name"
+
+  if [ "$branch_name" = "main" ] || [ "$branch_name" = "master" ]; then
+    # For main/master, just use the repo root directly
+    local target_path="$repo_root"
+  elif [ -d "$worktree_path" ]; then
+    echo "Worktree already exists at: $worktree_path"
+    local target_path="$worktree_path"
+  else
+    mkdir -p "$worktree_base"
+    echo "Creating worktree for $branch_name..."
+
+    # Check if branch exists locally or remotely
+    if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+      git worktree add "$worktree_path" "$branch_name"
+    elif git show-ref --verify --quiet "refs/remotes/origin/$branch_name"; then
+      git worktree add "$worktree_path" "$branch_name"
+    else
+      git worktree add -b "$branch_name" "$worktree_path"
+    fi
+
+    if [ $? -ne 0 ]; then
+      echo "Error: Failed to create worktree"
+      return 1
+    fi
+    local target_path="$worktree_path"
+  fi
+
+  # Create new zellij tab (does not affect current tab's state)
   zellij action new-tab --name "$tab_name"
 
   # Split pane vertically (50/50)
   zellij action new-pane --direction right
 
-  # Focus left pane - will have nvim
+  # Setup left pane
+  zellij action move-focus left
+  zellij action write-chars "cd \"$target_path\""
+  zellij action write 13
+
+  # Setup right pane
+  zellij action move-focus right
+  zellij action write-chars "cd \"$target_path\""
+  zellij action write 13
+
+  # Focus back to left pane
   zellij action move-focus left
 
-  # Focus right pane - will have shell
-  zellij action move-focus right
-
-  echo "Created tab '$tab_name' with two panes"
-  echo "Left pane: ready for nvim | Right pane: shell"
+  echo "Tab '$tab_name' ready at $target_path"
 }
-_set wt "zellij_split"
+_set wt "zellij_branch_repo"
 
 
 power() {
