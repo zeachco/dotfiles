@@ -285,11 +285,6 @@ zellij_branch_repo_delete() {
   fi
 
   echo "Worktree removed. Closing tab in 2 seconds..."
-
-  # Close the zellij tab with a delay
-  if [ -n "$ZELLIJ" ]; then
-    zellij action close-tab
-  fi
 }
 _set wtd "zellij_branch_repo_delete"
 
