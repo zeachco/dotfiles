@@ -4,6 +4,8 @@ export EDITOR="nvim"
 export SUDO_EDITOR="$EDITOR"
 export PATH="/usr/local/bin:$PATH"
 
+PATH=$PATH:/home/olivier/.cargo/bin
+
 DOT_DIR="$HOME/dotfiles"
 dotfiles_update() {
   cd $DOT_DIR || exit 1
