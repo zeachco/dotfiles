@@ -2,13 +2,11 @@
 
 window#waybar {
   background-color: transparent;
-  background-color: black;
 }
 
 * {
   background-color: transparent;
   color: @foreground;
-  color: red;
 
   border: none;
   border-radius: 0;
@@ -23,7 +21,7 @@ window#waybar {
   padding: 0.5em 1em;
   margin: 0.25em;
   border-radius: 50em;
-  background: @background;
+  /* background: @background; */
 }
 
 .modules-left {
@@ -72,6 +70,7 @@ window#waybar {
 
 tooltip {
   padding: 2px;
+  background: @background;
 }
 
 #custom-update {
