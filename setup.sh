@@ -11,20 +11,20 @@ case "${unameOut}" in
 Linux*)
   # Check for Arch Linux first
   if [[ -f /etc/arch-release ]] || command -v pacman &>/dev/null; then
-    OS_DIR=archlinux
+    OS_DIR=variants/archlinux
   else
-    OS_DIR=debian
+    OS_DIR=variants/debian
   fi
   ;;
-Darwin*) OS_DIR=osx ;;
+Darwin*) OS_DIR=variants/osx ;;
 *) echo "No setup for this OS (${unameOut})" ;;
 esac
 
 # Check for Termux environment
 if [[ -n "$TERMUX_VERSION" ]] || [[ "$PREFIX" == *"com.termux"* ]]; then
-  OS_DIR=termux
+  OS_DIR=variants/termux
 elif [[ "$(lsb_release -a 2>/dev/null)" =~ "Ubuntu" ]]; then
-  OS_DIR=ubuntu
+  OS_DIR=variants/ubuntu
 fi
 
 install_profile "common"

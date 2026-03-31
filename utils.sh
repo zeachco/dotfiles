@@ -25,12 +25,12 @@ function install_profile {
     echo -e "${INFO}check ${NORM}$1 dependencies..."
     $SHELL "$DOT_DIR/$1/setup.sh"
 
-    variant=$1
+    variant=$(basename $1)
     profile_filename="$HOME/.dotfiles_$variant"
 
     hook="[[ -f $profile_filename ]] && source $profile_filename # zeachco-dotfiles $variant"
 
-    cp "$DOT_DIR/$variant/profile.sh" "$profile_filename"
+    cp "$DOT_DIR/$1/profile.sh" "$profile_filename"
 
     echo -e "${INFO}link ${NORM}$profile_filename"
     echo "$hook" >> $USER_SOURCE_FILE
