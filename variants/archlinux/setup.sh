@@ -81,8 +81,7 @@ if ! [ -f "$WP_CONF" ]; then
   ln -sf ~/dotfiles/configs/wireplumber-sound-blaster-gs5.conf "$WP_CONF"
 fi
 
-install stow
-stow_package waybar
-stow_package claude
+stow_link waybar
+stow_link claude
 
 echo -e "${PASS}Arch Linux setup complete!${NORM}"

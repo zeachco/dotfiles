@@ -121,13 +121,26 @@ function script_install() {
     fi
 }
 
-function stow_package() {
+function stow_link() {
     local pkg=$1
+
+    install stow
+
     echo -e "${WARN}stowing ${NORM}$pkg..."
-    cd "$DOT_DIR"
+    cd "$DOT_DIR/configs"
     # Remove any regular files that would conflict with stow symlinks
-    stow --simulate --restow "$pkg" 2>&1 | grep 'cannot stow' | awk -F 'target ' '{if(NF>1) print $2}' | awk '{print $1}' | while read target; do
-        [[ ! -L "$HOME/$target" ]] && rm -f "$HOME/$target"
-    done
-    stow --restow "$pkg"
+    stow --target="$HOME" --simulate --restow "$pkg" 2>&1 | \
+        sed -n \
+            -e 's/.*cannot stow.*target \([^ ]*\) since.*/\1/p' \
+            -e 's/.*existing target is not owned by stow: \(.*\)/\1/p' | \
+        while read -r target; do
+            if [[ -n "$target" ]]; then
+                if [[ -L "$HOME/$target" || -f "$HOME/$target" ]]; then
+                    rm -f "$HOME/$target"
+                elif [[ -d "$HOME/$target" ]]; then
+                    rm -rf "$HOME/$target"
+                fi
+            fi
+        done
+    stow --target="$HOME" --restow "$pkg"
 }
