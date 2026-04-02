@@ -20,6 +20,8 @@ install make
 install gh github-cli
 script_install ollama "curl -fsS https://ollama.com/install.sh | $SHELL"
 
+install stow
+stow_package claude
 
 # just use omakub
 exit 0;

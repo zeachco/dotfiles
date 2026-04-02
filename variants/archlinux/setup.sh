@@ -82,11 +82,7 @@ if ! [ -f "$WP_CONF" ]; then
 fi
 
 install stow
-cd "$DOT_DIR"
-# Remove any regular files that would conflict with stow symlinks
-stow --simulate --restow waybar 2>&1 | grep 'cannot stow' | grep -oP '(?<=target )\S+' | while read target; do
-  [[ ! -L "$HOME/$target" ]] && rm -f "$HOME/$target"
-done
-stow --restow waybar
+stow_package waybar
+stow_package claude
 
 echo -e "${PASS}Arch Linux setup complete!${NORM}"

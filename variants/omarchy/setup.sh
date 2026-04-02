@@ -4,8 +4,8 @@ source "$HOME/dotfiles/utils.sh"
 install stow
 
 # Omarchy look and feel configs
-cd "$DOT_DIR"
-stow --restow waybar
-stow --restow hypr
+stow_package waybar
+stow_package hypr
+stow_package claude
 
 echo -e "${PASS}Omarchy setup complete!${NORM}"

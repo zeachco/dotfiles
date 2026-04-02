@@ -120,3 +120,14 @@ function script_install() {
         eval "$exec"
     fi
 }
+
+function stow_package() {
+    local pkg=$1
+    echo -e "${WARN}stowing ${NORM}$pkg..."
+    cd "$DOT_DIR"
+    # Remove any regular files that would conflict with stow symlinks
+    stow --simulate --restow "$pkg" 2>&1 | grep 'cannot stow' | awk -F 'target ' '{if(NF>1) print $2}' | awk '{print $1}' | while read target; do
+        [[ ! -L "$HOME/$target" ]] && rm -f "$HOME/$target"
+    done
+    stow --restow "$pkg"
+}

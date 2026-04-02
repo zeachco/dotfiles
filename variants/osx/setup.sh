@@ -38,6 +38,9 @@ force_install aerospace Aerospace
 force_install alacritty Alacritty
 force_install chromium Chromium
 
+install stow
+stow_package claude
+
 # call `defaults delete <property>` to reset to default
 defaults write NSGlobalDomain NSWindowResizeTime -float 0.001
 defaults write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false

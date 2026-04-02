@@ -12,4 +12,7 @@ install make
 
 script_install devbox "curl -fsSL https://get.jetify.com/devbox | $SHELL"
 
+install stow
+stow_package claude
+
 $SHELL ~/dotfiles/ubuntu/shortcuts.sh
