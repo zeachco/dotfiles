@@ -7,6 +7,12 @@ if [ -d ~/.config/hypr ]; then
   cp ~/dotfiles/configs/zellij-no-panel.kdl ~/.config/zellij/layouts/no-panel.kdl
 
   # On Omarchy: create separate config file for zellij profile
+  if [ "$(uname -s)" = "Darwin" ]; then
+    FONT_SIZE=16.0
+  else
+    FONT_SIZE=12.0
+  fi
+
   cat >~/.dotfiles_alacritty.toml <<EOF
 
 [terminal.shell]
@@ -17,7 +23,7 @@ args = ["--layout", "$HOME/.config/zellij/layouts/no-panel.kdl"]
 padding = { x = 10, y = 10 }
 
 [font]
-size = 16.0
+size = \${FONT_SIZE}
 EOF
 
   # Add hypr binding for super+enter to use this config
@@ -31,6 +37,12 @@ EOF
   fi
 else
   # Non-Omarchy: create default alacritty config with zellij
+  if [ "$(uname -s)" = "Darwin" ]; then
+    FONT_SIZE=13.0
+  else
+    FONT_SIZE=11.0
+  fi
+
   cat >~/.alacritty.toml <<EOF
 [general]
 import = ["~/dotfiles/configs/alacritty.toml"]
@@ -40,7 +52,7 @@ program = "$(which zellij)"
 # args = ["attach", "--create", "1"]
 
 [font]
-size = 13.0
+size = \${FONT_SIZE}
 
 [font.normal]
 family = "VictorMono Nerd Font"

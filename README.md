@@ -33,6 +33,16 @@ For ubuntu, it also installs [omakub](https://omakub.org/) it's just too good to
 
 # Includes
 
+## How this repo works
+
+The repository uses a profile-based approach for different environments. When you run `setup.sh`:
+1. It automatically detects your operating system and environment (macOS, Arch, Debian, Ubuntu, Termux, etc.).
+2. It first runs the `common` profile which installs the base set of tools and configurations using `stow` for symlinking `configs/` into your `$HOME`.
+3. It then runs the specific profile for your OS (e.g. `variants/osx`, `variants/ubuntu`).
+4. Profiles use a helper script (`utils.sh`) to intelligently manage dependencies across OS package managers (apt, pacman, brew, pkg).
+5. It safely injects a source hook into your shell's initialization file (`~/.bashrc`, `~/.zshrc`, etc.) to load aliases, variables, and bash functions from `.dotfiles_<variant>`.
+6. You can re-run the setup at any time safely to update or apply new configs.
+
 ## Programing languages
 
 Uses [mise](https://mise.jdx.dev/) and [devbox](https://www.jetify.com/devbox) to control all envs for python, node, rust, go, etc...
