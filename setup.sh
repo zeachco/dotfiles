@@ -27,9 +27,10 @@ elif [[ "$(lsb_release -a 2>/dev/null)" =~ "Ubuntu" ]]; then
   OS_DIR=variants/ubuntu
 fi
 
-install_profile "common"
+install_profile "shared"
 
 # note: the debian profile is also adapted to arch/manjaroo
-install_profile "$OS_DIR"
+# Extract just the variant name from the OS_DIR path
+install_profile "$(basename $OS_DIR)"
 
 echo "All done!"

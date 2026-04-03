@@ -10,25 +10,26 @@ This is a cross-platform dotfiles repository that provides automated environment
 
 ### Core Components
 
-- **utils.sh**: Central utility library providing installation helpers (`install`, `script_install`), existence checks (`exists`, `needs`), and profile management (`install_profile`, `clean_imports`)
-- **setup.sh**: Main entry point that detects OS and orchestrates profile installation by calling `install_profile` for common + OS-specific profiles
+- **utils.sh**: Central utility library providing installation helpers (`install`, `script_install`), existence checks (`exists`, `needs`), and profile management (`install_profile`, `clean_imports`). The `install_profile` function automatically prefixes variant names with `variants/`.
+- **setup.sh**: Main entry point that detects OS and orchestrates profile installation by calling `install_profile` for shared + OS-specific profiles
 
 ### Profile System
 
-Each profile directory (common/, debian/, ubuntu/, osx/, termux/) contains:
+Each profile directory (variants/shared/, variants/debian/, variants/ubuntu/, variants/osx/, variants/termux/) contains:
 - **setup.sh**: Installs packages and tools specific to that environment
 - **profile.sh**: Shell functions, aliases, and environment variables sourced at shell startup
 
 Profile loading mechanism:
 1. setup.sh detects OS and sets OS_DIR variable
-2. Calls `install_profile "common"` then `install_profile "$OS_DIR"`
-3. Each profile's profile.sh is copied to ~/.dotfiles_[variant] and sourced from user's shell config
+2. Calls `install_profile "shared"` then `install_profile` with the variant name (e.g., "debian", "osx")
+3. `install_profile` automatically prefixes the variant name with `variants/` to find the correct directory
+4. Each profile's profile.sh is copied to ~/.dotfiles_[variant] and sourced from user's shell config
 
 ### Key Features
 
-**Automatic devbox shell activation**: The common/profile.sh contains a `check_for_devbox()` function that automatically enters devbox shells when cd'ing into directories with devbox.json. This is called on both cd and shell startup.
+**Automatic devbox shell activation**: The variants/shared/profile.sh contains a `check_for_devbox()` function that automatically enters devbox shells when cd'ing into directories with devbox.json. This is called on both cd and shell startup.
 
-**Git aliases**: Extensive git aliases defined in both git config (common/setup.sh:21-41) and shell aliases (common/profile.sh:38-58). Shell aliases use the `_set` helper which prints the actual command being run.
+**Git aliases**: Extensive git aliases defined in both git config (variants/shared/setup.sh:21-41) and shell aliases (variants/shared/profile.sh:38-58). Shell aliases use the `_set` helper which prints the actual command being run.
 
 **Package manager abstraction**: The `install` function in utils.sh:74-97 automatically detects whether to use apt, pacman, or pkg (Termux) based on environment.
 
@@ -48,7 +49,7 @@ bash ~/dotfiles/setup.sh
 
 Or update from remote:
 ```bash
-dotfiles_update  # Alias defined in common/profile.sh:7-14
+dotfiles_update  # Alias defined in variants/shared/profile.sh:7-14
 ```
 
 ### Manual Profile Reload
@@ -59,7 +60,7 @@ source ~/.bashrc  # or ~/.zshrc depending on shell
 
 ## Important Shell Functions & Aliases
 
-Defined in common/profile.sh:
+Defined in variants/shared/profile.sh:
 
 - **clone [repo/project]**: GitHub shorthand to clone repos (e.g., `clone zeachco/dotfiles`) - implemented in advanced/clone.ts
 - **ipp**: Print public IP address
@@ -69,11 +70,11 @@ Defined in common/profile.sh:
 - **check_for_devbox**: Auto-enters devbox shell when devbox.json present
 
 Git shortcuts (print actual command before executing):
-- gco, gs, gd, gci, gp, gpp, etc. - see common/profile.sh:38-58
+- gco, gs, gd, gci, gp, gpp, etc. - see variants/shared/profile.sh:38-58
 
 ## OS-Specific Notes
 
-**Ubuntu**: Uses Omakub (https://omakub.org/) as base, only installs additional tools needed. See ubuntu/setup.sh:4
+**Ubuntu**: Uses Omakub (https://omakub.org/) as base, only installs additional tools needed. See variants/ubuntu/setup.sh:4
 
 **Debian/Arch**: Skips installation on Spin cloud environments (detected via /opt/spin directory). Uses either apt or pacman based on availability.
 
@@ -89,12 +90,12 @@ The setup determines which shell config file to modify based on $SHELL:
 
 Profiles are sourced via lines like:
 ```bash
-[[ -f ~/.dotfiles_common ]] && source ~/.dotfiles_common # zeachco-dotfiles common
+[[ -f ~/.dotfiles_shared ]] && source ~/.dotfiles_shared # zeachco-dotfiles variants/shared
 ```
 
 ## Development Tools
 
-**Editor**: nvim (set as EDITOR and SUDO_EDITOR in common/profile.sh:3-4)
+**Editor**: nvim (set as EDITOR and SUDO_EDITOR in variants/shared/profile.sh:3-4)
 
 **Version Management**: Uses mise (https://mise.jdx.dev/) and devbox (https://www.jetify.com/devbox) for managing Python, Node, Rust, Go, etc.
 
