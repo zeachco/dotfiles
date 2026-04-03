@@ -23,7 +23,7 @@ args = ["--layout", "$HOME/.config/zellij/layouts/no-panel.kdl"]
 padding = { x = 10, y = 10 }
 
 [font]
-size = \${FONT_SIZE}
+size = ${FONT_SIZE}
 EOF
 
   # Add hypr binding for super+enter to use this config
@@ -52,7 +52,7 @@ program = "$(which zellij)"
 # args = ["attach", "--create", "1"]
 
 [font]
-size = \${FONT_SIZE}
+size = ${FONT_SIZE}
 
 [font.normal]
 family = "VictorMono Nerd Font"
