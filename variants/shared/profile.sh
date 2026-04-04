@@ -62,7 +62,6 @@ _set gpaanv "git add . --all && git commit --amend --no-edit && git push origin 
 _set grbi "git rebase upstream/master -i"
 _set gph "git push heroku master"
 _set gaa "git add -A"
-_set gd "git diff"
 _set gs "git status --short"
 _set gco "git checkout"
 _set gcp "git cherry-pick"
