@@ -22,15 +22,17 @@ window#waybar {
   margin: 0 0 8px 0;
   border-radius: 0;
   background: alpha(@background, 0.7);
-  box-shadow: 0 0 8px @background;
+  box-shadow: 0px 0px 4px 0 @background, inset 0px 0px 3px -1px @background;
 }
 
 .modules-left {
   border-radius: 0 0 1.2em 0;
+  border: 2px transparent;
 }
 
 .modules-right {
   border-radius: 0 0 0 1.2em;
+  border: 2px transparent;
 }
 
 #workspaces button {
