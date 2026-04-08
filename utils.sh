@@ -28,6 +28,14 @@ function install_profile {
     echo -e "${INFO}check ${NORM}$variant dependencies..."
     $SHELL "$DOT_DIR/$profile_path/setup.sh"
 
+    # Clean up old dotfiles_* files
+    for old_file in $HOME/.dotfiles_*; do
+        if [[ -f "$old_file" ]]; then
+            echo -e "${WARN}removing old ${NORM}$old_file"
+            rm -f "$old_file"
+        fi
+    done
+
     profile_filename="$HOME/.dotfiles_$variant"
 
     hook="[[ -f $profile_filename ]] && source $profile_filename # zeachco-dotfiles $variant"
