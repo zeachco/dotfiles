@@ -6,4 +6,6 @@ stow_link waybar
 stow_link hypr
 stow_link claude
 
+install s-tui  # cli tool for CPU benchmarks
+
 echo -e "${PASS}Omarchy setup complete!${NORM}"

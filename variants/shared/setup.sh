@@ -52,7 +52,6 @@ install rg  # ripgrep
 install fd  # fast find
 install gh  # github-cli
 install jq  # json parser
-install s-tui  # cli tool for CPU benchmarks
 install eza # list tree for ls
 install lazygit
 script_install opencode "curl -fsSL https://opencode.ai/install | bash"
