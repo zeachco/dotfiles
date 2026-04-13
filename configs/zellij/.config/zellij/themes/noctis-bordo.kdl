@@ -1,0 +1,133 @@
+// Noctis Bordo theme for Zellij
+// Based on VS Code's Noctis Bordo by Liviu Schera
+// With red accents for borders and tabs
+
+themes {
+  noctis-bordo {
+    text_unselected {
+      base 203 190 194
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    text_selected {
+      base 71 57 62
+      background 73 172 233
+      emphasis_0 230 101 51
+      emphasis_1 185 172 176
+      emphasis_2 73 172 233
+      emphasis_3 223 118 155
+    }
+
+    ribbon_unselected {
+      base 203 190 194
+      background 71 57 62
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    ribbon_selected {
+      base 255 255 255
+      background 173 72 133
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    table_title {
+      base 73 172 233
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    table_cell_unselected {
+      base 203 190 194
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    table_cell_selected {
+      base 185 172 176
+      background 73 172 233
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    list_unselected {
+      base 203 190 194
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    list_selected {
+      base 185 172 176
+      background 73 172 233
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    frame_unselected {
+      base 71 57 62
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    frame_selected {
+      base 173 72 133
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    frame_highlight {
+      base 230 101 51
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 133
+      emphasis_3 223 118 155
+    }
+
+    exit_code_success {
+      base 233 73 166
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+
+    exit_code_error {
+      base 230 101 51
+      background 50 42 45
+      emphasis_0 230 101 51
+      emphasis_1 233 73 166
+      emphasis_2 73 214 233
+      emphasis_3 230 101 51
+    }
+  }
+}

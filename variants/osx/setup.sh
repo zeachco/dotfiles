@@ -39,6 +39,7 @@ force_install alacritty Alacritty
 force_install chromium Chromium
 
 stow_link claude
+stow_link zellij
 
 # call `defaults delete <property>` to reset to default
 defaults write NSGlobalDomain NSWindowResizeTime -float 0.001

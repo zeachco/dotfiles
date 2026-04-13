@@ -15,11 +15,11 @@ update_zellij_theme() {
     sed 's/themes {$/themes {\n  current {/; /^  [a-z-]* {$/d' "$CURRENT_THEME_PATH/zellij.kdl" >"$HOME/.config/zellij/themes/current.kdl"
 
     # Reload config by toggling theme value (forces zellij to detect change)
-    ZELLIJ_CONFIG="$HOME/.config/zellij/config.kdl"
+    ZELLIJ_CONFIG="$DOTFILES_PATH/configs/zellij/.config/zellij/config.kdl"
     if [ -f "$ZELLIJ_CONFIG" ]; then
-      sed -i '' 's/theme "current"/theme "updating"/' "$ZELLIJ_CONFIG"
+      sed -i '' 's/theme "current"/theme "updating"/' "$ZELLIJ_CONFIG" 2>/dev/null
       sleep 1
-      sed -i '' 's/theme "updating"/theme "current"/' "$ZELLIJ_CONFIG"
+      sed -i '' 's/theme "updating"/theme "current"/' "$ZELLIJ_CONFIG" 2>/dev/null
     fi
   fi
 }
