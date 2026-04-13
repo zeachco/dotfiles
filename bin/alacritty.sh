@@ -2,10 +2,6 @@ rm -rf .config/alacritty
 
 # Check if running on Omarchy (detect hyprland config)
 if [ -d ~/.config/hypr ]; then
-  # Install no-panel layout for zellij
-  mkdir -p ~/.config/zellij/layouts
-  cp ~/dotfiles/configs/zellij-no-panel.kdl ~/.config/zellij/layouts/no-panel.kdl
-
   # On Omarchy: create separate config file for zellij profile
   if [ "$(uname -s)" = "Darwin" ]; then
     FONT_SIZE=16.0
@@ -45,7 +41,7 @@ else
 
   cat >~/.alacritty.toml <<EOF
 [general]
-import = ["~/dotfiles/configs/alacritty.toml"]
+import = ["~/.config/alacritty/alacritty.toml"]
 
 [terminal.shell]
 program = "$(which zellij)"

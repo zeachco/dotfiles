@@ -1,0 +1,3 @@
+[terminal.shell]
+program = "/usr/bin/env"
+args = ["zellij"]

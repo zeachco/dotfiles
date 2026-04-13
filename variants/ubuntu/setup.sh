@@ -13,5 +13,8 @@ install make
 script_install devbox "curl -fsSL https://get.jetify.com/devbox | $SHELL"
 
 stow_link claude
+stow_link alacritty
+stow_link alacritty-ubuntu
+stow_link nvim
 
 $SHELL ~/dotfiles/ubuntu/shortcuts.sh

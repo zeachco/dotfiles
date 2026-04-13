@@ -72,14 +72,11 @@ echo "vo=wlshm" >~/.var/app/com.ktechpit.orion/config/mpv/mpv.conf
 
 # Configure WirePlumber - Sound Blaster GS5 analog stereo profile
 # Prevents pro-audio mode from stealing the sound device between apps
-WP_CONF_DIR="$HOME/.config/wireplumber/wireplumber.conf.d"
-WP_CONF="$WP_CONF_DIR/50-sound-blaster-gs5-profile.conf"
-if ! [ -f "$WP_CONF" ]; then
-  mkdir -p "$WP_CONF_DIR"
-  ln -sf ~/dotfiles/configs/wireplumber-sound-blaster-gs5.conf "$WP_CONF"
-fi
-
 stow_link waybar
 stow_link claude
+stow_link wireplumber
+stow_link alacritty
+stow_link alacritty-archlinux
+stow_link nvim
 
 echo -e "${PASS}Arch Linux setup complete!${NORM}"

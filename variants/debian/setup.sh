@@ -21,6 +21,9 @@ install s-tui # cli tool for CPU benchmarks
 script_install ollama "curl -fsS https://ollama.com/install.sh | $SHELL"
 
 stow_link claude
+stow_link alacritty
+stow_link alacritty-debian
+stow_link nvim
 
 # just use omakub
 exit 0

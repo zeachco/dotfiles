@@ -54,24 +54,15 @@ install gh  # github-cli
 install jq  # json parser
 install eza # list tree for ls
 install lazygit
+install fzf
+install zellij
 script_install opencode "curl -fsSL https://opencode.ai/install | bash"
 script_install claude "curl -fsSL https://claude.ai/install.sh | bash"
-
-# Configure alacritty
-$SHELL ~/dotfiles/configs/alacritty.sh
-
-# Configure neovim keymaps
-mkdir -p ~/.config/nvim/lua/config
-cp ~/dotfiles/configs/keymaps.lua ~/.config/nvim/lua/config/keymaps.lua
-
-# Configure zellij
-mkdir -p ~/.config/zellij
-ln -sf ~/dotfiles/configs/zellij.kdl ~/.config/zellij/config.kdl
 
 # Configure hyprland numpad bindings
 HYPR_BINDINGS="$HOME/.config/hypr/bindings.conf"
 if [ -f "$HYPR_BINDINGS" ] && ! grep -q "KP_End" "$HYPR_BINDINGS"; then
-  cat >> "$HYPR_BINDINGS" << 'EOF'
+  cat >>"$HYPR_BINDINGS" <<'EOF'
 
 # Numpad workspace switching (dotfiles)
 bindd = SUPER, KP_End, Switch to workspace 1, workspace, 1

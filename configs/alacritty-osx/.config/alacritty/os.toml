@@ -1,0 +1,3 @@
+[terminal.shell]
+program = "/opt/homebrew/bin/zellij"
+args = ["attach", "--create", "1"]

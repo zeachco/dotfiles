@@ -13,7 +13,7 @@ dark() {
 
 docker() {
   # Use local variable to avoid scope issues in subshells
-  local docker_bin="/opt/homebrew/bin/docker"
+  local docker_bin="$(which docker 2>/dev/null || echo "${HOMEBREW_PREFIX:-/usr/local}/bin/docker")"
 
   # Ensure docker is installed
   which docker >/dev/null || brew install docker

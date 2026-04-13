@@ -176,7 +176,7 @@ keybinds clear-defaults=true {
         bind "Ctrl h" { SwitchToMode "move"; }
     }
     shared_except "locked" "session" {
-        // bind "Ctrl o" { SwitchToMode "session"; } // Disabled - conflicts with nvim Ctrl+o (jump back)
+        bind "Ctrl o" { SwitchToMode "session"; }
     }
     shared_except "locked" "scroll" "search" "tmux" {
         bind "Ctrl b" { SwitchToMode "tmux"; }
@@ -316,8 +316,8 @@ theme "current"
  
 // The name of the default layout to load on startup
 // Default: "default"
-// 
-// default_layout "compact"
+//
+default_layout "default-with-panels"
  
 // The folder in which Zellij will look for layouts
 // (Requires restart)

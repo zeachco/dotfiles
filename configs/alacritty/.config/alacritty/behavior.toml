@@ -1,0 +1,15 @@
+# Base Alacritty configuration
+# Common settings shared across all OS variants
+
+[cursor]
+style = "Block"
+unfocused_hollow = true
+
+[scrolling]
+history = 10000
+multiplier = 3
+
+[[keyboard.bindings]]
+key = "F"
+mods = "Command|Shift"
+action = "ToggleFullscreen"

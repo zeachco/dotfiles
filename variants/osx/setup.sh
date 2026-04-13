@@ -40,6 +40,20 @@ force_install chromium Chromium
 
 stow_link claude
 stow_link zellij
+stow_link aerospace
+stow_link alacritty
+stow_link alacritty-osx
+stow_link nvim
+
+# Generate alacritty os.toml with correct zellij path for current architecture
+# (stow puts a symlink, but we need the actual binary path which differs between Intel and Apple Silicon)
+ZELLIJ_PATH=$(which zellij 2>/dev/null || echo "${HOMEBREW_PREFIX:-/usr/local}/bin/zellij")
+rm -f ~/.config/alacritty/os.toml
+cat > ~/.config/alacritty/os.toml << EOF
+[terminal.shell]
+program = "$ZELLIJ_PATH"
+args = ["attach", "--create", "1"]
+EOF
 
 # call `defaults delete <property>` to reset to default
 defaults write NSGlobalDomain NSWindowResizeTime -float 0.001

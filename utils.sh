@@ -127,13 +127,14 @@ function stow_link() {
 
   install stow
 
-  echo -e "${WARN}stowing ${NORM}$pkg..."
+  echo -e "${INFO}stowing ${NORM}$pkg..."
   cd "$DOT_DIR/configs"
   # Remove any regular files that would conflict with stow symlinks
   stow --target="$HOME" --simulate --restow "$pkg" 2>&1 |
     sed -n \
       -e 's/.*cannot stow.*target \([^ ]*\) since.*/\1/p' \
-      -e 's/.*existing target is not owned by stow: \(.*\)/\1/p' |
+      -e 's/.*existing target is not owned by stow: \(.*\)/\1/p' \
+      -e 's/.*existing target is stowed to a different package: \([^ ]*\) =>.*/\1/p' |
     while read -r target; do
       if [[ -n "$target" ]]; then
         if [[ -L "$HOME/$target" || -f "$HOME/$target" ]]; then
@@ -143,5 +144,6 @@ function stow_link() {
         fi
       fi
     done
-  stow --target="$HOME" --restow "$pkg"
+  # Use regular stow since we've already removed conflicts
+  stow --target="$HOME" "$pkg" 2>&1 || stow --target="$HOME" --restow "$pkg"
 }
