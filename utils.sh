@@ -12,137 +12,136 @@ NORM="\033[0m"
 
 # Profile target
 if [[ $SHELL == *bash* ]]; then
-    if [[ -f ~/.bashrc ]]; then         USER_SOURCE_FILE=~/.bashrc
-        elif [[ -f ~/.bash_profile ]]; then USER_SOURCE_FILE=~/.bash_profile
-        elif [[ -f ~/.bash_login ]]; then   USER_SOURCE_FILE=~/.bash_login
-        elif [[ -f ~/.profile ]]; then      USER_SOURCE_FILE=~/.profile
-    fi
-    elif [[ $SHELL == *zsh* ]]; then      USER_SOURCE_FILE=~/.zshrc
+  if [[ -f ~/.bashrc ]]; then
+    USER_SOURCE_FILE=~/.bashrc
+  elif [[ -f ~/.bash_profile ]]; then
+    USER_SOURCE_FILE=~/.bash_profile
+  elif [[ -f ~/.bash_login ]]; then
+    USER_SOURCE_FILE=~/.bash_login
+  elif [[ -f ~/.profile ]]; then
+    USER_SOURCE_FILE=~/.profile
+  fi
+elif [[ $SHELL == *zsh* ]]; then
+  USER_SOURCE_FILE=~/.zshrc
 fi
 touch $USER_SOURCE_FILE
 
 function install_profile {
-    variant="$1"
-    profile_path="variants/$variant"
+  variant="$1"
+  profile_path="variants/$variant"
 
-    echo -e "${INFO}check ${NORM}$variant dependencies..."
-    $SHELL "$DOT_DIR/$profile_path/setup.sh"
+  echo -e "${INFO}check ${NORM}$variant dependencies..."
+  $SHELL "$DOT_DIR/$profile_path/setup.sh"
 
-    profile_filename="$HOME/.dotfiles_$variant"
+  profile_filename="$HOME/.dotfiles_$variant"
 
-    hook="[[ -f $profile_filename ]] && source $profile_filename # zeachco-dotfiles $variant"
+  hook="[[ -f $profile_filename ]] && source $profile_filename # zeachco-dotfiles $variant"
 
-    cp "$DOT_DIR/$profile_path/profile.sh" "$profile_filename"
+  cp "$DOT_DIR/$profile_path/profile.sh" "$profile_filename"
 
-    echo -e "${INFO}link ${NORM}$profile_filename"
-    echo "$hook" >> $USER_SOURCE_FILE
+  echo -e "${INFO}link ${NORM}$profile_filename"
+  echo "$hook" >>$USER_SOURCE_FILE
 }
 
 function clean_imports {
-    cp -f $USER_SOURCE_FILE "$USER_SOURCE_FILE.backup"
-    sed '/zeachco-dotfiles/d' "$USER_SOURCE_FILE.backup" > $USER_SOURCE_FILE
+  cp -f $USER_SOURCE_FILE "$USER_SOURCE_FILE.backup"
+  sed '/zeachco-dotfiles/d' "$USER_SOURCE_FILE.backup" >$USER_SOURCE_FILE
 }
 
 function prehook {
-    os="$1"
-    init_script="$DOT_DIR/$os/init.sh"
+  os="$1"
+  init_script="$DOT_DIR/$os/init.sh"
 
-    if [[ -f "$init_script" ]]; then
-        echo -e "${INFO}running prehook for ${NORM}$os..."
-        $SHELL "$init_script"
-    else
-        echo -e "${WARN}no prehook found for ${NORM}$os"
-    fi
+  if [[ -f "$init_script" ]]; then
+    echo -e "${INFO}running prehook for ${NORM}$os..."
+    $SHELL "$init_script"
+  else
+    echo -e "${WARN}no prehook found for ${NORM}$os"
+  fi
 }
 
 function print_needs {
-    echo -e "${WARN}missing ${NORM}$1"
+  echo -e "${WARN}missing ${NORM}$1"
 }
 
 function print_exists {
-    echo -e "${PASS}found ${NORM}$1"
+  # # Do not show this #
+  # echo -e "${PASS}found ${NORM}$1"
 }
 
 function exists {
-    if command -v "$1" >/dev/null 2>&1
-    then
-        print_exists $1
-        return 0
-    else
-        print_needs $1
-        return 1
-    fi
+  if command -v "$1" >/dev/null 2>&1; then
+    print_exists $1
+    return 0
+  else
+    print_needs $1
+    return 1
+  fi
 }
 
 function needs {
-    if ! command -v "$1" >/dev/null 2>&1
-    then
-        print_needs $1
-        return 0
-    else
-        print_exists $1
-        return 1
-    fi
+  if ! command -v "$1" >/dev/null 2>&1; then
+    print_needs $1
+    return 0
+  else
+    print_exists $1
+    return 1
+  fi
 }
 
 function install() {
-    name="$1"
-    pkg_name="${2:-$1}"
+  name="$1"
+  pkg_name="${2:-$1}"
 
-    if needs $name
-    then
-        echo -e "${WARN}installing ${NORM}$pkg_name..."
-        sleep 1
-        # Check for Termux environment first
-        if [[ -n "$TERMUX_VERSION" ]] || [[ "$PREFIX" == *"com.termux"* ]]; then
-            pkg install -y $pkg_name
-        elif command -v apt &> /dev/null
-        then
-            sudo apt install -y $pkg_name
-        elif command -v pacman &> /dev/null
-        then
-            sudo pacman -S $pkg_name --noconfirm
-        elif command -v brew &> /dev/null
-        then
-            brew install $pkg_name
-        else
-            echo -e "${FAIL} I don't know how to install $pkg_name ${NORM}"
-        fi
+  if needs $name; then
+    echo -e "${WARN}installing ${NORM}$pkg_name..."
+    sleep 1
+    # Check for Termux environment first
+    if [[ -n "$TERMUX_VERSION" ]] || [[ "$PREFIX" == *"com.termux"* ]]; then
+      pkg install -y $pkg_name
+    elif command -v apt &>/dev/null; then
+      sudo apt install -y $pkg_name
+    elif command -v pacman &>/dev/null; then
+      sudo pacman -S $pkg_name --noconfirm
+    elif command -v brew &>/dev/null; then
+      brew install $pkg_name
+    else
+      echo -e "${FAIL} I don't know how to install $pkg_name ${NORM}"
     fi
+  fi
 }
 
 function script_install() {
-    name="$1"
-    exec="$2"
+  name="$1"
+  exec="$2"
 
-    if needs $name
-    then
-        echo -e "${WARN}installing ${NORM}$name..."
-        echo -e "${INFO}running ${NORM}$exec"
-        eval "$exec"
-    fi
+  if needs $name; then
+    echo -e "${WARN}installing ${NORM}$name..."
+    echo -e "${INFO}running ${NORM}$exec"
+    eval "$exec"
+  fi
 }
 
 function stow_link() {
-    local pkg=$1
+  local pkg=$1
 
-    install stow
+  install stow
 
-    echo -e "${WARN}stowing ${NORM}$pkg..."
-    cd "$DOT_DIR/configs"
-    # Remove any regular files that would conflict with stow symlinks
-    stow --target="$HOME" --simulate --restow "$pkg" 2>&1 | \
-        sed -n \
-            -e 's/.*cannot stow.*target \([^ ]*\) since.*/\1/p' \
-            -e 's/.*existing target is not owned by stow: \(.*\)/\1/p' | \
-        while read -r target; do
-            if [[ -n "$target" ]]; then
-                if [[ -L "$HOME/$target" || -f "$HOME/$target" ]]; then
-                    rm -f "$HOME/$target"
-                elif [[ -d "$HOME/$target" ]]; then
-                    rm -rf "$HOME/$target"
-                fi
-            fi
-        done
-    stow --target="$HOME" --restow "$pkg"
+  echo -e "${WARN}stowing ${NORM}$pkg..."
+  cd "$DOT_DIR/configs"
+  # Remove any regular files that would conflict with stow symlinks
+  stow --target="$HOME" --simulate --restow "$pkg" 2>&1 |
+    sed -n \
+      -e 's/.*cannot stow.*target \([^ ]*\) since.*/\1/p' \
+      -e 's/.*existing target is not owned by stow: \(.*\)/\1/p' |
+    while read -r target; do
+      if [[ -n "$target" ]]; then
+        if [[ -L "$HOME/$target" || -f "$HOME/$target" ]]; then
+          rm -f "$HOME/$target"
+        elif [[ -d "$HOME/$target" ]]; then
+          rm -rf "$HOME/$target"
+        fi
+      fi
+    done
+  stow --target="$HOME" --restow "$pkg"
 }
