@@ -16,6 +16,8 @@ install fzf
 install zellij
 install zsh
 install fish
+install neovim
+install rust
 
 # Programming languages and tools
 install python
