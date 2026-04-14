@@ -65,13 +65,12 @@ function print_needs {
 }
 
 function print_exists {
-  # # Do not show this #
-  # echo -e "${PASS}found ${NORM}$1"
+  echo -e "${PASS}found ${NORM}$1"
 }
 
 function exists {
   if command -v "$1" >/dev/null 2>&1; then
-    print_exists $1
+    # print_exists $1
     return 0
   else
     print_needs $1
@@ -84,7 +83,7 @@ function needs {
     print_needs $1
     return 0
   else
-    print_exists $1
+    # print_exists $1
     return 1
   fi
 }

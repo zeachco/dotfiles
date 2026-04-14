@@ -8,6 +8,7 @@ pkg update -y
 
 # Core development tools
 install git
+install gh
 install curl
 install wget
 install tree
@@ -17,26 +18,13 @@ install zellij
 install zsh
 install fish
 install neovim
-install rust
-
-# Programming languages and tools
-install python
-script_install golang "pkg install -y golang"
-
-# Text editors
-install neovim
-
-# Terminal multiplexers and tools
-exists zellij || pkg install -y zellij
-
-# GitHub CLI
-install gh
+install htop
 
 # Development utilities
-install make
-install cmake
-install clang
-install pkg-config
+# install make
+# install cmake
+# install clang
+# install pkg-config
 
 # Android-specific packages (check if already available)
 exists termux-setup-storage || install termux-api
