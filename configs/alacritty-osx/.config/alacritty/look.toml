@@ -3,7 +3,7 @@ padding = { x = 10, y = 10 }
 startup_mode = "Maximized"
     
 [font]
-size = 16.0
+size = 14.0
 
 [font.normal]
 family = "VictorMono Nerd Font"
