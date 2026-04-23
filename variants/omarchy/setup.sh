@@ -9,6 +9,7 @@ stow_link wireplumber
 stow_link alacritty
 stow_link alacritty-omarchy
 stow_link nvim
+stow_link zellij-omarchy
 
 install s-tui  # cli tool for CPU benchmarks
 

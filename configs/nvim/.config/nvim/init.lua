@@ -6,8 +6,13 @@ require("config.lazy")
 
 -- Function to get current system theme preference
 local function get_system_theme()
-  return "default"
-  -- return vim.fn.system("defaults read -g AppleInterfaceStyle") == "Dark\n" and "dark" or "light"
+  local handle = io.popen("defaults read -g AppleInterfaceStyle 2>/dev/null")
+  if handle then
+    local result = handle:read("*a")
+    handle:close()
+    return result:match("Dark") and "dark" or "light"
+  end
+  return "light" -- Fallback to light if command fails
 end
 
 -- Function to read theme from file
@@ -105,6 +110,14 @@ local nvim_to_zellij_theme_map = {
 vim.api.nvim_create_autocmd("ColorScheme", {
   pattern = "*",
   callback = function()
+    -- Persist user's manual theme selection (only if not auto-switching)
+    if not vim.g._updating_colorscheme then
+      local current_theme = vim.g.colors_name
+      if current_theme then
+        _G.update_current_theme_file(current_theme)
+      end
+    end
+
     -- Check if transparent_background is enabled
     local ok, plugin_config = pcall(require, "plugins.auto-theme-switcher")
     if ok and plugin_config.config and plugin_config.config.transparent_background then

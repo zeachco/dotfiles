@@ -1,2 +1,3 @@
 // Omarchy variant - minimal UI with hidden status/tab bars
 default_layout "omarchy"
+pane_frames false

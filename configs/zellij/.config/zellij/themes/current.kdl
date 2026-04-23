@@ -1,131 +1,131 @@
-// Dracula theme for Zellij
+// Monokai Classic theme for Zellij
 
 themes {
   current {
     text_unselected {
-      base 248 248 242
-      background 40 42 54
-      emphasis_0 255 85 85
-      emphasis_1 80 250 123
-      emphasis_2 139 233 253
-      emphasis_3 255 184 108
+      base 253 255 241
+      background 39 40 34
+      emphasis_0 249 38 114
+      emphasis_1 166 226 46
+      emphasis_2 102 217 239
+      emphasis_3 253 151 31
     }
 
     text_selected {
-      base 0 0 0
-      background 189 147 249
-      emphasis_0 255 85 85
-      emphasis_1 248 248 242
-      emphasis_2 139 233 253
-      emphasis_3 255 121 198
+      base 87 88 79
+      background 174 129 255
+      emphasis_0 249 38 114
+      emphasis_1 253 255 241
+      emphasis_2 174 129 255
+      emphasis_3 230 219 116
     }
 
     ribbon_unselected {
-      base 248 248 242
-      background 0 0 0
-      emphasis_0 255 85 85
-      emphasis_1 80 250 123
-      emphasis_2 139 233 253
-      emphasis_3 255 184 108
+      base 253 255 241
+      background 87 88 79
+      emphasis_0 249 38 114
+      emphasis_1 166 226 46
+      emphasis_2 102 217 239
+      emphasis_3 253 151 31
     }
 
     ribbon_selected {
-      base 248 248 242
-      background 189 147 249
-      emphasis_0 255 85 85
-      emphasis_1 80 250 123
-      emphasis_2 139 233 253
-      emphasis_3 255 184 108
+      base 253 255 241
+      background 174 129 255
+      emphasis_0 249 38 114
+      emphasis_1 166 226 46
+      emphasis_2 102 217 239
+      emphasis_3 253 151 31
     }
 
     table_title {
-      base 189 147 249
-      background 40 42 54
-      emphasis_0 255 85 85
-      emphasis_1 80 250 123
-      emphasis_2 139 233 253
-      emphasis_3 255 184 108
+      base 174 129 255
+      background 39 40 34
+      emphasis_0 249 38 114
+      emphasis_1 166 226 46
+      emphasis_2 102 217 239
+      emphasis_3 253 151 31
     }
 
     table_cell_unselected {
-      base 248 248 242
-      background 40 42 54
-      emphasis_0 255 85 85
-      emphasis_1 80 250 123
-      emphasis_2 139 233 253
-      emphasis_3 255 184 108
+      base 253 255 241
+      background 39 40 34
+      emphasis_0 249 38 114
+      emphasis_1 166 226 46
+      emphasis_2 102 217 239
+      emphasis_3 253 151 31
     }
 
     table_cell_selected {
-      base 248 248 242
-      background 189 147 249
-      emphasis_0 255 85 85
-      emphasis_1 80 250 123
-      emphasis_2 139 233 253
-      emphasis_3 255 184 108
+      base 253 255 241
+      background 174 129 255
+      emphasis_0 249 38 114
+      emphasis_1 166 226 46
+      emphasis_2 102 217 239
+      emphasis_3 253 151 31
     }
 
     list_unselected {
-      base 248 248 242
-      background 40 42 54
-      emphasis_0 255 85 85
-      emphasis_1 80 250 123
-      emphasis_2 139 233 253
-      emphasis_3 255 184 108
+      base 253 255 241
+      background 39 40 34
+      emphasis_0 249 38 114
+      emphasis_1 166 226 46
+      emphasis_2 102 217 239
+      emphasis_3 253 151 31
     }
 
     list_selected {
-      base 248 248 242
-      background 189 147 249
-      emphasis_0 255 85 85
-      emphasis_1 80 250 123
-      emphasis_2 139 233 253
-      emphasis_3 255 184 108
+      base 253 255 241
+      background 174 129 255
+      emphasis_0 249 38 114
+      emphasis_1 166 226 46
+      emphasis_2 102 217 239
+      emphasis_3 253 151 31
     }
 
     frame_unselected {
-      base 0 0 0
-      background 40 42 54
-      emphasis_0 255 85 85
-      emphasis_1 80 250 123
-      emphasis_2 139 233 253
-      emphasis_3 255 184 108
+      base 87 88 79
+      background 39 40 34
+      emphasis_0 249 38 114
+      emphasis_1 166 226 46
+      emphasis_2 102 217 239
+      emphasis_3 253 151 31
     }
 
     frame_selected {
-      base 189 147 249
-      background 40 42 54
-      emphasis_0 255 85 85
-      emphasis_1 80 250 123
-      emphasis_2 139 233 253
-      emphasis_3 255 184 108
+      base 174 129 255
+      background 39 40 34
+      emphasis_0 249 38 114
+      emphasis_1 166 226 46
+      emphasis_2 102 217 239
+      emphasis_3 253 151 31
     }
 
     frame_highlight {
-      base 255 184 108
-      background 40 42 54
-      emphasis_0 255 85 85
-      emphasis_1 80 250 123
-      emphasis_2 139 233 253
-      emphasis_3 255 121 198
+      base 253 151 31
+      background 39 40 34
+      emphasis_0 249 38 114
+      emphasis_1 166 226 46
+      emphasis_2 102 217 239
+      emphasis_3 174 129 255
     }
 
     exit_code_success {
-      base 80 250 123
-      background 40 42 54
-      emphasis_0 255 85 85
-      emphasis_1 80 250 123
-      emphasis_2 139 233 253
-      emphasis_3 255 184 108
+      base 166 226 46
+      background 39 40 34
+      emphasis_0 249 38 114
+      emphasis_1 166 226 46
+      emphasis_2 102 217 239
+      emphasis_3 253 151 31
     }
 
     exit_code_error {
-      base 255 85 85
-      background 40 42 54
-      emphasis_0 255 85 85
-      emphasis_1 80 250 123
-      emphasis_2 139 233 253
-      emphasis_3 255 184 108
+      base 249 38 114
+      background 39 40 34
+      emphasis_0 249 38 114
+      emphasis_1 166 226 46
+      emphasis_2 102 217 239
+      emphasis_3 253 151 31
     }
   }
 }
