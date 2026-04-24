@@ -3,22 +3,24 @@
 -- Add any additional autocmds here
 
 -- Monorepo workspace management
-vim.api.nvim_create_autocmd("VimEnter", {
-  pattern = "*",
-  callback = function()
-    local cwd = vim.fn.getcwd()
-
-    -- Check if we're in the monoco monorepo root
-    if cwd:match("/monoco$") then
-      -- Auto-change to apps/scripts if that's your most common workspace
-      local scripts_path = cwd .. "/apps/scripts"
-      if vim.fn.isdirectory(scripts_path) == 1 then
-        vim.cmd("cd " .. scripts_path)
-        vim.notify("Changed to apps/scripts workspace", vim.log.levels.INFO)
-      end
-    end
-  end,
-})
+-- Disabled: auto-cd to monorepo root interferes with starting nvim from subdirectories
+-- Use :CdRoot, :CdScripts, or :CdApp commands to navigate manually
+-- vim.api.nvim_create_autocmd("VimEnter", {
+--   pattern = "*",
+--   callback = function()
+--     local cwd = vim.fn.getcwd()
+--
+--     -- Check if we're in the monoco monorepo root
+--     if cwd:match("/monoco$") then
+--       -- Auto-change to apps/scripts if that's your most common workspace
+--       local scripts_path = cwd .. "/apps/scripts"
+--       if vim.fn.isdirectory(scripts_path) == 1 then
+--         vim.cmd("cd " .. scripts_path)
+--         vim.notify("Changed to apps/scripts workspace", vim.log.levels.INFO)
+--       end
+--     end
+--   end,
+-- })
 
 -- User commands to switch between monorepo workspaces
 vim.api.nvim_create_user_command("CdScripts", function()

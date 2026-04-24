@@ -4,6 +4,10 @@
     "stagehand@claude-plugins-official": true,
     "rust-analyzer-lsp@claude-plugins-official": true
   },
+  "skipDangerousModePermissionPrompt": true,
   "voiceEnabled": true,
-  "skipDangerousModePermissionPrompt": true
+  "theme": "auto",
+  "editorMode": "vim",
+  "verbose": true,
+  "autoCompactEnabled": false
 }

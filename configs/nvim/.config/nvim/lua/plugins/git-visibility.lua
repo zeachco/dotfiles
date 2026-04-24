@@ -11,12 +11,20 @@ return {
           -- Removed .git and .github from ignore patterns
         },
         hidden = true, -- Show hidden files
+        cwd = vim.fn.getcwd(), -- Use current working directory, not git root
       },
       pickers = {
         find_files = {
           hidden = true,
           -- Remove .git and .github from find_files ignore patterns
           find_command = { "rg", "--files", "--hidden", "--glob", "!**/.git/*", "--glob", "!**/.DS_Store" },
+          cwd = vim.fn.getcwd(), -- Use current working directory
+        },
+        live_grep = {
+          cwd = vim.fn.getcwd(), -- Use current working directory
+        },
+        grep_string = {
+          cwd = vim.fn.getcwd(), -- Use current working directory
         },
       },
     },
