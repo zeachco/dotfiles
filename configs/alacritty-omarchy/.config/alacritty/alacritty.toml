@@ -1,0 +1,6 @@
+[general]
+import = [
+    "~/.config/alacritty/behavior.toml",
+    "~/.config/alacritty/look.toml",
+    "~/.config/alacritty/os.toml",
+]

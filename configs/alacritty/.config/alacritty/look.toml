@@ -1,18 +1,3 @@
 [window]
 padding = { x = 10, y = 10 }
 startup_mode = "Maximized"
-
-[font]
-size = 11.0
-
-[font.normal]
-family = "VictorMono Nerd Font"
-style = "Regular"
-
-[font.bold]
-family = "VictorMono Nerd Font"
-style = "Bold"
-
-[font.italic]
-family = "VictorMono Nerd Font"
-style = "Italic"
