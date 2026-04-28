@@ -12,6 +12,7 @@
     "network",
     "pulseaudio",
     "cpu",
+    "memory",
     "battery",
     "clock"
   ],
@@ -60,6 +61,12 @@
     "format": "󰍛 {usage}%",
     "on-click": "omarchy-launch-or-focus-tui btop",
     "on-click-right": "alacritty"
+  },
+  "memory": {
+    "interval": 5,
+    "format": " {percentage}%",
+    "tooltip-format": "{used:0.1f}G used / {total:0.1f}G total",
+    "on-click": "omarchy-launch-or-focus-tui btop"
   },
   "clock": {
     "format": "{:L%A, %B %e, %H:%M}",
