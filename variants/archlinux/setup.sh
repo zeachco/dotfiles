@@ -52,23 +52,12 @@ if ! command -v yay &>/dev/null; then
 fi
 
 install flatpak
-if ! flatpak list --app 2>/dev/null | grep -q com.ktechpit.orion; then
-  echo -e "${WARN}installing ${NORM}orion..."
-  flatpak install -y flathub com.ktechpit.orion
-else
-  print_exists orion
-fi
-
 install fd
 install fzf
 install bat
 install exa
 install starship
 script_install bw "install bitwarden-cli"
-
-# Configure mpv for Orion (Flatpak) - fix black video on Wayland
-mkdir -p ~/.var/app/com.ktechpit.orion/config/mpv
-echo "vo=wlshm" >~/.var/app/com.ktechpit.orion/config/mpv/mpv.conf
 
 # Configure WirePlumber - Sound Blaster GS5 analog stereo profile
 # Prevents pro-audio mode from stealing the sound device between apps

@@ -197,9 +197,6 @@ mirrorup() {
     fi
 }
 
-# Orion browser (Flatpak)
-alias orion='flatpak run com.ktechpit.orion'
-
 # Caps lock remap (X11 only, not Wayland)
 if [ "$XDG_SESSION_TYPE" != "wayland" ] && [ -z "$WAYLAND_DISPLAY" ]; then
     setxkbmap -option caps:escape 2>/dev/null || true
