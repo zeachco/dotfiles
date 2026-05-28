@@ -7,8 +7,8 @@ import = [
 ]
 
 [terminal.shell]
-program = "/usr/bin/env"
-args = ["zellij"]
+program = "/bin/bash"
+args = ["-c", "if zellij list-sessions 2>/dev/null | grep -q '^1 '; then exec zellij attach 1; else exec zellij; fi"]
 
 [font]
 size = 11.0

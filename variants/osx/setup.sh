@@ -45,14 +45,18 @@ stow_link alacritty
 stow_link alacritty-osx
 stow_link nvim
 
-# Generate alacritty os.toml with correct zellij path for current architecture
-# (stow puts a symlink, but we need the actual binary path which differs between Intel and Apple Silicon)
+# Generate alacritty os.toml with architecture-specific zellij path
+# Alacritty uses execve(2) which doesn't search PATH, so we need absolute paths
+# Intel Macs: /usr/local/bin/zellij
+# Apple Silicon: /opt/homebrew/bin/zellij
 ZELLIJ_PATH=$(which zellij 2>/dev/null || echo "${HOMEBREW_PREFIX:-/usr/local}/bin/zellij")
+
+# Use bash wrapper to handle conditional session attach logic
 rm -f ~/.config/alacritty/os.toml
 cat > ~/.config/alacritty/os.toml << EOF
 [terminal.shell]
-program = "$ZELLIJ_PATH"
-args = ["attach", "--create", "1"]
+program = "/bin/bash"
+args = ["-c", "if $ZELLIJ_PATH list-sessions 2>/dev/null | grep -q '^1 '; then exec $ZELLIJ_PATH attach 1; else exec $ZELLIJ_PATH; fi"]
 EOF
 
 # call `defaults delete <property>` to reset to default

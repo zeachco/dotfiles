@@ -1,3 +1,3 @@
-[terminal.shell]
-program = "/opt/homebrew/bin/zellij"
-args = ["attach", "--create", "1"]
+# This file is NOT used - os.toml is generated dynamically by variants/osx/setup.sh
+# to inject the architecture-specific zellij path (Intel vs Apple Silicon)
+# See variants/osx/setup.sh for the actual configuration
