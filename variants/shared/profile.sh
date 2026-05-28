@@ -235,14 +235,18 @@ zellij_branch_repo() {
   # Split pane vertically (50/50)
   zellij action new-pane --direction right
 
-  # Setup left pane
+  # Setup left pane (editor)
   zellij action move-focus left
   zellij action write-chars "cd \"$target_path\""
   zellij action write 13
+  zellij action write-chars "e ."
+  zellij action write 13
 
-  # Setup right pane
+  # Setup right pane (devbox shell, will exit after)
   zellij action move-focus right
   zellij action write-chars "cd \"$target_path\""
+  zellij action write 13
+  zellij action write-chars "ds && exit"
   zellij action write 13
 
   # Focus back to left pane
