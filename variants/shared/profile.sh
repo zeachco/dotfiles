@@ -744,3 +744,4 @@ jira_worktree_clean() {
 _set jtc "jira_worktree_clean"
 
 
+alias wtl='git worktree list'
