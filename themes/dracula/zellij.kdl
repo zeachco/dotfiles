@@ -84,8 +84,8 @@ themes {
     }
 
     frame_unselected {
-      base 0 0 0
-      background 40 42 54
+      base 30 32 44
+      background 30 32 44
       emphasis_0 255 85 85
       emphasis_1 80 250 123
       emphasis_2 139 233 253
