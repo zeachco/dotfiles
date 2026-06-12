@@ -16,5 +16,13 @@ if [ "$SENDER" = "volume_change" ]; then
     *) ICON="󰖁"
   esac
 
-  sketchybar --set "$NAME" icon="$ICON" label="$VOLUME%"
+  # Animate volume change with pulse effect
+  sketchybar --animate exp 10 \
+    --set "$NAME" \
+      icon="$ICON" \
+      label="$VOLUME%" \
+      icon.y_offset=2 \
+    --animate exp 10 \
+    --set "$NAME" \
+      icon.y_offset=0
 fi

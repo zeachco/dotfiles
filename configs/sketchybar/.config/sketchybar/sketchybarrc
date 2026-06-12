@@ -4,6 +4,7 @@
 # https://github.com/FelixKratz/dotfiles
 
 PLUGIN_DIR="$CONFIG_DIR/plugins"
+ANIMATIONS="$CONFIG_DIR/animations.sh"
 
 ##### Bar Appearance #####
 # Configuring the general appearance of the bar.
@@ -81,3 +82,8 @@ sketchybar --add item clock right \
 
 ##### Force all scripts to run the first time (never do this in a script) #####
 sketchybar --update
+
+##### Startup Animation #####
+# Smooth bar entrance with sin curve
+sketchybar --animate sin 30 --bar y_offset=10 \
+           --animate sin 30 --bar y_offset=0

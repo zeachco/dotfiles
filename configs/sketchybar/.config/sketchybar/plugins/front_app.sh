@@ -6,5 +6,14 @@
 # https://felixkratz.github.io/SketchyBar/config/events#events-and-scripting
 
 if [ "$SENDER" = "front_app_switched" ]; then
-  sketchybar --set "$NAME" label="$INFO"
+  # Smooth transition for app switching
+  sketchybar --animate tanh 20 \
+    --set "$NAME" \
+      label="$INFO" \
+      label.color=0x80ffffff \
+      label.y_offset=1 \
+    --animate tanh 20 \
+    --set "$NAME" \
+      label.color=0xffffffff \
+      label.y_offset=0
 fi

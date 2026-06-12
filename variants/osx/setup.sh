@@ -41,6 +41,7 @@ force_install chromium Chromium
 
 # SketchyBar setup
 if needs sketchybar; then
+  brew trust --formula felixkratz/formulae/sketchybar
   brew tap FelixKratz/formulae
   brew install sketchybar
   # Install default Hack Nerd Font
