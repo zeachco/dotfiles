@@ -49,7 +49,7 @@ if needs sketchybar; then
   brew services start sketchybar 2>/dev/null || true
 fi
 
-stow_link sketchybar
+stow_link sketchybar && brew services restart sketchybar
 stow_link claude
 stow_link zellij
 stow_link aerospace
@@ -65,7 +65,7 @@ ZELLIJ_PATH=$(which zellij 2>/dev/null || echo "${HOMEBREW_PREFIX:-/usr/local}/b
 
 # Use bash wrapper to handle conditional session attach logic
 rm -f ~/.config/alacritty/os.toml
-cat > ~/.config/alacritty/os.toml << EOF
+cat >~/.config/alacritty/os.toml <<EOF
 [terminal.shell]
 program = "/bin/bash"
 args = ["-c", "if $ZELLIJ_PATH list-sessions 2>/dev/null | grep -q '^1 '; then exec $ZELLIJ_PATH attach 1; else exec $ZELLIJ_PATH; fi"]
