@@ -37,7 +37,8 @@ sketchybar --default "${default[@]}"
 ##### Adding Aerospace Workspace Indicator #####
 # Display the current aerospace workspace number/name
 
-sketchybar --add item aerospace_workspace left \
+sketchybar --add event aerospace_workspace_change \
+           --add item aerospace_workspace left \
            --set aerospace_workspace \
                  icon.drawing=off \
                  label.font="Hack Nerd Font:Bold:17.0" \
@@ -46,9 +47,8 @@ sketchybar --add item aerospace_workspace left \
                  background.color=0x40ffffff \
                  background.corner_radius=5 \
                  background.height=25 \
-                 update_freq=1 \
                  script="$PLUGIN_DIR/aerospace.sh" \
-           --subscribe aerospace_workspace space_change
+           --subscribe aerospace_workspace aerospace_workspace_change
 
 ##### Adding Left Items #####
 # We add some regular items to the left side of the bar, where

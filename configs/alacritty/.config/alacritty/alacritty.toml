@@ -5,3 +5,8 @@ import = [
     "~/.config/alacritty/look.toml",
     "~/.config/alacritty/os.toml",
 ]
+
+[[keyboard.bindings]]
+key = "Return"
+mods = "Shift"
+chars = "\u001B\r"
