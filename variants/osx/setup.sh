@@ -39,6 +39,17 @@ force_install aerospace Aerospace
 force_install alacritty Alacritty
 force_install chromium Chromium
 
+# SketchyBar setup
+if needs sketchybar; then
+  brew tap FelixKratz/formulae
+  brew install sketchybar
+  # Install default Hack Nerd Font
+  brew install --cask font-hack-nerd-font
+  # Auto-start SketchyBar at login
+  brew services start sketchybar 2>/dev/null || true
+fi
+
+stow_link sketchybar
 stow_link claude
 stow_link zellij
 stow_link aerospace
