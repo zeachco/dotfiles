@@ -35,7 +35,8 @@ function force_install {
   xattr -d com.apple.quarantine /Applications/$2.app 2>/dev/null || echo "$2 already authorized"
 }
 
-force_install aerospace Aerospace
+brew trust --cask nikitabobko/tap/aerospace
+force_install aerospace nikitabobko/tap/aerospace
 force_install alacritty Alacritty
 force_install chromium Chromium
 
