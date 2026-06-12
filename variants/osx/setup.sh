@@ -29,9 +29,10 @@ fi
 # arg 1 is the brew namespace, arg 2 is the Application namespace
 function force_install {
   if needs "$1"; then
-    install "$1" &&
-      xattr -d com.apple.quarantine /Applications/$2.app || echo "$2 already autorized"
+    install "$1"
   fi
+  # Always unquarantine (macOS updates can re-quarantine apps)
+  xattr -d com.apple.quarantine /Applications/$2.app 2>/dev/null || echo "$2 already authorized"
 }
 
 force_install aerospace Aerospace
