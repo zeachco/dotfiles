@@ -56,6 +56,7 @@ install eza                   # list tree for ls
 install lazygit
 install fzf
 install zellij
+install zsh-vi-mode
 # script_install opencode "curl -fsSL https://opencode.ai/install | bash"
 script_install claude "curl -fsSL https://claude.ai/install.sh | bash && echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc"
 
