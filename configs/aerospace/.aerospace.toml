@@ -129,12 +129,12 @@ exec-on-workspace-change = ['/bin/bash', '-c',
     cmd-shift-right = 'move right'
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#resize
-    # Horizontal resize
-    cmd-minus = 'resize width -50'
-    cmd-equal = 'resize width +50'
-    # Vertical resize
-    cmd-shift-minus = 'resize height -50'
-    cmd-shift-equal = 'resize height +50'
+    # Smart resize (adapts to container orientation)
+    cmd-minus = 'resize smart -300'
+    cmd-equal = 'resize smart +300'
+    # Opposite dimension resize
+    cmd-shift-minus = 'resize smart-opposite -300'
+    cmd-shift-equal = 'resize smart-opposite +300'
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#workspace
     alt-1 = 'workspace 1'
