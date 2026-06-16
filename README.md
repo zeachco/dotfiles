@@ -1,19 +1,36 @@
-# Install
+# Prerequisites
+
+To use this dotfiles setup, you need to be able to get the repository onto your machine. You have several options:
+
+1. **Best**: Use GitHub CLI (`gh`) with authentication
+2. **Good**: Use `git clone` with SSH or HTTPS
+3. **Fallback**: Download the ZIP file from [GitHub](https://github.com/zeachco/dotfiles) and extract it to `~/dotfiles`
+
+The setup script will install git and other missing tools if needed.
+
+# Installation
 
 ## Clone and run
 
-### With gh + auth
+### With GitHub CLI (recommended)
 
 ```sh
 gh repo clone zeachco/dotfiles ~/dotfiles && bash ~/dotfiles/setup.sh
 ```
 
-### or with git clone
+### With git clone
+
 ```sh
 git clone git@github.com:zeachco/dotfiles.git ~/dotfiles && bash ~/dotfiles/setup.sh
 ```
 
-If you don't have git installed, just download the zip and unpack into your ~/ it will also install and setup git
+### Without git (fallback)
+
+Download the [repository ZIP](https://github.com/zeachco/dotfiles/archive/refs/heads/main.zip), extract it to `~/dotfiles`, then run:
+
+```sh
+bash ~/dotfiles/setup.sh
+```
 
 ## Update setup
 

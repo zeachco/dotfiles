@@ -1,6 +1,50 @@
-# AI Agent Configurations
+# AI Agent Guide: Dotfiles Architecture
 
-This document contains configurations and fixes that AI agents (like Claude) can apply to improve development environments.
+Cross-platform dotfiles using two-tier profiles (shared base + OS-specific overrides) and GNU Stow for config symlinks.
+
+## Flow: setup.sh → OS detection → install_profile("shared") → install_profile(OS_variant)
+
+**Core files**: `setup.sh` (orchestrator), `utils.sh` (install/stow_link/install_profile), `variants/*/setup.sh` (packages), `variants/*/profile.sh` (shell config)
+
+## OS Detection (setup.sh:17-36)
+Linux → /etc/arch-release or pacman → archlinux | else → debian  
+Overrides: $TERMUX_VERSION → termux | lsb_release=Ubuntu → ubuntu  
+Darwin → osx
+
+## Variants (variants/*)
+**Inheritance**: shared sourced FIRST → OS-specific (allows function shadowing)
+
+| Variant | PM | Stow Configs | Notes |
+|---------|----|--------------| ------|
+| shared | agnostic | alacritty | Base: git, rg, fd, gh, fzf, zellij |
+| debian | apt | claude, alacritty-debian, nvim | Core tools, ollama |
+| ubuntu | apt | Same as debian | + devbox, shortcuts.sh (GNOME keys) |
+| osx | brew | 7 pkgs (aerospace, sketchybar, etc) | Generates zellij os.toml |
+| archlinux | pacman+yay | waybar, wireplumber | AUR helper, 20+ pac*/yay* functions |
+| termux | pkg | None | Android-specific, redefined killport/network |
+| omarchy | pacman | hypr, zellij-omarchy | Setup-only, modifies Hypr bindings |
+
+## Stow System (configs/ → ~/)
+16 packages mirror home structure: `configs/nvim/.config/nvim/`, `configs/alacritty/.config/alacritty/`  
+**stow_link()** (utils.sh:124-148): auto-removes conflicts, uses --restow fallback  
+**Override pattern**: base (alacritty, zellij) + OS variants (alacritty-osx, zellij-omarchy)
+
+## install_profile() (utils.sh:29-44)
+1. Run variants/$variant/setup.sh  
+2. Copy profile.sh → ~/.dotfiles_$variant  
+3. Source in shell: `[[ -f ~/.dotfiles_$variant ]] && source ~/.dotfiles_$variant # zeachco-dotfiles`
+
+**clean_imports()**: strips old `# zeachco-dotfiles` lines before reinstall
+
+## Key Functions (variants/shared/profile.sh)
+**clone [repo]**: GitHub shorthand | **killport [port]**: kill process | **check_for_devbox()**: auto-enters devbox shell  
+**Git**: gco, gs, gd, gci, gp (via `_set` - prints before exec) | **_worktrees.sh**: jira_claude, zellij integration  
+**OS-specific**: archlinux (pacup, yayin), osx (docker wrapper, dark mode), termux (battery, notify)
+
+## Testing
+`bash ~/dotfiles/setup.sh` (full) | `dotfiles_update` (remote pull) | `source ~/.zshrc` (reload)
+
+---
 
 ## Neovim/LazyVim: Make .git and .github Directories Visible
 
