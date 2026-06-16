@@ -56,7 +56,15 @@ install eza                   # list tree for ls
 install lazygit
 install fzf
 install zellij
-install zsh-vi-mode
+
+# zsh-vi-mode is a plugin, check for the plugin file instead of command
+if [[ ! -f "$(brew --prefix 2>/dev/null)/opt/zsh-vi-mode/share/zsh-vi-mode/zsh-vi-mode.plugin.zsh" ]] && \
+   [[ ! -f "/usr/share/zsh-vi-mode/zsh-vi-mode.plugin.zsh" ]] && \
+   [[ ! -f ~/.zsh-vi-mode/zsh-vi-mode.plugin.zsh ]]; then
+  install zsh-vi-mode
+else
+  print_exists zsh-vi-mode
+fi
 # script_install opencode "curl -fsSL https://opencode.ai/install | bash"
 script_install claude "curl -fsSL https://claude.ai/install.sh | bash && echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc"
 
