@@ -51,6 +51,9 @@ if needs sketchybar; then
   brew services start sketchybar 2>/dev/null || true
 fi
 
+# Install blueutil for bluetooth control in sketchybar
+needs blueutil && install blueutil
+
 stow_link sketchybar && brew services restart sketchybar
 stow_link claude
 stow_link zellij
