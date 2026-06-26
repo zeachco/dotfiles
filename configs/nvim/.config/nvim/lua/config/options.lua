@@ -2,6 +2,11 @@
 -- Default options that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/options.lua
 -- Add any additional options here
 
+vim.diagnostic.config({
+  virtual_text = false,
+  virtual_lines = { current_line = true, wrap = true },
+})
+
 -- Disable LazyVim's automatic root detection
 -- This makes nvim stay in the directory where it was started
 -- instead of jumping to git root or other project markers
