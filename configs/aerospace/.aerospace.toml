@@ -75,10 +75,10 @@ exec-on-workspace-change = ['/bin/bash', '-c',
 [gaps]
     inner.horizontal = 8
     inner.vertical =   8
-    outer.left =       12
-    outer.bottom =     12
-    outer.top =        12
-    outer.right =      12
+    outer.left =       0
+    outer.bottom =     0
+    outer.top =        0
+    outer.right =      0
 
 # 'main' binding mode declaration
 # See: https://nikitabobko.github.io/AeroSpace/guide#binding-modes

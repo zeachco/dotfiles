@@ -47,14 +47,12 @@ if needs sketchybar; then
   brew install sketchybar
   # Install default Hack Nerd Font
   brew install --cask font-hack-nerd-font
-  # Auto-start SketchyBar at login
-  brew services start sketchybar 2>/dev/null || true
 fi
 
 # Install blueutil for bluetooth control in sketchybar
 needs blueutil && install blueutil
 
-stow_link sketchybar && brew services restart sketchybar
+stow_link sketchybar
 stow_link claude
 stow_link zellij
 stow_link aerospace

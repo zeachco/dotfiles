@@ -1,13 +1,21 @@
 {
+  "model": "sonnet",
   "enabledPlugins": {
     "claude-md-management@claude-plugins-official": true,
     "stagehand@claude-plugins-official": true,
     "rust-analyzer-lsp@claude-plugins-official": true
   },
+  "alwaysThinkingEnabled": false,
   "skipDangerousModePermissionPrompt": true,
-  "voiceEnabled": true,
   "theme": "auto",
   "editorMode": "vim",
   "verbose": true,
-  "autoCompactEnabled": false
+  "autoCompactEnabled": false,
+  "voiceEnabled": true,
+  "models": {
+    "opus": "gemma4:26b-mlx",
+    "sonnet": "gemma4:12b-mlx",
+    "haiku": "gemma4:e4b-mlx"
+  },
+  "effortLevel": "low"
 }
