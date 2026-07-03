@@ -39,6 +39,22 @@ vim.api.nvim_create_user_command("CdRoot", function()
   end
 end, { desc = "Change to monorepo root" })
 
+-- Copy the current file's path relative to the git root, mimicking
+-- VSCode's "Copy Relative Path" (which is relative to the workspace root).
+vim.api.nvim_create_user_command("CopyRelativePathToFile", function()
+  local bufname = vim.api.nvim_buf_get_name(0)
+  if bufname == "" then
+    vim.notify("No file in current buffer", vim.log.levels.WARN)
+    return
+  end
+
+  local git_root = vim.fs.root(0, ".git")
+  local relative_path = git_root and bufname:sub(#git_root + 2) or vim.fn.fnamemodify(bufname, ":.")
+
+  vim.fn.setreg("+", relative_path)
+  vim.notify("Copied: " .. relative_path)
+end, { desc = "Copy file path relative to git root" })
+
 vim.api.nvim_create_user_command("CdApp", function(opts)
   local app_name = opts.args
   local monorepo_root = vim.fn.finddir(".git/..", vim.fn.getcwd() .. ";")
