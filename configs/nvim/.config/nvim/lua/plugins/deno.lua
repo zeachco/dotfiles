@@ -1,26 +1,6 @@
--- Deno LSP configuration that auto-detects based on .vscode/settings.json
--- This configures denols to only activate in projects with deno.enable: true
-
--- Helper function to check if Deno is enabled in .vscode/settings.json
-local function is_deno_enabled_in_vscode(root_dir)
-  if not root_dir then
-    return false
-  end
-
-  local vscode_settings = root_dir .. "/.vscode/settings.json"
-  local file = io.open(vscode_settings, "r")
-
-  if not file then
-    return false
-  end
-
-  local content = file:read("*all")
-  file:close()
-
-  -- Simple JSON check for "deno.enable": true
-  -- This handles various formatting: "deno.enable": true or "deno.enable":true
-  return content:match('"deno%.enable"%s*:%s*true') ~= nil
-end
+-- Deno LSP configuration that auto-detects based on deno.json/deno.jsonc presence
+-- This configures denols to activate only in projects with a deno.json(c) file,
+-- and disables tsserver in that same root so they don't fight over the same files.
 
 return {
   {
@@ -31,22 +11,10 @@ return {
 
       -- Configure denols
       opts.servers.denols = {
-        -- Override root_dir to activate only where .vscode/settings.json has deno.enable: true
-        root_dir = function(fname)
-          local util = require("lspconfig.util")
-          -- First, find a potential root with deno.json
-          local root_dir = util.root_pattern("deno.json", "deno.jsonc")(fname)
-
-          if not root_dir then
-            return nil
-          end
-
-          -- Check if .vscode/settings.json enables Deno
-          if is_deno_enabled_in_vscode(root_dir) then
-            return root_dir
-          end
-
-          return nil
+        -- root_dir must call on_dir(root) — Nvim 0.11+'s native LSP API invokes
+        -- this as root_dir(bufnr, on_dir), not the old lspconfig root_pattern(fname) style.
+        root_dir = function(bufnr, on_dir)
+          on_dir(vim.fs.root(bufnr, { "deno.json", "deno.jsonc" }))
         end,
         settings = {
           deno = {
@@ -65,23 +33,17 @@ return {
         },
       }
 
-      -- Override tsserver to disable where Deno is enabled
+      -- Override tsserver to disable where a deno.json(c) root is found
       opts.servers.tsserver = vim.tbl_deep_extend("force", opts.servers.tsserver or {}, {
-        root_dir = function(fname)
-          local util = require("lspconfig.util")
-          -- Normal tsserver root detection
-          local root_dir = util.root_pattern("package.json", "tsconfig.json", "jsconfig.json")(fname)
+        root_dir = function(bufnr, on_dir)
+          local root_dir = vim.fs.root(bufnr, { "package.json", "tsconfig.json", "jsconfig.json" })
 
-          if not root_dir then
-            return nil
+          -- Don't activate if this root also has a deno.json(c)
+          if root_dir and vim.fs.root(bufnr, { "deno.json", "deno.jsonc" }) then
+            root_dir = nil
           end
 
-          -- Don't activate if Deno is enabled in .vscode/settings.json
-          if is_deno_enabled_in_vscode(root_dir) then
-            return nil
-          end
-
-          return root_dir
+          on_dir(root_dir)
         end,
       })
 
