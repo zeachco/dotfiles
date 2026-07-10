@@ -1,0 +1,14 @@
+[profile]
+inherits = ["shared"]
+default_features = ["core", "dev", "editor", "desktop", "ai", "fonts", "containers", "hardware", "system-tweaks"]
+
+[feature.core]
+packages = ["unzip|unzip|unzip|unzip|unzip", "s-tui|s-tui|s-tui|s-tui|s-tui", "bat|bat|bat|bat|bat", "starship|starship|starship|starship|starship", "flatpak|flatpak|flatpak|flatpak|flatpak", "lazygit|lazygit|lazygit|lazygit|lazygit"]
+stow = ["waybar"]
+actions = ["arch_yay"]
+
+[feature.hardware]
+packages = []
+stow = ["wireplumber"]
+actions = []
+

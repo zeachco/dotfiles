@@ -1,0 +1,8 @@
+[aliases]
+termux-setup = "termux-setup-storage"
+pkg-update = "pkg update && pkg upgrade"
+pkg-search = "pkg search"
+pkg-info = "pkg show"
+battery = "termux-battery-status"
+notify = "termux-notification --title Terminal --content"
+termux-backup = "dotfiles util termux-backup"

@@ -1,0 +1,48 @@
+[profile]
+inherits = []
+default_features = ["core", "dev", "editor", "desktop", "ai", "fonts", "containers", "hardware", "system-tweaks"]
+
+[feature.core]
+packages = ["git|git|git|git|git", "stow|stow|stow|stow|stow", "rg|ripgrep|ripgrep|ripgrep|ripgrep", "fd|fd-find|fd|fd|fd", "gh|gh|github-cli|gh|gh", "fzf|fzf|fzf|fzf|fzf", "zellij|zellij|zellij|zellij|zellij", "jq|jq|jq|jq|jq", "eza|eza|eza|eza|eza", "fastfetch|fastfetch|fastfetch|fastfetch|fastfetch"]
+stow = []
+actions = ["git_config", "ensure_dev_dir", "theme_executable"]
+
+[feature.dev]
+packages = ["curl|curl|curl|curl|curl", "make|make|make|make|make", "gcc|g++|gcc|gcc|clang"]
+stow = []
+actions = []
+
+[feature.editor]
+packages = ["nvim|neovim|neovim|neovim|neovim"]
+stow = ["nvim"]
+actions = []
+
+[feature.desktop]
+packages = []
+stow = ["alacritty"]
+actions = []
+
+[feature.ai]
+packages = []
+stow = ["claude"]
+actions = ["claude_installer"]
+
+[feature.fonts]
+packages = []
+stow = []
+actions = ["nerd_font"]
+
+[feature.containers]
+packages = []
+stow = []
+actions = []
+
+[feature.hardware]
+packages = []
+stow = []
+actions = []
+
+[feature.system-tweaks]
+packages = []
+stow = []
+actions = []

@@ -1,0 +1,23 @@
+[profile]
+inherits = ["shared"]
+default_features = ["core", "dev", "editor", "desktop", "ai", "fonts", "containers", "hardware", "system-tweaks"]
+
+[feature.core]
+packages = ["blueutil|blueutil|blueutil|blueutil|blueutil"]
+stow = ["zellij"]
+actions = []
+
+[feature.desktop]
+packages = ["sketchybar|sketchybar|sketchybar|felixkratz/formulae/sketchybar|sketchybar"]
+stow = ["aerospace", "sketchybar", "alacritty-osx"]
+actions = ["macos_apps"]
+
+[feature.containers]
+packages = ["docker|docker.io|docker|docker|docker", "colima|colima|colima|colima|colima"]
+stow = []
+actions = []
+
+[feature.system-tweaks]
+packages = []
+stow = []
+actions = ["macos_defaults"]

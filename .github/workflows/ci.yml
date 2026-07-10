@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.82.0
+        with:
+          components: rustfmt, clippy
+      - name: Install shell validators
+        run: |
+          if [ "${{ runner.os }}" = Linux ]; then
+            sudo apt-get update
+            sudo apt-get install -y fish stow zsh
+          else
+            brew install fish stow
+          fi
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked
+      - run: cargo build --release --locked
+      - name: Validate profiles and adapters
+        run: |
+          for platform in debian ubuntu archlinux osx termux omarchy; do
+            DOTFILES_PLATFORM="$platform" DOTFILES_SHELL=fish target/release/dotfiles plan >/dev/null
+          done
+          DOTFILES_PLATFORM=ubuntu DOTFILES_SHELL=bash DOTFILES_WSL=1 target/release/dotfiles plan | grep -q '(WSL)'
+          target/release/dotfiles shell render bash debian | bash -n
+          target/release/dotfiles shell render zsh debian | zsh -n
+          target/release/dotfiles shell render fish debian | fish -n
+          sh -n setup.sh
+      - name: Verify fresh-home Stow idempotence
+        run: |
+          test_home=$(mktemp -d)
+          HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" DOTFILES_ROOT="$PWD" DOTFILES_PLATFORM=debian DOTFILES_SHELL=fish target/release/dotfiles apply --yes --features desktop
+          HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" DOTFILES_ROOT="$PWD" DOTFILES_PLATFORM=debian DOTFILES_SHELL=fish target/release/dotfiles apply --yes
+          test -d "$test_home/.config"
+          test ! -L "$test_home/.config"
+          test -L "$test_home/.config/alacritty/alacritty.toml"
+          test -z "$(git status --porcelain -- configs)"

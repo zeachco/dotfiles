@@ -1,0 +1,9 @@
+[profile]
+inherits = ["archlinux"]
+default_features = ["core", "dev", "editor", "desktop", "ai", "fonts", "containers", "hardware", "system-tweaks"]
+
+[feature.desktop]
+packages = []
+stow = ["hypr", "alacritty-omarchy", "zellij-omarchy"]
+actions = ["omarchy_binding"]
+

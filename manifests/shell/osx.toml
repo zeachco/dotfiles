@@ -1,0 +1,4 @@
+[aliases]
+dark = "dotfiles util dark"
+xcode_reinstall = "dotfiles util xcode-reinstall"
+

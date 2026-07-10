@@ -1,0 +1,5 @@
+[aliases]
+wifi = "lspci -nnk"
+kde_restart = "sudo systemctl restart display-manager"
+zapt = "dotfiles util zapt"
+fd = "fdfind"

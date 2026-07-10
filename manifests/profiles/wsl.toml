@@ -1,0 +1,9 @@
+[profile]
+inherits = []
+default_features = []
+
+[feature.core]
+packages = []
+stow = []
+actions = []
+

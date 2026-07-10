@@ -1,0 +1,9 @@
+[profile]
+inherits = ["shared"]
+default_features = ["core", "dev", "editor", "desktop", "ai", "fonts", "containers", "hardware", "system-tweaks"]
+
+[feature.core]
+packages = ["wget|wget|wget|wget|wget", "tree|tree|tree|tree|tree", "fish|fish|fish|fish|fish", "zsh|zsh|zsh|zsh|zsh", "htop|htop|htop|htop|htop", "termux-info|termux-tools|termux-tools|termux-tools|termux-tools"]
+stow = []
+actions = ["termux_storage"]
+

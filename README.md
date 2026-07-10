@@ -1,81 +1,85 @@
-# Prerequisites
+# Cross-platform dotfiles
 
-To use this dotfiles setup, you need to be able to get the repository onto your machine. You have several options:
+Shell-neutral machine setup for Arch Linux, Debian, Ubuntu, WSL, macOS,
+Omarchy, and Termux. Installation policy lives in TOML manifests and is applied
+by a dependency-free Rust CLI. Bash, Zsh, and Fish receive small generated
+adapters; none of them is used as the configuration runtime.
 
-1. **Best**: Use GitHub CLI (`gh`) with authentication
-2. **Good**: Use `git clone` with SSH or HTTPS
-3. **Fallback**: Download the ZIP file from [GitHub](https://github.com/zeachco/dotfiles) and extract it to `~/dotfiles`
+## Install
 
-The setup script will install git and other missing tools if needed.
-
-# Installation
-
-## Clone and run
-
-### With GitHub CLI (recommended)
+Clone the repository and run the POSIX bootstrap from any shell:
 
 ```sh
-gh repo clone zeachco/dotfiles ~/dotfiles && bash ~/dotfiles/setup.sh
+git clone git@github.com:zeachco/dotfiles.git ~/dotfiles
+~/dotfiles/setup.sh
 ```
 
-### With git clone
+The bootstrap installs a pinned Rust toolchain with rustup on macOS/Linux/WSL,
+or Termux's patched Rust package on Android. It compiles `dotfiles`, installs it
+under `~/.local/bin`, detects the account's default shell, displays a plan, and
+asks before changing the machine. For unattended setup:
 
 ```sh
-git clone git@github.com:zeachco/dotfiles.git ~/dotfiles && bash ~/dotfiles/setup.sh
+~/dotfiles/setup.sh --yes
 ```
 
-### Without git (fallback)
+Setup never performs a full operating-system upgrade.
 
-Download the [repository ZIP](https://github.com/zeachco/dotfiles/archive/refs/heads/main.zip), extract it to `~/dotfiles`, then run:
+## CLI
+
+```text
+dotfiles plan [--features F]  Preview changes
+dotfiles apply [--yes] [--features core,dev]
+                              Reconcile packages, configs, and shell adapter
+dotfiles features             Show selected feature groups
+dotfiles features core dev    Save a different feature selection
+dotfiles doctor               Diagnose an installation
+dotfiles update [--yes]       Fast-forward, rebuild, and reapply safely
+dotfiles shell render fish    Print a generated adapter
+```
+
+The first run preselects the complete historical platform profile. Feature
+groups (`core`, `dev`, `editor`, `desktop`, `ai`, `fonts`, `containers`,
+`hardware`, and `system-tweaks`) can be deselected at the prompt and are saved
+in `~/.config/dotfiles/state.toml`.
+
+`dotfiles update` refuses to run in a dirty checkout and uses
+`git pull --ff-only`; it never resets local work. The existing
+`dotfiles_update` and `update_dotfiles` shell commands call this safe workflow.
+
+## Architecture
+
+- `setup.sh` is a minimal POSIX bootstrap. It does not contain machine policy.
+- `src/` contains platform detection, manifest validation, planning/apply,
+  Stow conflict backups, shell generation, updates, and portable helpers.
+- `manifests/profiles/` composes `shared` with platform overlays.
+- `manifests/shell.toml` and `manifests/shell/` define portable and
+  platform-specific aliases and environment values.
+- `configs/` remains a GNU Stow tree targeting the user's home directory.
+
+Before Stow reconciles a conflicting target, the CLI moves it into a timestamped
+directory under `~/.local/state/dotfiles/backups/`.
+
+## Shell integration
+
+Only the configured login shell is changed:
+
+- Bash: managed source blocks in `~/.bashrc` and `~/.bash_profile`
+- Zsh: a managed source block in `~/.zshrc`
+- Fish: `~/.config/fish/conf.d/zeachco-dotfiles.fish`
+
+Generated files live in `~/.config/dotfiles/generated/`. Change the TOML
+manifests instead of editing generated files. Unsupported login shells fail
+before any shell configuration is written.
+
+## Development
 
 ```sh
-bash ~/dotfiles/setup.sh
+cargo test --locked
+cargo build --release --locked
+DOTFILES_PLATFORM=ubuntu DOTFILES_SHELL=fish cargo run -- plan
+cargo run -- shell render fish | fish -n
 ```
 
-## Update setup
-
-you can just run `dotfiles_update` and it will reapply all changes and remove deprecated configs if any
-
-# Ubuntu special case
-
-For ubuntu, it also installs [omakub](https://omakub.org/) it's just too good to ignore, other OS manually installs the good parts of omakub that I want there like zellij, nvim, sh utils configs
-
-# Supports
-
-- linux debian/arch based (with apt-get such as Ubuntu)
-- linux debian/arch based (with pacman such as Manjaroo)
-- maxos (with xcode)
-- spin cloud debian-based server
-- extensible by profile
-
-# Includes
-
-## How this repo works
-
-The repository uses a profile-based approach for different environments. When you run `setup.sh`:
-1. It automatically detects your operating system and environment (macOS, Arch, Debian, Ubuntu, Termux, etc.).
-2. It first runs the `common` profile which installs the base set of tools and configurations using `stow` for symlinking `configs/` into your `$HOME`.
-3. It then runs the specific profile for your OS (e.g. `variants/osx`, `variants/ubuntu`).
-4. Profiles use a helper script (`utils.sh`) to intelligently manage dependencies across OS package managers (apt, pacman, brew, pkg).
-5. It safely injects a source hook into your shell's initialization file (`~/.bashrc`, `~/.zshrc`, etc.) to load aliases, variables, and bash functions from `.dotfiles_<variant>`.
-6. You can re-run the setup at any time safely to update or apply new configs.
-
-## Programing languages
-
-Uses [mise](https://mise.jdx.dev/) and [devbox](https://www.jetify.com/devbox) to control all envs for python, node, rust, go, etc...
-
-## Tools
-
-- git config (auto config with email / name / rebase merge mode and vim editor)
-- git aliases (ie `gco` and `git co` for git checkout) git aliases print the real command
-- lunarvim (text editor)
-- neovim (text editor)
-- ligature nerd fonts
-- fzf (fast file searching)
-- zellij (terminal multiplexer with session and workspace management)
-- g++ compiler
-
-## bash functions
-
-- ipp - public ip print
-- ipl - local ip print
+`DOTFILES_PLATFORM` and `DOTFILES_SHELL` are deterministic test overrides. They
+are not needed during normal installation.

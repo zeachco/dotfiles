@@ -1,0 +1,18 @@
+[profile]
+inherits = ["debian"]
+default_features = ["core", "dev", "editor", "desktop", "ai", "fonts", "containers", "hardware", "system-tweaks"]
+
+[feature.dev]
+packages = []
+stow = []
+actions = ["devbox_installer"]
+
+[feature.desktop]
+packages = []
+stow = ["alacritty-ubuntu"]
+actions = []
+
+[feature.system-tweaks]
+packages = []
+stow = []
+actions = ["ubuntu_shortcuts"]

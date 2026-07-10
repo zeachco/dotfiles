@@ -1,0 +1,14 @@
+[profile]
+inherits = ["shared"]
+default_features = ["core", "dev", "editor", "desktop", "ai", "fonts", "containers", "hardware", "system-tweaks"]
+
+[feature.core]
+packages = ["unzip|unzip|unzip|unzip|unzip", "ifconfig|net-tools|net-tools|net-tools|net-tools", "dig|dnsutils|bind|bind|dnsutils", "s-tui|s-tui|s-tui|s-tui|s-tui"]
+stow = []
+actions = []
+
+[feature.ai]
+packages = []
+stow = []
+actions = ["ollama_installer"]
+
