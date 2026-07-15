@@ -1,6 +1,7 @@
 [general]
 import = [
     "~/.config/alacritty/behavior.toml",
+    "~/dotfiles/themes/current/alacritty.toml",
     "~/.config/alacritty/look.toml",
     "~/.config/alacritty/os.toml",
 ]

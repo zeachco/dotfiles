@@ -121,10 +121,41 @@ function script_install() {
   fi
 }
 
+function ensure_current_theme() {
+  local package="$1"
+  local current_theme="$DOT_DIR/themes/current"
+  local default_theme="$DOT_DIR/themes/catppuccin-latte"
+
+  if [[ ! -d "$current_theme" ]]; then
+    mkdir -p "$DOT_DIR/themes"
+    cp -R "$default_theme" "$current_theme"
+  fi
+
+  case "$package" in
+  zellij | zellij-omarchy)
+    local zellij_theme_dir="$DOT_DIR/configs/$package/.config/zellij/themes"
+    mkdir -p "$zellij_theme_dir"
+    if [[ ! -f "$zellij_theme_dir/current.kdl" ]]; then
+      sed 's/themes {$/themes {\n  current {/; /^  [a-z-]* {$/d' \
+        "$current_theme/zellij.kdl" >"$zellij_theme_dir/current.kdl"
+    fi
+    ;;
+  nvim)
+    local colorscheme
+    colorscheme=$(sed -n 's/^[[:space:]]*colorscheme = "\([^"]*\)".*/\1/p' "$current_theme/neovim.lua" | tail -n 1)
+    if [[ -n "$colorscheme" ]]; then
+      [[ -f "$DOT_DIR/configs/nvim/.config/nvim/theme-light" ]] || printf '%s\n' "$colorscheme" >"$DOT_DIR/configs/nvim/.config/nvim/theme-light"
+      [[ -f "$DOT_DIR/configs/nvim/.config/nvim/theme-dark" ]] || printf '%s\n' "$colorscheme" >"$DOT_DIR/configs/nvim/.config/nvim/theme-dark"
+    fi
+    ;;
+  esac
+}
+
 function stow_link() {
   local pkg=$1
 
   install stow
+  ensure_current_theme "$pkg"
 
   echo -e "${INFO}stowing ${NORM}$pkg..."
   cd "$DOT_DIR/configs"

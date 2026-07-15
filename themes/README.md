@@ -9,6 +9,8 @@ This system provides a unified way to switch themes across multiple applications
 - **Alacritty** - Terminal emulator
 - **Zellij** - Terminal multiplexer
 - **btop** - System monitor
+- **Claude** - Light/dark appearance
+- **Codex** - Matching Catppuccin light/dark syntax theme
 - **VS Code** - Code editor
 
 ## Usage
@@ -58,7 +60,8 @@ themes/
 #### `neovim.lua`
 LazyVim plugin configuration that installs and sets the colorscheme.
 
-**Applied to:** `~/.config/nvim/lua/plugins/theme.lua`
+**Applied to:** `~/.config/nvim/lua/plugins/theme.lua`, with the selected
+colorscheme persisted in `theme-light` and `theme-dark`.
 
 **Format:**
 ```lua
@@ -224,6 +227,12 @@ theme "current"
 ### btop Integration
 
 btop will automatically load themes from `~/.config/btop/themes/` when you switch.
+
+### Claude and Codex Integration
+
+When their config files exist, the switcher updates Claude to `light` or `dark`
+and Codex to `catppuccin-latte` or `catppuccin-mocha`. Themes without explicit
+appearance metadata are classified from their Alacritty background color.
 
 ## Available Themes
 

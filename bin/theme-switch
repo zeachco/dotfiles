@@ -9,18 +9,70 @@ DOTFILES_PATH="${DOTFILES_PATH:-$HOME/dotfiles}"
 THEMES_PATH="$DOTFILES_PATH/themes"
 CURRENT_THEME_PATH="$THEMES_PATH/current"
 
+get_theme_mode() {
+  if [ -f "$CURRENT_THEME_PATH/claude-theme" ]; then
+    tr -d '[:space:]' <"$CURRENT_THEME_PATH/claude-theme"
+    return
+  fi
+
+  local background
+  background=$(sed -n 's/^background = "#\([0-9A-Fa-f]\{6\}\)"/\1/p' "$CURRENT_THEME_PATH/alacritty.toml" | head -n 1)
+  if [ ${#background} -eq 6 ]; then
+    local red=$((16#${background:0:2}))
+    local green=$((16#${background:2:2}))
+    local blue=$((16#${background:4:2}))
+    [ $((299 * red + 587 * green + 114 * blue)) -ge 128000 ] && echo "light" || echo "dark"
+  else
+    echo "dark"
+  fi
+}
+
 update_zellij_theme() {
-  if command -v zellij &>/dev/null && [ -f "$CURRENT_THEME_PATH/zellij.kdl" ]; then
+  if [ -f "$CURRENT_THEME_PATH/zellij.kdl" ]; then
     mkdir -p "$HOME/.config/zellij/themes"
     sed 's/themes {$/themes {\n  current {/; /^  [a-z-]* {$/d' "$CURRENT_THEME_PATH/zellij.kdl" >"$HOME/.config/zellij/themes/current.kdl"
 
-    # Reload config by toggling theme value (forces zellij to detect change)
-    ZELLIJ_CONFIG="$DOTFILES_PATH/configs/zellij/.config/zellij/config.kdl"
-    if [ -f "$ZELLIJ_CONFIG" ]; then
-      sed -i '' 's/theme "current"/theme "updating"/' "$ZELLIJ_CONFIG" 2>/dev/null
-      sleep 1
-      sed -i '' 's/theme "updating"/theme "current"/' "$ZELLIJ_CONFIG" 2>/dev/null
-    fi
+    # Prompt a running Zellij instance to reload without rewriting its config.
+    [ -f "$HOME/.config/zellij/config.kdl" ] && touch "$HOME/.config/zellij/config.kdl"
+  fi
+}
+
+update_alacritty_theme() {
+  if [ -f "$CURRENT_THEME_PATH/alacritty.toml" ]; then
+    # Alacritty imports themes/current directly; touching its root config asks a
+    # running instance to notice that the imported file was replaced.
+    [ -f "$HOME/.config/alacritty/alacritty.toml" ] && touch "$HOME/.config/alacritty/alacritty.toml"
+  fi
+}
+
+update_nvim_theme() {
+  [ -f "$CURRENT_THEME_PATH/neovim.lua" ] || return
+
+  local nvim_config="$HOME/.config/nvim"
+  local colorscheme
+  colorscheme=$(sed -n 's/^[[:space:]]*colorscheme = "\([^"]*\)".*/\1/p' "$CURRENT_THEME_PATH/neovim.lua" | tail -n 1)
+
+  mkdir -p "$nvim_config"
+  if [ -n "$colorscheme" ]; then
+    # Neovim's FocusGained hook reads the OS-specific file. Keep both in sync
+    # so an explicit `theme` choice remains authoritative across OS mode changes.
+    printf '%s\n' "$colorscheme" >"$nvim_config/theme-light"
+    printf '%s\n' "$colorscheme" >"$nvim_config/theme-dark"
+  fi
+}
+
+update_codex_theme() {
+  local codex_config="$HOME/.codex/config.toml"
+  [ -f "$codex_config" ] || return
+
+  local codex_theme="catppuccin-mocha"
+  [ "$THEME_MODE" = "light" ] && codex_theme="catppuccin-latte"
+
+  if grep -q '^[[:space:]]*theme[[:space:]]*=' "$codex_config"; then
+    sed -i.bak "s/^[[:space:]]*theme[[:space:]]*=.*/theme = \"$codex_theme\"/" "$codex_config"
+    rm -f "$codex_config.bak"
+  else
+    printf '\ntheme = "%s"\n' "$codex_theme" >>"$codex_config"
   fi
 }
 
@@ -53,9 +105,12 @@ echo "Switching to theme: $THEME"
 # Copy theme to current
 [ -d "$CURRENT_THEME_PATH" ] && rm -rf "$CURRENT_THEME_PATH"
 cp -r "$THEMES_PATH/$THEME" "$CURRENT_THEME_PATH"
+THEME_MODE=$(get_theme_mode)
 
-# Update nvim references (unless skipped)
+# Update Neovim (unless skipped)
 if [ "$SKIP_NVIM" != "true" ]; then
+  update_nvim_theme
+
   # Copy custom neovim colorscheme if exists
   if [ -f "$CURRENT_THEME_PATH/colors.lua" ]; then
     mkdir -p "$HOME/.config/nvim/colors"
@@ -63,8 +118,9 @@ if [ "$SKIP_NVIM" != "true" ]; then
   fi
 fi
 
-# Update zellij
-update_zellij_theme &
+# Update terminal and multiplexer themes
+update_alacritty_theme
+update_zellij_theme
 
 # Update btop
 if command -v btop &>/dev/null && [ -f "$CURRENT_THEME_PATH/btop.theme" ]; then
@@ -73,8 +129,8 @@ if command -v btop &>/dev/null && [ -f "$CURRENT_THEME_PATH/btop.theme" ]; then
 fi
 
 # Update Claude
-if [ -f "$HOME/.claude/settings.json" ] && [ -f "$CURRENT_THEME_PATH/claude-theme" ]; then
-  CLAUDE_THEME=$(cat "$CURRENT_THEME_PATH/claude-theme" | tr -d '[:space:]')
+if [ -f "$HOME/.claude/settings.json" ]; then
+  CLAUDE_THEME="$THEME_MODE"
   if command -v jq &>/dev/null; then
     jq --arg theme "$CLAUDE_THEME" '. + {theme: $theme}' "$HOME/.claude/settings.json" >"$HOME/.claude/settings.json.tmp"
     mv "$HOME/.claude/settings.json.tmp" "$HOME/.claude/settings.json"
@@ -87,5 +143,9 @@ if [ -f "$HOME/.claude/settings.json" ] && [ -f "$CURRENT_THEME_PATH/claude-them
     rm -f "$HOME/.claude/settings.json.bak"
   fi
 fi
+
+# Update Codex when it is installed/configured. Codex supports named syntax
+# themes, so use its matching Catppuccin light/dark variants.
+update_codex_theme
 
 echo "✓ Theme '$THEME' applied successfully!"
