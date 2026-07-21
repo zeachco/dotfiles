@@ -15,9 +15,16 @@ zellij_branch_repo() {
     return 1
   fi
 
+  local branch_name="${1:-main}"
+  case "$branch_name" in
+    https://github.com/*/*/pull/*|https://*.atlassian.net/browse/*)
+      branch_name="${branch_name%/}"
+      branch_name="${branch_name##*/}"
+      ;;
+  esac
+
   local repo_root=$(git rev-parse --show-toplevel)
   local repo_name=$(basename "$repo_root")
-  local branch_name="${1:-main}"
   local tab_label="${2:-$branch_name}"
   local tab_name="${repo_name}:${tab_label}"
   local worktree_base="$HOME/worktrees/$repo_name"
