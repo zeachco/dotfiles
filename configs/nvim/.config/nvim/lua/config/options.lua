@@ -12,8 +12,21 @@ vim.diagnostic.config({
 -- instead of jumping to git root or other project markers
 vim.g.root_spec = { "cwd" }
 
--- Disable relative line numbers
--- vim.opt.relativenumber = false
+-- Show relative numbers while navigating, but keep absolute numbers in Insert mode.
+vim.opt.number = true
+vim.opt.relativenumber = true
+
+vim.api.nvim_create_autocmd("InsertEnter", {
+  callback = function()
+    vim.opt_local.relativenumber = false
+  end,
+})
+
+vim.api.nvim_create_autocmd("InsertLeave", {
+  callback = function()
+    vim.opt_local.relativenumber = true
+  end,
+})
 
 -- Auto-save on focus loss
 vim.api.nvim_create_autocmd({ "FocusLost", "BufLeave" }, {
