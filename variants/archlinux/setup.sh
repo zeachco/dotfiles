@@ -59,6 +59,19 @@ install exa
 install starship
 script_install bw "install bitwarden-cli"
 
+install avahi-browse avahi
+install cvlc vlc-cli
+
+# VLC 3 is split into optional plugins on Arch. Chromecast output needs these
+# plugins for device support, media decoding, and H.264 transcoding.
+for package in vlc-plugin-chromecast vlc-plugin-ffmpeg vlc-plugin-x264; do
+  if pacman -Q "$package" >/dev/null 2>&1; then
+    print_exists "$package"
+  else
+    sudo pacman -S "$package" --needed --noconfirm
+  fi
+done
+
 # Configure WirePlumber - Sound Blaster GS5 analog stereo profile
 # Prevents pro-audio mode from stealing the sound device between apps
 stow_link waybar
