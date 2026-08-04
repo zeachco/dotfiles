@@ -1,11 +1,12 @@
 {
-  "model": "sonnet",
+  "model": "claude-fable-5[1m]",
   "enabledPlugins": {
     "claude-md-management@claude-plugins-official": true,
     "stagehand@claude-plugins-official": true,
     "rust-analyzer-lsp@claude-plugins-official": true
   },
   "alwaysThinkingEnabled": false,
+  "effortLevel": "low",
   "skipDangerousModePermissionPrompt": true,
   "theme": "auto",
   "editorMode": "vim",
@@ -16,6 +17,5 @@
     "opus": "gemma4:26b-mlx",
     "sonnet": "gemma4:12b-mlx",
     "haiku": "gemma4:e4b-mlx"
-  },
-  "effortLevel": "low"
+  }
 }
