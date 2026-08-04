@@ -299,7 +299,13 @@ web_client {
 // Default: default
 //
 theme "current"
- 
+
+ui {
+    pane_frames {
+        hide_session_name true
+    }
+}
+
 // Choose the base input mode of zellij.
 // Default: normal
 // 
