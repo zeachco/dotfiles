@@ -59,25 +59,18 @@ zellij_branch_repo() {
   # Create new zellij tab (does not affect current tab's state)
   zellij action new-tab --name "$tab_name"
 
-  # Split pane vertically (50/50)
-  zellij action new-pane --direction right
-
-  # Setup left pane (editor)
-  zellij action move-focus left
-  zellij action write-chars "cd \"$target_path\""
-  zellij action write 13
-  zellij action write-chars "e ."
-  zellij action write 13
-
-  # Setup right pane (devbox shell, will exit after)
-  zellij action move-focus right
+  # Setup first pane (devbox shell, will exit after)
   zellij action write-chars "cd \"$target_path\""
   zellij action write 13
   zellij action write-chars "ds && exit"
   zellij action write 13
 
-  # Focus back to left pane
-  zellij action move-focus left
+  # Stack an editor pane on top of the devbox pane
+  zellij action new-pane --stacked
+  zellij action write-chars "cd \"$target_path\""
+  zellij action write 13
+  zellij action write-chars "e ."
+  zellij action write 13
 
   echo "Tab '$tab_name' ready at $target_path"
 }
