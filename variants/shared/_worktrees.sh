@@ -399,7 +399,7 @@ jira_claude() {
     _worktree_init "$worktree_path" || return 1
 
     echo "Starting Claude Code to plan work for $ticket..."
-    claude --dangerously-skip-permissions "$cc_prompt"
+    claude --permission-mode auto "$cc_prompt"
   fi
 }
 _set jc "jira_claude"
