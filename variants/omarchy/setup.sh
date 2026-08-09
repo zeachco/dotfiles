@@ -13,6 +13,13 @@ stow_link zellij-omarchy
 
 install s-tui  # cli tool for CPU benchmarks
 
+# Load dotfiles-owned window rules from Omarchy's user config entrypoint.
+HYPRLAND_CONFIG=~/.config/hypr/hyprland.conf
+WINDOW_RULES_SOURCE='source = ~/.config/hypr/windowrules.conf'
+if [ -f "$HYPRLAND_CONFIG" ] && ! grep -Fqx "$WINDOW_RULES_SOURCE" "$HYPRLAND_CONFIG"; then
+  sed -i "/# Toggle config flags dynamically/i $WINDOW_RULES_SOURCE\n" "$HYPRLAND_CONFIG"
+fi
+
 # Add hypr binding for alacritty with custom zellij layout
 BINDINGS_FILE=~/.config/hypr/bindings.conf
 if [ -f "$BINDINGS_FILE" ]; then
