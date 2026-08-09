@@ -13,8 +13,8 @@ cast() {
     echo "cast: fzf is required to select a device and file" >&2
     return 1
   fi
-  if ! command -v cvlc >/dev/null 2>&1; then
-    echo "cast: cvlc is required to stream media" >&2
+  if ! command -v vlc >/dev/null 2>&1; then
+    echo "cast: vlc is required to stream media" >&2
     return 1
   fi
 
@@ -76,11 +76,11 @@ cast() {
   echo "Casting $media_file to ${target%%$'\t'*} ($target_ip)"
   if [ -n "$subtitle_file" ]; then
     echo "Using subtitles $subtitle_file"
-    cvlc --sub-file "$subtitle_file" --sout-chromecast-conversion-quality=2 \
+    vlc --sub-file "$subtitle_file" --sout-chromecast-conversion-quality=2 \
       --sout "#chromecast{ip=$target_ip,port=8009,http-port=8011}" \
       --demux-filter=demux_chromecast --play-and-exit -- "$media_file"
   else
-    cvlc --no-spu --sout-chromecast-conversion-quality=2 \
+    vlc --sout-chromecast-conversion-quality=2 \
       --sout "#chromecast{ip=$target_ip,port=8009,http-port=8011}" \
       --demux-filter=demux_chromecast --play-and-exit -- "$media_file"
   fi
