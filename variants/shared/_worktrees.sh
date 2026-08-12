@@ -65,8 +65,8 @@ zellij_branch_repo() {
   zellij action write-chars "ds && exit"
   zellij action write 13
 
-  # Stack an editor pane on top of the devbox pane
-  zellij action new-pane --stacked
+  # Open the editor in a regular pane alongside the devbox pane
+  zellij action new-pane
   zellij action write-chars "cd \"$target_path\""
   zellij action write 13
   zellij action write-chars "e ."
