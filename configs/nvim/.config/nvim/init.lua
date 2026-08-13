@@ -1,3 +1,12 @@
+-- On macOS the default stdpath("run") lives under $TMPDIR and, with a long
+-- username, socket paths exceed the 104-byte unix socket limit, making
+-- serverstart() fail with EINVAL (breaks fzf-lua). Use a short runtime dir.
+if vim.fn.has("mac") == 1 and not vim.env.XDG_RUNTIME_DIR then
+  local run_dir = vim.fn.expand("~/.cache/nvim/run")
+  vim.fn.mkdir(run_dir, "p", tonumber("700", 8))
+  vim.env.XDG_RUNTIME_DIR = run_dir
+end
+
 -- bootstrap lazy.nvim, LazyVim and your plugins
 require("config.lazy")
 
