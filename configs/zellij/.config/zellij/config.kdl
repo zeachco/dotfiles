@@ -49,7 +49,8 @@ keybinds clear-defaults=true {
         bind "j" { GoToNextTab; }
         bind "k" { GoToPreviousTab; }
         bind "l" { GoToNextTab; }
-        bind "m" { SwitchToMode "move"; }
+        bind "m" { MoveTab "right"; }
+        bind "M" { MoveTab "left"; }
         bind "n" { NewTab; SwitchToMode "normal"; }
         bind "r" { SwitchToMode "renametab"; TabNameInput 0; }
         bind "s" { ToggleActiveSyncTab; SwitchToMode "normal"; }
@@ -76,10 +77,10 @@ keybinds clear-defaults=true {
         bind "Ctrl n" { SwitchToMode "normal"; }
     }
     move {
-        bind "left" { MoveTab "left"; }
+        bind "left" { MovePane "left"; }
         bind "down" { MovePane "down"; }
         bind "up" { MovePane "up"; }
-        bind "right" { MoveTab "right"; }
+        bind "right" { MovePane "right"; }
         bind "h" { MovePane "left"; }
         bind "Ctrl h" { SwitchToMode "normal"; }
         bind "j" { MovePane "down"; }
