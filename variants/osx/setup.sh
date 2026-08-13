@@ -16,6 +16,13 @@ fi
 # Install tiles
 [[ -d /Applications/Tiles.app ]] || brew install tiles
 
+if needs devbox; then
+  curl -fsSL https://get.jetify.com/devbox | bash
+  # brew trust --formula pilat/devbox/devbox
+  # brew tap pilat/devbox
+  # brew install devbox
+fi
+
 if needs nvim; then
   brew tap homebrew/cask-fonts
   brew install --cask font-victor-mono-nerd-font
