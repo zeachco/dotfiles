@@ -61,21 +61,6 @@ update_nvim_theme() {
   fi
 }
 
-update_codex_theme() {
-  local codex_config="$HOME/.codex/config.toml"
-  [ -f "$codex_config" ] || return
-
-  local codex_theme="catppuccin-mocha"
-  [ "$THEME_MODE" = "light" ] && codex_theme="catppuccin-latte"
-
-  if grep -q '^[[:space:]]*theme[[:space:]]*=' "$codex_config"; then
-    sed -i.bak "s/^[[:space:]]*theme[[:space:]]*=.*/theme = \"$codex_theme\"/" "$codex_config"
-    rm -f "$codex_config.bak"
-  else
-    printf '\ntheme = "%s"\n' "$codex_theme" >>"$codex_config"
-  fi
-}
-
 # Select theme
 if [ -n "$1" ]; then
   THEME="$1"
@@ -143,9 +128,5 @@ if [ -f "$HOME/.claude/settings.json" ]; then
     rm -f "$HOME/.claude/settings.json.bak"
   fi
 fi
-
-# Update Codex when it is installed/configured. Codex supports named syntax
-# themes, so use its matching Catppuccin light/dark variants.
-update_codex_theme
 
 echo "✓ Theme '$THEME' applied successfully!"
