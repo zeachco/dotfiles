@@ -1,4 +1,0 @@
-// Omarchy variant - minimal UI with hidden status/tab bars
-theme "current"
-default_layout "omarchy"
-pane_frames false

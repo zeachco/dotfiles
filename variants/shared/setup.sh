@@ -69,6 +69,7 @@ fi
 script_install claude "curl -fsSL https://claude.ai/install.sh | bash && echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc"
 
 stow_link alacritty
+stow_link zellij
 
 # # not using OMZSH
 # if [ -d "$HOME/.oh-my-zsh" ] && [ -f "$HOME/.zshrc" ]; then
