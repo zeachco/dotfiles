@@ -1,0 +1,1 @@
+-- Add personal autostart processes with o.launch_on_start("command").
