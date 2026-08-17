@@ -11,6 +11,11 @@ dark() {
   osascript -e "tell application \"System Events\" to tell appearance preferences to set dark mode to $enabled"
 }
 
+# Ollama defaults to a 4096-token context, which truncates long prompts and
+# cuts off replies mid-sentence. launchctl setenv doesn't persist across
+# reboots, so re-apply it here for the brew-managed ollama service.
+launchctl setenv OLLAMA_CONTEXT_LENGTH 16384
+
 # In conjunction with the shared install that uses brew on osx
 source $(brew --prefix)/opt/zsh-vi-mode/share/zsh-vi-mode/zsh-vi-mode.plugin.zsh
 
