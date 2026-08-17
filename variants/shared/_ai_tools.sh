@@ -23,8 +23,10 @@ debug() {
 # Summarize a JIRA ticket or GitHub PR description into a short agent-workflow tab name.
 # Usage: gh pr view 123 --json body -q .body | summarize --len=30 --retries=3 [--model=tinyllama]
 # Prints only the summary (exit 0), or a failure message at the end (exit 1).
+# Default model is overridable with SUMMARIZE_MODEL (ollama pulls it on first use).
 summarize() {
-  local max_length=80 retries=3 model="tinyllama" content=""
+  local max_length=80 retries=3 content=""
+  local model="${SUMMARIZE_MODEL:-oamazonasgabriel/qwen3.5-0.8b:q8-8gbGPU}"
 
   for arg in "$@"; do
     case "$arg" in

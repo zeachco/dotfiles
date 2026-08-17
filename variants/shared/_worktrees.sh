@@ -4,44 +4,65 @@
 # ZELLIJ & WORKTREE UTILITIES
 # ==============================================================================
 
-# Async: fetch the JIRA/PR description, summarize it, and rename the tab
-# to "jira-<ticket>:<shortname>" or "pr-<num>:<shortname>".
-# Prints nothing on success, a short error when something fails (and stays
-# silent when a plain branch simply has no PR).
-# Args: current_tab_name, kind (jira|pr), ref (ticket, PR number, PR URL, or branch)
-_tab_autoname() {
-  local tab_name="$1" kind="$2" ref="$3"
-  # double subshell keeps the job out of the interactive shell's job table,
-  # so zsh prints no "[n] pid" / "done <command>" notifications for it
-  ( (
-    err() { printf 'tab-autoname: %s\n' "$1" >&2; }
-    _ai_debug "tab-autoname: tab=$tab_name kind=$kind ref=$ref"
-    prefix="" desc="" title=""
-    if [ "$kind" = "jira" ]; then
-      prefix="jira-${ref}"
-      desc=$(jira issue view "$ref" --plain 2>/dev/null)
-      if [ -z "$desc" ]; then
-        err "could not fetch JIRA description for '$ref'"
-        exit 0
+# Compute a short tab name "jira-<ticket>:<slug>" or "pr-<num>:<slug>" from
+# the ticket/PR description run through summarize. A plain branch without a
+# PR falls back to "<branch>:<slug>" from its commit subjects since
+# main/master. Prints it on stdout, errors on stderr; returns 1 when nothing
+# usable was found (silently when a plain branch has no PR and no commits).
+# Args: kind (jira|pr), ref (ticket, PR number, PR URL, or branch)
+_tab_shortname() {
+  local kind="$1" ref="$2"
+  local prefix="" desc="" title="" out="" para="" short="" _try
+  _ai_debug "tab-shortname: kind=$kind ref=$ref"
+
+  if [ "$kind" = "jira" ]; then
+    prefix="jira-${ref}"
+    desc=$(jira issue view "$ref" --plain 2>/dev/null)
+    if [ -z "$desc" ]; then
+      printf 'tab-autoname: could not fetch JIRA description for %s\n' "$ref" >&2
+      return 1
+    fi
+    # first non-empty line, minus the ticket id already in the prefix
+    title=$(printf '%s\n' "$desc" | grep -m 1 . | sed -E "s/^${ref}[[:space:]:-]*//")
+  else
+    # gh resolves a PR number, URL, or branch name; retry transient API errors
+    for _try in 1 2 3; do
+      if out=$(gh pr view "$ref" --json number,title,body --jq '(.number|tostring), .title, (.body // "")' 2>&1); then
+        break
       fi
-      # first non-empty line, minus the ticket id already in the prefix
-      title=$(printf '%s\n' "$desc" | grep -m 1 . | sed -E "s/^${ref}[[:space:]:-]*//")
-    else
-      # gh resolves a PR number, URL, or branch name; retry transient API errors
+      case "$out" in
+        # no PR exists for this ref: retrying will not help
+        *"no pull request"*) out=""; break ;;
+      esac
       out=""
-      for _try in 1 2 3; do
-        out=$(gh pr view "$ref" --json number,title,body --jq '(.number|tostring), .title, (.body // "")' 2>/dev/null)
-        [ -n "$out" ] && break
-        sleep 2
+      sleep 2
+    done
+    if [ -z "$out" ]; then
+      case "$ref" in
+        # explicit PR reference: failing to fetch it is an error
+        [0-9]*|http*)
+          printf 'tab-autoname: could not fetch PR description for %s\n' "$ref" >&2
+          return 1
+          ;;
+      esac
+      # plain branch without a PR: summarize the branch's own commit
+      # descriptions since it diverged from main/master instead
+      local base=""
+      for _try in origin/main origin/master main master; do
+        if git rev-parse --verify --quiet "$_try" >/dev/null 2>&1; then
+          base="$_try"
+          break
+        fi
       done
-      if [ -z "$out" ]; then
-        case "$ref" in
-          # explicit PR reference: failing to fetch it is an error
-          [0-9]*|http*) err "could not fetch PR description for '$ref' (3 tries)" ;;
-          # plain branch without a PR: nothing to do, stay silent
-        esac
-        exit 0
-      fi
+      [ -n "$base" ] || return 1
+      # keep the model input small: subjects only, newest first, capped
+      desc=$(git log --format='%s' "${base}..${ref}" 2>/dev/null | head -n 30)
+      # no commits of its own either: nothing usable, stay silent
+      [ -n "$desc" ] || return 1
+      prefix="$ref"
+      title=$(printf '%s\n' "$desc" | head -n 1)
+      _ai_debug "tab-shortname: no PR for $ref, using commit subjects since $base"
+    else
       prefix="pr-$(printf '%s\n' "$out" | head -n 1)"
       title=$(printf '%s\n' "$out" | sed -n '2p')
       # keep the model input small: title + first body paragraph that is
@@ -50,41 +71,86 @@ _tab_autoname() {
         awk 'BEGIN { RS=""; FS="\n" } $1 !~ /^(#|<!--)/ { print; exit }')
       desc=$(printf '%s\n%s\n' "$title" "$para")
     fi
+  fi
 
-    _ai_debug "tab-autoname: fetched description (${#desc} chars) >>>" "$desc" "<<<"
+  _ai_debug "tab-shortname: fetched description (${#desc} chars) >>>" "$desc" "<<<"
 
-    if [ "$DEBUG" = "true" ]; then
-      # keep summarize's stderr (retries + its own debug dumps) visible
-      short=$(printf '%s' "$desc" | summarize --len=40)
-    else
-      short=$(printf '%s' "$desc" | summarize --len=40 2>/dev/null)
-    fi
-    if [ -z "$short" ]; then
-      # model couldn't fit the cap: fall back to the raw title
-      _ai_debug "tab-autoname: summarize failed, falling back to title: $title"
-      short="$title"
-    fi
-    # slugify for a clean tab name
-    short=$(printf '%s' "$short" | tr '[:upper:]' '[:lower:]' |
-      sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-    # hard-cap at 40 chars, dropping any cut-off trailing word
-    if [ ${#short} -gt 40 ]; then
-      short=$(printf '%s' "$short" | cut -c 1-40 | sed -E 's/-[a-z0-9]*$//')
-    fi
-    _ai_debug "tab-autoname: slug: ${prefix}:${short}"
-    if [ -z "$short" ]; then
-      err "no usable summary or title for '$prefix'"
-      exit 0
-    fi
+  if [ "$DEBUG" = "true" ]; then
+    # keep summarize's stderr (retries + its own debug dumps) visible
+    short=$(printf '%s' "$desc" | summarize --len=40)
+  else
+    short=$(printf '%s' "$desc" | summarize --len=40 2>/dev/null)
+  fi
+  if [ -z "$short" ]; then
+    # model couldn't fit the cap: fall back to the raw title
+    _ai_debug "tab-shortname: summarize failed, falling back to title: $title"
+    short="$title"
+  fi
+  # slugify for a clean tab name
+  short=$(printf '%s' "$short" | tr '[:upper:]' '[:lower:]' |
+    sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
+  # hard-cap at 40 chars, dropping any cut-off trailing word
+  if [ ${#short} -gt 40 ]; then
+    short=$(printf '%s' "$short" | cut -c 1-40 | sed -E 's/-[a-z0-9]*$//')
+  fi
+  _ai_debug "tab-shortname: slug: ${prefix}:${short}"
+  if [ -z "$short" ]; then
+    printf 'tab-autoname: no usable summary or title for %s\n' "$prefix" >&2
+    return 1
+  fi
 
-    # rename-tab only targets the focused tab, so focus it by name first
-    if ! zellij action go-to-tab-name "$tab_name" >/dev/null 2>&1; then
-      err "tab '$tab_name' not found, skipping rename"
-      exit 0
-    fi
-    zellij action rename-tab "${prefix}:${short}" >/dev/null 2>&1 ||
-      err "failed to rename tab to '${prefix}:${short}'"
+  printf '%s:%s\n' "$prefix" "$short"
+}
+
+# Async: compute the short tab name and rename the given tab to it.
+# Prints nothing on success, a short error when something fails.
+# Args: tab_id, kind (jira|pr), ref (ticket, PR number, PR URL, or branch)
+_tab_autoname() {
+  local tab_id="$1" kind="$2" ref="$3"
+  # double subshell keeps the job out of the interactive shell's job table,
+  # so zsh prints no "[n] pid" / "done <command>" notifications for it
+  ( (
+    new_name=$(_tab_shortname "$kind" "$ref") || exit 0
+    [ -n "$new_name" ] || exit 0
+
+    # targeting the tab by ID needs no focus change and cannot race other
+    # autoname jobs; it simply fails if the tab was closed in the meantime
+    zellij action rename-tab --tab-id "$tab_id" "$new_name" >/dev/null 2>&1 ||
+      printf 'tab-autoname: failed to rename tab %s to %s\n' "$tab_id" "$new_name" >&2
   ) & )
+}
+
+# Rename the current zellij tab from the branch's last active PR
+# (title + first paragraph through summarize); without a PR it summarizes
+# the branch's commits since main/master, and only falls back to the plain
+# branch name when there are no commits either.
+tab_autoname() {
+  if [ -z "$ZELLIJ" ]; then
+    echo "Error: Not in a zellij session"
+    return 1
+  fi
+  _git_check_repo || return 1
+
+  local branch=$(git branch --show-current)
+  if [ -z "$branch" ]; then
+    echo "Error: not on a branch (detached HEAD?)"
+    return 1
+  fi
+
+  local new_name
+  new_name=$(_tab_shortname pr "$branch")
+  if [ -z "$new_name" ]; then
+    echo "No PR found for '$branch', using the branch name"
+    new_name="$branch"
+  fi
+
+  # renames the focused tab, which is where this command was typed
+  if zellij action rename-tab "$new_name" >/dev/null 2>&1; then
+    echo "Tab renamed to '$new_name'"
+  else
+    echo "Error: failed to rename tab"
+    return 1
+  fi
 }
 
 zellij_branch_repo() {
@@ -164,8 +230,10 @@ zellij_branch_repo() {
     local target_path="$worktree_path"
   fi
 
-  # Create new zellij tab (does not affect current tab's state)
-  zellij action new-tab --name "$tab_name"
+  # Create new zellij tab (does not affect current tab's state); it prints
+  # the new tab's ID, which lets the async rename target this exact tab
+  local tab_id
+  tab_id=$(zellij action new-tab --name "$tab_name")
 
   # Setup first pane (devbox shell, will exit after)
   zellij action write-chars "cd \"$target_path\""
@@ -173,21 +241,66 @@ zellij_branch_repo() {
   zellij action write-chars "ds && exit"
   zellij action write 13
 
-  # Open the editor in a regular pane alongside the devbox pane
-  zellij action new-pane
+  # Open the editor in a regular pane to the right of the devbox pane,
+  # then grow it from 50% to ~2/3 of the width (each resize step is 5%)
+  zellij action new-pane --direction right
+  for _ in 1 2 3; do
+    zellij action resize increase left
+  done
   zellij action write-chars "cd \"$target_path\""
   zellij action write 13
   zellij action write-chars "e ."
   zellij action write 13
 
   # Auto-name the tab from the JIRA/PR description when no name was given
-  if [ -z "$2" ] && [ -n "$autoname_kind" ]; then
-    _tab_autoname "$tab_name" "$autoname_kind" "$autoname_ref"
+  if [ -z "$2" ] && [ -n "$autoname_kind" ] && [ -n "$tab_id" ]; then
+    _tab_autoname "$tab_id" "$autoname_kind" "$autoname_ref"
   fi
 
   echo "Tab '$tab_name' ready at $target_path"
 }
 _set wt "zellij_branch_repo"
+
+# Fetch all my open PRs for this repo and create a zellij workspace (wt)
+# for each one, using the PR's actual branch for the worktree
+all_my_prs() {
+  if [ -z "$ZELLIJ" ]; then
+    echo "Error: Not in a zellij session"
+    return 1
+  fi
+  _git_check_repo || return 1
+
+  echo "Fetching your open PRs..."
+  local prs
+  prs=$(gh pr list --author "@me" --state open --json number,headRefName \
+    --jq '.[] | (.number|tostring) + " " + .headRefName')
+  if [ $? -ne 0 ]; then
+    echo "Error: failed to list PRs (is gh authenticated?)"
+    return 1
+  fi
+  if [ -z "$prs" ]; then
+    echo "No open PRs found."
+    return 0
+  fi
+
+  # make sure the PR branches are known locally before creating worktrees
+  git fetch origin --quiet 2>/dev/null
+
+  local count=0 number branch
+  while read -r number branch; do
+    [ -z "$branch" ] && continue
+    echo ""
+    echo "=== PR #${number} (${branch}) ==="
+    zellij_branch_repo "$branch"
+    count=$((count + 1))
+  done <<EOF
+$prs
+EOF
+
+  echo ""
+  echo "Opened $count workspace(s)."
+}
+_set allprs "all_my_prs"
 
 zellij_branch_repo_delete() {
   if ! git rev-parse --git-dir > /dev/null 2>&1; then
