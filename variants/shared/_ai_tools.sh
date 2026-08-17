@@ -20,12 +20,15 @@ debug() {
   DEBUG=true eval "$*"
 }
 
-# Summarize a JIRA ticket or GitHub PR description into a short agent-workflow tab name.
+# Summarize a work description (JIRA ticket, GitHub PR, or commit messages)
+# into a short agent-workflow tab name.
 # Usage: gh pr view 123 --json body -q .body | summarize --len=30 --retries=3 [--model=tinyllama]
+# --kind=pr|commits tailors the prompt to the input (PR title+body vs commit
+# messages); anything else keeps the generic wording.
 # Prints only the summary (exit 0), or a failure message at the end (exit 1).
 # Default model is overridable with SUMMARIZE_MODEL (ollama pulls it on first use).
 summarize() {
-  local max_length=80 retries=3 content=""
+  local max_length=80 retries=3 content="" kind=""
   local model="${SUMMARIZE_MODEL:-oamazonasgabriel/qwen3.5-0.8b:q8-8gbGPU}"
 
   for arg in "$@"; do
@@ -33,6 +36,7 @@ summarize() {
     --len=*) max_length="${arg#*=}" ;;
     --retries=*) retries="${arg#*=}" ;;
     --model=*) model="${arg#*=}" ;;
+    --kind=*) kind="${arg#*=}" ;;
     --*)
       echo "summarize: unknown option '$arg'" >&2
       return 1
@@ -54,11 +58,23 @@ summarize() {
   _ai_debug "summarize: model=$model len=$max_length retries=$retries" \
     "summarize: input (${#content} chars) >>>" "$content" "<<<"
 
+  # tailor the first prompt line to what the caller is actually feeding in
+  local intro
+  case "$kind" in
+  pr) intro="A GitHub pull request title and body follow." ;;
+  commits) intro="Git commit messages from a work-in-progress branch follow." ;;
+  *) intro="A description of development work follows: a JIRA ticket, a GitHub
+PR description, or git commit messages." ;;
+  esac
+
   local esc=$(printf '\033')
   local attempt=0 prompt raw result length
   while true; do
     prompt=$(cat <<EOF
-A JIRA ticket description or a GitHub PR description follows.
+${intro}
+Titles often follow the conventional commit format like
+"feat(project_a): PED-1234: some work on X"; ignore the type prefix and
+ticket id and describe the work itself.
 Summarize it all in a few words to generate the tab name of an agent workflow.
 Answer with a single line of at most ${max_length} characters.
 
@@ -101,4 +117,90 @@ EOF
     echo "summarize: got $length chars (max $max_length), retrying ($attempt/$retries)..." >&2
     sleep 1
   done
+}
+
+# Print the first existing main/master ref (origin preferred), or return 1.
+_git_base_ref() {
+  local _try
+  for _try in origin/main origin/master main master; do
+    if git rev-parse --verify --quiet "$_try" >/dev/null 2>&1; then
+      printf '%s\n' "$_try"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Rename the current zellij tab to "#<pr-number>: <summary>" from the current
+# branch's PR (title + body through the model), or to "wip: <summary>" from
+# the branch's commit subjects since main/master when no PR exists. The tab id
+# is captured first so the rename targets the tab this was typed in, even if
+# focus moved elsewhere during the slow gh/model calls.
+tab_autoname() {
+  if [ -z "$ZELLIJ" ]; then
+    echo "Error: Not in a zellij session"
+    return 1
+  fi
+  _git_check_repo || return 1
+
+  local tab_id
+  tab_id=$(zellij action current-tab-info 2>/dev/null | sed -n 's/^id: //p')
+  if [ -z "$tab_id" ]; then
+    echo "Error: could not get the current tab id"
+    return 1
+  fi
+  _ai_debug "tab-autoname: renaming tab id $tab_id"
+
+  local branch=$(git branch --show-current)
+  if [ -z "$branch" ]; then
+    echo "Error: not on a branch (detached HEAD?)"
+    return 1
+  fi
+
+  # PR of the current branch first; commit subjects since main/master when
+  # there is none
+  local kind prefix desc fallback="$branch" out
+  out=$(gh pr view --json title,number,body \
+    --jq '(.number|tostring), .title, (.body // "")' 2>/dev/null)
+  if [ -n "$out" ]; then
+    kind="pr"
+    prefix="#$(printf '%s\n' "$out" | head -n 1): "
+    fallback=$(printf '%s\n' "$out" | sed -n '2p')
+    desc=$(printf '%s\n' "$out" | tail -n +2)
+    _ai_debug "tab-autoname: using PR title+body for ${prefix%: }"
+  else
+    kind="commits"
+    prefix="wip: "
+    local base
+    if base=$(_git_base_ref); then
+      # keep the model input small: subjects only, newest first, capped
+      desc=$(git log --format='%s' "${base}..HEAD" 2>/dev/null | head -n 30)
+      [ -n "$desc" ] && _ai_debug "tab-autoname: using commit subjects since $base"
+    fi
+    # no commits of its own: give the model at least the branch name
+    [ -n "$desc" ] || desc="$branch"
+  fi
+
+  # the model fills whatever room the prefix leaves in the 40-char tab name
+  local len=$((40 - ${#prefix})) short
+  if [ "$DEBUG" = "true" ]; then
+    # keep summarize's stderr (retries + its own debug dumps) visible
+    short=$(printf '%s' "$desc" | summarize --len="$len" --kind="$kind")
+  else
+    short=$(printf '%s' "$desc" | summarize --len="$len" --kind="$kind" 2>/dev/null)
+  fi
+  if [ -z "$short" ]; then
+    # model couldn't fit the cap: hard-truncate the PR title / branch name
+    echo "No usable summary from the model, falling back to '$fallback'"
+    short=$(printf '%s' "$fallback" | cut -c 1-"$len")
+  fi
+
+  local new_name="${prefix}${short}"
+  # rename by the saved ID so it targets the tab this command was typed in
+  if zellij action rename-tab --tab-id "$tab_id" "$new_name" >/dev/null 2>&1; then
+    echo "Tab renamed to '$new_name'"
+  else
+    echo "Error: failed to rename tab"
+    return 1
+  fi
 }
