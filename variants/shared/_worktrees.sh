@@ -4,6 +4,89 @@
 # ZELLIJ & WORKTREE UTILITIES
 # ==============================================================================
 
+# Async: fetch the JIRA/PR description, summarize it, and rename the tab
+# to "jira-<ticket>:<shortname>" or "pr-<num>:<shortname>".
+# Prints nothing on success, a short error when something fails (and stays
+# silent when a plain branch simply has no PR).
+# Args: current_tab_name, kind (jira|pr), ref (ticket, PR number, PR URL, or branch)
+_tab_autoname() {
+  local tab_name="$1" kind="$2" ref="$3"
+  # double subshell keeps the job out of the interactive shell's job table,
+  # so zsh prints no "[n] pid" / "done <command>" notifications for it
+  ( (
+    err() { printf 'tab-autoname: %s\n' "$1" >&2; }
+    _ai_debug "tab-autoname: tab=$tab_name kind=$kind ref=$ref"
+    prefix="" desc="" title=""
+    if [ "$kind" = "jira" ]; then
+      prefix="jira-${ref}"
+      desc=$(jira issue view "$ref" --plain 2>/dev/null)
+      if [ -z "$desc" ]; then
+        err "could not fetch JIRA description for '$ref'"
+        exit 0
+      fi
+      # first non-empty line, minus the ticket id already in the prefix
+      title=$(printf '%s\n' "$desc" | grep -m 1 . | sed -E "s/^${ref}[[:space:]:-]*//")
+    else
+      # gh resolves a PR number, URL, or branch name; retry transient API errors
+      out=""
+      for _try in 1 2 3; do
+        out=$(gh pr view "$ref" --json number,title,body --jq '(.number|tostring), .title, (.body // "")' 2>/dev/null)
+        [ -n "$out" ] && break
+        sleep 2
+      done
+      if [ -z "$out" ]; then
+        case "$ref" in
+          # explicit PR reference: failing to fetch it is an error
+          [0-9]*|http*) err "could not fetch PR description for '$ref' (3 tries)" ;;
+          # plain branch without a PR: nothing to do, stay silent
+        esac
+        exit 0
+      fi
+      prefix="pr-$(printf '%s\n' "$out" | head -n 1)"
+      title=$(printf '%s\n' "$out" | sed -n '2p')
+      # keep the model input small: title + first body paragraph that is
+      # neither a markdown header nor an HTML template comment
+      para=$(printf '%s\n' "$out" | tail -n +3 |
+        awk 'BEGIN { RS=""; FS="\n" } $1 !~ /^(#|<!--)/ { print; exit }')
+      desc=$(printf '%s\n%s\n' "$title" "$para")
+    fi
+
+    _ai_debug "tab-autoname: fetched description (${#desc} chars) >>>" "$desc" "<<<"
+
+    if [ "$DEBUG" = "true" ]; then
+      # keep summarize's stderr (retries + its own debug dumps) visible
+      short=$(printf '%s' "$desc" | summarize --len=40)
+    else
+      short=$(printf '%s' "$desc" | summarize --len=40 2>/dev/null)
+    fi
+    if [ -z "$short" ]; then
+      # model couldn't fit the cap: fall back to the raw title
+      _ai_debug "tab-autoname: summarize failed, falling back to title: $title"
+      short="$title"
+    fi
+    # slugify for a clean tab name
+    short=$(printf '%s' "$short" | tr '[:upper:]' '[:lower:]' |
+      sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
+    # hard-cap at 40 chars, dropping any cut-off trailing word
+    if [ ${#short} -gt 40 ]; then
+      short=$(printf '%s' "$short" | cut -c 1-40 | sed -E 's/-[a-z0-9]*$//')
+    fi
+    _ai_debug "tab-autoname: slug: ${prefix}:${short}"
+    if [ -z "$short" ]; then
+      err "no usable summary or title for '$prefix'"
+      exit 0
+    fi
+
+    # rename-tab only targets the focused tab, so focus it by name first
+    if ! zellij action go-to-tab-name "$tab_name" >/dev/null 2>&1; then
+      err "tab '$tab_name' not found, skipping rename"
+      exit 0
+    fi
+    zellij action rename-tab "${prefix}:${short}" >/dev/null 2>&1 ||
+      err "failed to rename tab to '${prefix}:${short}'"
+  ) & )
+}
+
 zellij_branch_repo() {
   if [ -z "$ZELLIJ" ]; then
     echo "Error: Not in a zellij session"
@@ -16,10 +99,32 @@ zellij_branch_repo() {
   fi
 
   local branch_name="${1:-main}"
+  local autoname_kind="" autoname_ref="" tab_prefix=""
   case "$branch_name" in
-    https://github.com/*/*/pull/*|https://*.atlassian.net/browse/*)
+    https://github.com/*/*/pull/*)
       branch_name="${branch_name%/}"
       branch_name="${branch_name##*/}"
+      autoname_kind="pr"
+      autoname_ref="$1" # full URL: resolves regardless of cwd/default repo
+      tab_prefix="pr-${branch_name}"
+      ;;
+    https://*.atlassian.net/browse/*)
+      branch_name="${branch_name%/}"
+      branch_name="${branch_name##*/}"
+      autoname_kind="jira"
+      autoname_ref="$branch_name"
+      tab_prefix="jira-${branch_name}"
+      ;;
+    *)
+      if echo "$branch_name" | grep -qE "^${JIRA_PREFIX:-[A-Z]+-}[0-9]+$"; then
+        autoname_kind="jira"
+        autoname_ref="$branch_name"
+        tab_prefix="jira-${branch_name}"
+      elif [ "$branch_name" != "main" ] && [ "$branch_name" != "master" ]; then
+        # plain branch: gh will resolve it to a PR (if any) asynchronously
+        autoname_kind="pr"
+        autoname_ref="$branch_name"
+      fi
       ;;
   esac
 
@@ -27,6 +132,9 @@ zellij_branch_repo() {
   local repo_name=$(basename "$repo_root")
   local tab_label="${2:-$branch_name}"
   local tab_name="${repo_name}:${tab_label}"
+  if [ -z "$2" ] && [ -n "$tab_prefix" ]; then
+    tab_name="$tab_prefix"
+  fi
   local worktree_base="$HOME/worktrees/$repo_name"
   local worktree_path="$worktree_base/$branch_name"
 
@@ -71,6 +179,11 @@ zellij_branch_repo() {
   zellij action write 13
   zellij action write-chars "e ."
   zellij action write 13
+
+  # Auto-name the tab from the JIRA/PR description when no name was given
+  if [ -z "$2" ] && [ -n "$autoname_kind" ]; then
+    _tab_autoname "$tab_name" "$autoname_kind" "$autoname_ref"
+  fi
 
   echo "Tab '$tab_name' ready at $target_path"
 }

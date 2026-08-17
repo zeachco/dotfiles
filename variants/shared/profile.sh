@@ -184,6 +184,9 @@ git_test() {
 }
 _set gt "git_test"
 
+# Source AI utilities (summarize, etc.)
+[[ -f "$DOT_DIR/variants/shared/_ai_tools.sh" ]] && source "$DOT_DIR/variants/shared/_ai_tools.sh"
+
 # Source worktree and zellij utilities
 [[ -f "$DOT_DIR/variants/shared/_worktrees.sh" ]] && source "$DOT_DIR/variants/shared/_worktrees.sh"
 
