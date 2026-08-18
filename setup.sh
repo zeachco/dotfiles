@@ -41,4 +41,12 @@ install_profile "shared"
 # Extract just the variant name from the OS_DIR path
 install_profile "$(basename $OS_DIR)"
 
+# Omarchy is an Arch overlay with setup-only configuration (no shell profile).
+# Apply it after the Arch profile so Hyprland overrides, including the numpad
+# workspace bindings, are stowed after the base OS configuration.
+if [[ "$(basename "$OS_DIR")" == "archlinux" ]] && command -v omarchy &>/dev/null; then
+  echo -e "${INFO}applying ${NORM}omarchy configuration..."
+  "$SHELL" "$DOT_DIR/variants/omarchy/setup.sh"
+fi
+
 echo "All done!"
