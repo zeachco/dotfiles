@@ -4,7 +4,6 @@ source "$HOME/dotfiles/utils.sh"
 # Omarchy look and feel configs
 stow_link hypr
 stow_link omarchy
-stow_link claude
 stow_link wireplumber
 stow_link alacritty
 stow_link alacritty-omarchy

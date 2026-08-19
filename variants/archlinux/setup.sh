@@ -74,7 +74,6 @@ done
 
 # Configure WirePlumber - Sound Blaster GS5 analog stereo profile
 # Prevents pro-audio mode from stealing the sound device between apps
-stow_link claude
 stow_link wireplumber
 stow_link alacritty
 stow_link alacritty-archlinux

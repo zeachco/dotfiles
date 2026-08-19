@@ -58,7 +58,6 @@ fi
 needs blueutil && install blueutil
 
 stow_link sketchybar
-stow_link claude
 stow_link aerospace
 stow_link alacritty
 stow_link alacritty-osx
