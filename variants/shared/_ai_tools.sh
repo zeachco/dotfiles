@@ -63,7 +63,11 @@ summarize() {
   # tailor the first prompt line to what the caller is actually feeding in
   local intro
   case "$kind" in
-  pr) intro="A GitHub pull request title and body follow." ;;
+  pr) intro="A GitHub pull request title and body follow.
+The title usually starts with a conventional commit prefix like
+\"fix(scripts): \" or \"feat(bar): PED-1234: \": drop that prefix and the
+ticket id entirely, they must never appear in your answer.
+Answer with a short English description of the work in 4-5 words." ;;
   commits) intro="Git commit messages from a work-in-progress branch follow." ;;
   *) intro="A description of development work follows: a JIRA ticket, a GitHub
 PR description, or git commit messages." ;;
@@ -106,6 +110,12 @@ EOF
         $0 = substr($0, RLENGTH + 1)
       print
     }')
+    # small models also echo the conventional-commit prefix and ticket id from
+    # the source title despite the instructions; strip them off the front
+    result=$(printf '%s\n' "$result" |
+      sed -E 's/^[a-zA-Z]+(\([^)]*\))?!?:[[:space:]]*//' |
+      sed -E "s/^${JIRA_PREFIX}[0-9]+:?[[:space:]]*//" |
+      sed -E 's/^[[:space:]]+//')
     length=${#result}
 
     _ai_debug "summarize: attempt $((attempt + 1)) raw output (${#raw} chars) >>>" "$raw" "<<<" \
@@ -174,7 +184,11 @@ tab_autoname() {
   if [ -n "$out" ]; then
     kind="pr"
     prefix="#$(printf '%s\n' "$out" | head -n 1): "
-    fallback=$(printf '%s\n' "$out" | sed -n '2p')
+    # the fallback is the raw PR title: drop its conventional-commit prefix
+    # and ticket id too, so a model miss still yields "#123: <the work>"
+    fallback=$(printf '%s\n' "$out" | sed -n '2p' |
+      sed -E 's/^[a-zA-Z]+(\([^)]*\))?!?:[[:space:]]*//' |
+      sed -E "s/^${JIRA_PREFIX}[0-9]+:?[[:space:]]*//")
     desc=$(printf '%s\n' "$out" | tail -n +2)
     _ai_debug "tab-autoname: using PR title+body for ${prefix%: }"
   else
