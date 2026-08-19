@@ -35,7 +35,9 @@
           "id": "omarchy.tray",
           "pinned": [
             "spotify-client",
-            "steam"
+            "steam",
+            "Slack_status_icon_1",
+            "1Password_status_icon_1"
           ],
           "hidden": []
         },
