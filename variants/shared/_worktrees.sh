@@ -127,14 +127,24 @@ all_my_prs() {
     return 0
   fi
 
+  local open_tabs
+  open_tabs=$(zellij action query-tab-names 2>/dev/null)
+
   # make sure the PR branches are known locally before creating worktrees
   git fetch origin --quiet 2>/dev/null
 
-  local count=0 number branch
+  local count=0 skipped=0 number branch
   while read -r number branch; do
     [ -z "$branch" ] && continue
     echo ""
     echo "=== PR #${number} (${branch}) ==="
+
+    if printf '%s\n' "$open_tabs" | grep -q "^#${number}\([^0-9]\|$\)"; then
+      echo "Skipping: a tab starting with '#${number}' is already open."
+      skipped=$((skipped + 1))
+      continue
+    fi
+
     zellij_branch_repo "$branch"
     count=$((count + 1))
   done <<EOF
@@ -142,7 +152,7 @@ $prs
 EOF
 
   echo ""
-  echo "Opened $count workspace(s)."
+  echo "Opened $count workspace(s); skipped $skipped already-open PR(s)."
 }
 _set allprs "all_my_prs"
 
