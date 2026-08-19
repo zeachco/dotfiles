@@ -7,41 +7,47 @@ Cross-platform dotfiles using two-tier profiles (shared base + OS-specific overr
 **Core files**: `setup.sh` (orchestrator), `utils.sh` (install/stow_link/install_profile), `variants/*/setup.sh` (packages), `variants/*/profile.sh` (shell config)
 
 ## OS Detection (setup.sh:17-36)
+
 Linux → /etc/arch-release or pacman → archlinux | else → debian  
 Overrides: $TERMUX_VERSION → termux | lsb_release=Ubuntu → ubuntu  
 Darwin → osx
 
 ## Variants (variants/*)
+
 **Inheritance**: shared sourced FIRST → OS-specific (allows function shadowing)
 
-| Variant | PM | Stow Configs | Notes |
-|---------|----|--------------| ------|
-| shared | agnostic | alacritty | Base: git, rg, fd, gh, fzf, zellij |
-| debian | apt | claude, alacritty-debian, nvim | Core tools, ollama |
-| ubuntu | apt | Same as debian | + devbox, shortcuts.sh (GNOME keys) |
-| osx | brew | 7 pkgs (aerospace, sketchybar, etc) | Generates zellij os.toml |
-| archlinux | pacman+yay | waybar, wireplumber | AUR helper, 20+ pac*/yay* functions |
-| termux | pkg | None | Android-specific, redefined killport/network |
-| omarchy | pacman | hypr, zellij-omarchy | Setup-only, modifies Hypr bindings |
+| Variant   | PM         | Stow Configs                        | Notes                                        |
+| --------- | ---------- | ----------------------------------- | -------------------------------------------- |
+| shared    | agnostic   | alacritty                           | Base: git, rg, fd, gh, fzf, zellij           |
+| debian    | apt        | claude, alacritty-debian, nvim      | Core tools, ollama                           |
+| ubuntu    | apt        | Same as debian                      | + devbox, shortcuts.sh (GNOME keys)          |
+| osx       | brew       | 7 pkgs (aerospace, sketchybar, etc) | Generates zellij os.toml                     |
+| archlinux | pacman+yay | wireplumber                         | AUR helper, 20+ pac*/yay* functions          |
+| termux    | pkg        | None                                | Android-specific, redefined killport/network |
+| omarchy   | pacman     | hypr, zellij-omarchy                | Setup-only, modifies Hypr bindings           |
 
 ## Stow System (configs/ → ~/)
+
 16 packages mirror home structure: `configs/nvim/.config/nvim/`, `configs/alacritty/.config/alacritty/`  
 **stow_link()** (utils.sh:124-148): auto-removes conflicts, uses --restow fallback  
 **Override pattern**: base (alacritty, zellij) + OS variants (alacritty-osx, zellij-omarchy)
 
 ## install_profile() (utils.sh:29-44)
-1. Run variants/$variant/setup.sh  
-2. Copy profile.sh → ~/.dotfiles_$variant  
+
+1. Run variants/$variant/setup.sh
+2. Copy profile.sh → ~/.dotfiles_$variant
 3. Source in shell: `[[ -f ~/.dotfiles_$variant ]] && source ~/.dotfiles_$variant # zeachco-dotfiles`
 
 **clean_imports()**: strips old `# zeachco-dotfiles` lines before reinstall
 
 ## Key Functions (variants/shared/profile.sh)
+
 **clone [repo]**: GitHub shorthand | **killport [port]**: kill process | **check_for_devbox()**: auto-enters devbox shell  
-**Git**: gco, gs, gd, gci, gp (via `_set` - prints before exec) | **_worktrees.sh**: jira_claude, zellij integration  
+**Git**: gco, gs, gd, gci, gp (via `_set` - prints before exec) | **\_worktrees.sh**: jira_claude, zellij integration  
 **OS-specific**: archlinux (pacup, yayin), osx (docker wrapper, dark mode), termux (battery, notify)
 
 ## Testing
+
 `bash ~/dotfiles/setup.sh` (full) | `dotfiles_update` (remote pull) | `source ~/.zshrc` (reload)
 
 ---
@@ -115,6 +121,7 @@ return {
 ```
 
 **What this fixes:**
+
 - Makes `.git` and `.github` directories visible in Neo-tree file explorer
 - Makes `.git` and `.github` directories searchable with Telescope fuzzy finder
 - Shows hidden files while still excluding unnecessary files like `.DS_Store`
