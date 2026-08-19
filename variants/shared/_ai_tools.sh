@@ -24,11 +24,12 @@ debug() {
 # into a short agent-workflow tab name.
 # Usage: gh pr view 123 --json body -q .body | summarize --len=30 --retries=3 [--model=tinyllama]
 # --kind=pr|commits tailors the prompt to the input (PR title+body vs commit
-# messages); anything else keeps the generic wording.
+# messages); anything else keeps the generic wording. --hint=... strongly
+# steers the title toward a specific aspect of the work.
 # Prints only the summary (exit 0), or a failure message at the end (exit 1).
 # Default model is overridable with SUMMARIZE_MODEL (ollama pulls it on first use).
 summarize() {
-  local max_length=80 retries=3 content="" kind=""
+  local max_length=80 retries=3 content="" kind="" hint=""
   local model="${SUMMARIZE_MODEL:-mistral}"
 
   for arg in "$@"; do
@@ -37,6 +38,7 @@ summarize() {
     --retries=*) retries="${arg#*=}" ;;
     --model=*) model="${arg#*=}" ;;
     --kind=*) kind="${arg#*=}" ;;
+    --hint=*) hint="${arg#*=}" ;;
     --*)
       echo "summarize: unknown option '$arg'" >&2
       return 1
@@ -67,6 +69,11 @@ summarize() {
 PR description, or git commit messages." ;;
   esac
 
+  local guidance=""
+  if [ -n "$hint" ]; then
+    guidance=$(printf '\nNaming guidance (prioritize this strongly): %s\n' "$hint")
+  fi
+
   local esc=$(printf '\033')
   local attempt=0 prompt raw result length
   while true; do
@@ -77,6 +84,7 @@ Titles often follow the conventional commit format like
 ticket id and describe the work itself.
 Summarize it all in a few words to generate the tab name of an agent workflow.
 Answer with a single line of at most ${max_length} characters.
+${guidance}
 
 IMPORTANT: Your entire response must be the tab title alone, nothing else.
 No introduction, no explanation, no comments, no quotes, and no label
@@ -133,9 +141,10 @@ _git_base_ref() {
 
 # Rename the current zellij tab to "#<pr-number>: <summary>" from the current
 # branch's PR (title + body through the model), or to "wip: <summary>" from
-# the branch's commit subjects since main/master when no PR exists. The tab id
-# is captured first so the rename targets the tab this was typed in, even if
-# focus moved elsewhere during the slow gh/model calls.
+# the branch's commit subjects since main/master when no PR exists. An optional
+# short prompt strongly guides the summary: `tab_autoname "focus on auth"`.
+# The tab id is captured first so the rename targets the tab this was typed in,
+# even if focus moved elsewhere during the slow gh/model calls.
 tab_autoname() {
   if [ -z "$ZELLIJ" ]; then
     echo "Error: Not in a zellij session"
@@ -159,7 +168,7 @@ tab_autoname() {
 
   # PR of the current branch first; commit subjects since main/master when
   # there is none
-  local kind prefix desc fallback="$branch" out
+  local hint="$*" kind prefix desc fallback="$branch" out
   out=$(gh pr view --json title,number,body \
     --jq '(.number|tostring), .title, (.body // "")' 2>/dev/null)
   if [ -n "$out" ]; then
@@ -185,9 +194,9 @@ tab_autoname() {
   local len=$((40 - ${#prefix})) short
   if [ "$DEBUG" = "true" ]; then
     # keep summarize's stderr (retries + its own debug dumps) visible
-    short=$(printf '%s' "$desc" | summarize --len="$len" --kind="$kind")
+    short=$(printf '%s' "$desc" | summarize --len="$len" --kind="$kind" --hint="$hint")
   else
-    short=$(printf '%s' "$desc" | summarize --len="$len" --kind="$kind" 2>/dev/null)
+    short=$(printf '%s' "$desc" | summarize --len="$len" --kind="$kind" --hint="$hint" 2>/dev/null)
   fi
   if [ -z "$short" ]; then
     # model couldn't fit the cap: hard-truncate the PR title / branch name
