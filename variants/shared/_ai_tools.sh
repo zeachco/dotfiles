@@ -29,7 +29,7 @@ debug() {
 # Default model is overridable with SUMMARIZE_MODEL (ollama pulls it on first use).
 summarize() {
   local max_length=80 retries=3 content="" kind=""
-  local model="${SUMMARIZE_MODEL:-oamazonasgabriel/qwen3.5-0.8b:q8-8gbGPU}"
+  local model="${SUMMARIZE_MODEL:-mistral}"
 
   for arg in "$@"; do
     case "$arg" in
