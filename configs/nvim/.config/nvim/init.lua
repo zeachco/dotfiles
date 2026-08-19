@@ -13,6 +13,10 @@ require("config.lazy")
 -- vim.cmd.colorscheme("retrobox")
 -- vim.cmd.colorscheme("default")
 
+-- Theme file override (populated by the `theme` command) only applies on macOS.
+-- On other OSes (e.g. Omarchy) LazyVim's native light/dark detection is left alone.
+local is_mac = vim.fn.has("mac") == 1
+
 -- Function to get current system theme preference
 local function get_system_theme()
   local handle = io.popen("defaults read -g AppleInterfaceStyle 2>/dev/null")
@@ -77,17 +81,19 @@ end
 
 -- Theme persistence is now handled directly in the Snacks picker
 
--- Initial colorscheme setup (defer until plugins are loaded)
-vim.api.nvim_create_autocmd("User", {
-  pattern = "VeryLazy",
-  callback = update_colorscheme,
-})
+-- Initial colorscheme setup (defer until plugins are loaded) -- macOS only
+if is_mac then
+  vim.api.nvim_create_autocmd("User", {
+    pattern = "VeryLazy",
+    callback = update_colorscheme,
+  })
 
--- Create an autocommand to check periodically
-vim.api.nvim_create_autocmd("FocusGained", {
-  pattern = "*",
-  callback = update_colorscheme,
-})
+  -- Create an autocommand to check periodically
+  vim.api.nvim_create_autocmd("FocusGained", {
+    pattern = "*",
+    callback = update_colorscheme,
+  })
+end
 
 -- Mapping from Neovim colorschemes to Zellij themes
 local nvim_to_zellij_theme_map = {
@@ -120,7 +126,7 @@ vim.api.nvim_create_autocmd("ColorScheme", {
   pattern = "*",
   callback = function()
     -- Persist user's manual theme selection (only if not auto-switching)
-    if not vim.g._updating_colorscheme then
+    if is_mac and not vim.g._updating_colorscheme then
       local current_theme = vim.g.colors_name
       if current_theme then
         _G.update_current_theme_file(current_theme)
