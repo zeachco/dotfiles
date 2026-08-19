@@ -193,6 +193,9 @@ _set gt "git_test"
 # Source media streaming utilities
 [[ -f "$DOT_DIR/variants/shared/_streaming.sh" ]] && source "$DOT_DIR/variants/shared/_streaming.sh"
 
+# Source llama.cpp utilities
+[[ -f "$DOT_DIR/variants/shared/_llama.sh" ]] && source "$DOT_DIR/variants/shared/_llama.sh"
+
 power() {
   upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep 'state\|percentage'
 }
