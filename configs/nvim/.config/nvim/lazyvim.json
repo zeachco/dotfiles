@@ -5,6 +5,9 @@
     "lazyvim.plugins.extras.editor.mini-diff",
     "lazyvim.plugins.extras.editor.refactoring",
     "lazyvim.plugins.extras.lang.json",
+    "lazyvim.plugins.extras.lang.markdown",
+    "lazyvim.plugins.extras.lang.typescript",
+    "lazyvim.plugins.extras.lang.typescript.vtsls",
     "lazyvim.plugins.extras.util.dot",
     "lazyvim.plugins.extras.vscode"
   ],
