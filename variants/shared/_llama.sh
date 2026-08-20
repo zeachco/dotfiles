@@ -44,12 +44,21 @@ llama-ollama-server() {
   export GGUF
   echo "Starting $model from $GGUF"
 
+  # An explicit --parallel is deliberate: left unset, llama-server picks 4 slots with a
+  # unified KV cache, where every slot advertises the full -c but they all share it.
+  # Concurrent agent requests then starve the cache and get a 500
+  # "Context size has been exceeded." that also wipes every active slot's prompt cache.
+  #
+  # --parallel divides -c between slots, so the two move together: 131072/2 = 65536 per
+  # slot. Measured ~23.6 GiB GTT for Qwen3.8 27B, whose hybrid attention costs only
+  # ~64 KiB/token. Raise both for more concurrency (262144/4 is also 65536 per slot).
   "$LLAMA_CPP_BUILD/bin/llama-server" \
     -m "$GGUF" \
     -ngl 999 \
     -fa on \
     --jinja \
-    -c 32768 \
+    -c "${LOS_CTX:-131072}" \
+    --parallel "${LOS_PARALLEL:-2}" \
     --port 8080
 }
 
