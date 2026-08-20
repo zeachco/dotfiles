@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Refresh the Bluetooth controller after the TWS earbuds disconnect.
+#
+# Why this exists:
+#   The MT7925 controller enters a degraded transmit state after these earbuds
+#   disconnect and reconnect (casing/uncasing). Measured with btmon: it moves
+#   ~17 A2DP packets/sec where ~62 are needed for SBC joint-stereo 48kHz at
+#   bitpool 38. PipeWire's L2CAP socket then backs up and discards roughly
+#   two-thirds of the audio, heard as a 5-10Hz flutter that wanders between
+#   buds (the TWS secondary starves independently of the primary).
+#   Power-cycling the adapter restores full throughput (~54 pkt/s, verified).
+#
+#   The cycle is triggered on DISCONNECT, not connect: that way the controller
+#   is already clean when the buds come back out of the case, and it avoids the
+#   feedback loop a connect-trigger would create (cycling drops the link, which
+#   would retrigger on the next connect, forever).
+
+# Usage:
+#   bt-controller-refresh          watch for earbud disconnects (systemd service mode)
+#   bt-controller-refresh --now    power-cycle the adapter immediately (alias: btfix)
+
+set -uo pipefail
+
+MAC="${BT_REFRESH_MAC:-E4:78:34:F0:1C:8F}"
+POLL="${BT_REFRESH_POLL:-2}"
+SETTLE="${BT_REFRESH_SETTLE:-5}"
+
+log() { printf '%s %s\n' "$(date -Is)" "$*"; }
+connected()     { bluetoothctl info "$MAC" 2>/dev/null | grep -q 'Connected: yes'; }
+any_connected() { [ -n "$(bluetoothctl devices Connected 2>/dev/null)" ]; }
+
+cycle() {
+  log "power-cycling adapter"
+  bluetoothctl power off >/dev/null 2>&1
+  sleep 2
+  bluetoothctl power on  >/dev/null 2>&1
+  log "adapter back up"
+}
+
+if [ "${1:-}" = "--now" ]; then cycle; exit 0; fi
+
+log "watching $MAC (poll ${POLL}s)"
+prev=""
+while :; do
+  if connected; then cur=yes; else cur=no; fi
+  if [ "$prev" = yes ] && [ "$cur" = no ]; then
+    log "earbuds disconnected; settling ${SETTLE}s"
+    sleep "$SETTLE"
+    if connected;        then log "reconnected during settle; skipping"
+    elif any_connected;  then log "another device still connected; skipping"
+    else                      cycle
+    fi
+  fi
+  prev=$cur
+  sleep "$POLL"
+done

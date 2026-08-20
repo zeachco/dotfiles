@@ -108,6 +108,13 @@ yayrm() {
 alias journalctl-errors='journalctl -p 3 -xb'  # Show system errors
 alias systemctl-list='systemctl list-units --type=service --state=running'
 
+# Bluetooth: the MT7925 controller degrades A2DP throughput after these TWS
+# earbuds reconnect (~17 pkt/s measured vs ~54 needed), heard as a rapid
+# flutter alternating between buds. Power-cycling the adapter restores it.
+# `btfix` does it on demand; the bt-controller-refresh user service does it
+# automatically whenever the earbuds disconnect.
+_set btfix "$DOT_DIR/bin/bt-controller-refresh --now"
+
 # System info using utils.sh colors
 sysinfo() {
     echo -e "${INFO}=== System Information ===${NORM}"
