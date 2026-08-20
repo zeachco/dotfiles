@@ -95,6 +95,7 @@ _set lt "eza --tree --level=2 --long --icons --git --git-ignore --ignore-glob='.
 _set lg "lazygit"
 _set ld "lazydocker"
 _set ds "devbox shell"
+_set oo "ollama launch opencode"
 
 alias e="nvim"
 alias v="nvim"
