@@ -118,8 +118,16 @@ killname() {
   done
 }
 
+iph() {
+  echo "$(hostname).local"
+}
+
 ipp() {
-  dig +short myip.opendns.com @resolver1.opendns.com
+  if command -v dig &>/dev/null; then
+    dig +short myip.opendns.com @resolver1.opendns.com
+  else
+    curl -s https://api.ipify.org; echo
+  fi
 }
 
 ipl() {

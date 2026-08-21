@@ -101,6 +101,10 @@ killname() {
     done
 }
 
+iph () {
+    echo "$(hostname).local"
+}
+
 ipp () {
     # Get external IP address
     curl -s ifconfig.me || curl -s icanhazip.com || curl -s ipecho.net/plain
