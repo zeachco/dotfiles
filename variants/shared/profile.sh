@@ -123,7 +123,13 @@ ipp() {
 }
 
 ipl() {
-  ifconfig | grep broadcast | awk '{print $2}'
+  if command -v ip &>/dev/null; then
+    ip -4 route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[0-9.]+'
+  elif command -v ipconfig &>/dev/null; then
+    ipconfig getifaddr en0 2>/dev/null
+  else
+    ifconfig 2>/dev/null | grep broadcast | awk '{print $2}'
+  fi
 }
 
 node_admin() {
