@@ -1,0 +1,69 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "autoupdate": false,
+  "provider": {
+    "llamacpp": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "llama.cpp",
+      "options": {
+        "baseURL": "http://oli-llms.local:8080/v1",
+        "timeout": false,
+        "headerTimeout": false
+      },
+      "models": {
+        "qwen3.8": {
+          "name": "Qwen3.8 27B (light tier)",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          },
+          "tool_call": true,
+          "attachment": true,
+          "reasoning": true
+        },
+        "DeepSeek-V4-Flash-chat-v2": {
+          "name": "DeepSeek V4 Flash 284B (heavy tier)",
+          "limit": {
+            "context": 32768,
+            "output": 8192
+          },
+          "tool_call": true,
+          "attachment": false,
+          "reasoning": true
+        },
+        "gpt-oss-120b-MXFP4": {
+          "name": "gpt-oss 120B (heavy tier)",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          },
+          "tool_call": true,
+          "attachment": false,
+          "reasoning": true
+        },
+        "Qwen3-Coder-Next-UD-IQ4_XS": {
+          "name": "Qwen3 Coder Next 80B-A3B (light tier)",
+          "limit": {
+            "context": 65536,
+            "output": 32768
+          },
+          "tool_call": true,
+          "attachment": false,
+          "reasoning": true
+        },
+        "GLM-4.7-Flash-UD-Q4_K_XL": {
+          "name": "GLM-4.7 Flash (light tier, fan-out)",
+          "limit": {
+            "context": 65536,
+            "output": 16384
+          },
+          "tool_call": true,
+          "attachment": false,
+          "reasoning": true
+        }
+      }
+    }
+  },
+  "model": "llamacpp/qwen3.8",
+  "small_model": "llamacpp/qwen3.8"
+}

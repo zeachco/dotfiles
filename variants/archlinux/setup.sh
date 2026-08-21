@@ -78,5 +78,6 @@ stow_link wireplumber
 stow_link alacritty
 stow_link alacritty-archlinux
 stow_link nvim
+stow_link opencode
 
 echo -e "${PASS}Arch Linux setup complete!${NORM}"
