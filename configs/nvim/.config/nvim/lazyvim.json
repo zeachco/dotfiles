@@ -2,6 +2,7 @@
   "extras": [
     "lazyvim.plugins.extras.ai.claudecode",
     "lazyvim.plugins.extras.ai.copilot",
+    "lazyvim.plugins.extras.dap.core",
     "lazyvim.plugins.extras.editor.mini-diff",
     "lazyvim.plugins.extras.editor.refactoring",
     "lazyvim.plugins.extras.lang.json",
