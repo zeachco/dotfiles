@@ -12,6 +12,12 @@ stow_link nvim
 
 install s-tui  # cli tool for CPU benchmarks
 
+# JetBrains Mono Nerd Font (alacritty terminal font)
+if ! pacman -Qq ttf-jetbrains-mono-nerd &>/dev/null; then
+  echo -e "${WARN}installing ${NORM}ttf-jetbrains-mono-nerd..."
+  sudo pacman -S ttf-jetbrains-mono-nerd --needed --noconfirm
+fi
+
 # Keep automatic locking enabled while disabling the optional screensaver.
 omarchy-toggle screensaver-off on
 

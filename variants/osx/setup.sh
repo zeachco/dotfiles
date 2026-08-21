@@ -23,9 +23,13 @@ if needs devbox; then
   # brew install devbox
 fi
 
+# JetBrains Mono Nerd Font (alacritty terminal font)
+if ! brew list --cask font-jetbrains-mono-nerd-font &>/dev/null; then
+  echo -e "${WARN}installing ${NORM}font-jetbrains-mono-nerd-font..."
+  brew install --cask font-jetbrains-mono-nerd-font
+fi
+
 if needs nvim; then
-  brew tap homebrew/cask-fonts
-  brew install --cask font-victor-mono-nerd-font
   brew install --HEAD neovim
 fi
 
