@@ -14,8 +14,11 @@ type AnyError = Box<dyn Error + Send + Sync>;
 
 const WHITE: u32 = 0xFF_FF_FF;
 const RED: u32 = 0xFF_00_00;
-const YELLOW: u32 = 0xFF_FF_00;
 const OFF: u32 = 0x00_00_00;
+const TOP_LEFT: usize = 0;
+const TOP_RIGHT: usize = 3;
+const BOTTOM_LEFT: usize = 4;
+const BOTTOM_RIGHT: usize = 7;
 
 #[derive(Debug)]
 struct Config {
@@ -27,8 +30,9 @@ struct Config {
     health: Duration,
     http_timeout: Duration,
     max_temperature_c: f64,
-    max_cpu_percent: f64,
-    min_available_ram: u64,
+    max_power_watts: f64,
+    max_disk_mbps: f64,
+    max_network_mbps: f64,
     led_count: usize,
 }
 
@@ -43,9 +47,9 @@ impl Config {
             health: Duration::from_secs_f64(env_number("HEALTH_SECONDS", 8.0)?),
             http_timeout: Duration::from_secs_f64(env_number("HTTP_TIMEOUT", 1.5)?),
             max_temperature_c: env_number("MAX_TEMPERATURE_C", 90.0)?,
-            max_cpu_percent: env_number("MAX_CPU_PERCENT", 90.0)?,
-            min_available_ram: (env_number::<f64>("MIN_AVAILABLE_RAM_GB", 8.0)? * 1024_f64.powi(3))
-                as u64,
+            max_power_watts: env_number("MAX_POWER_WATTS", 120.0)?,
+            max_disk_mbps: env_number("MAX_DISK_MBPS", 1000.0)?,
+            max_network_mbps: env_number("MAX_NETWORK_MBPS", 1000.0)?,
             led_count: env_number("LED_COUNT", 8)?,
         })
     }
@@ -278,16 +282,83 @@ fn cpu_percent(previous: CpuTimes, current: CpuTimes) -> f64 {
     }
 }
 
-fn available_ram() -> Result<u64, AnyError> {
-    fs::read_to_string("/proc/meminfo")?
-        .lines()
-        .find_map(|line| {
-            line.strip_prefix("MemAvailable:")
+fn memory_used_fraction() -> Result<f64, AnyError> {
+    let meminfo = fs::read_to_string("/proc/meminfo")?;
+    let read_kib = |key: &str| {
+        meminfo.lines().find_map(|line| {
+            line.strip_prefix(key)
                 .and_then(|value| value.split_whitespace().next())
                 .and_then(|value| value.parse::<u64>().ok())
-                .map(|kib| kib * 1024)
         })
-        .ok_or_else(|| "MemAvailable not found".into())
+    };
+    let total = read_kib("MemTotal:").ok_or("MemTotal not found")?;
+    let available = read_kib("MemAvailable:").ok_or("MemAvailable not found")?;
+    Ok(1.0 - available.min(total) as f64 / total as f64)
+}
+
+fn gpu_usage_fraction() -> Option<f64> {
+    fs::read_dir("/sys/class/drm")
+        .ok()?
+        .flatten()
+        .filter(|entry| {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            name.strip_prefix("card")
+                .is_some_and(|suffix| suffix.chars().all(|character| character.is_ascii_digit()))
+        })
+        .filter_map(|entry| fs::read_to_string(entry.path().join("device/gpu_busy_percent")).ok())
+        .filter_map(|value| value.trim().parse::<f64>().ok())
+        .map(|percent| percent / 100.0)
+        .reduce(f64::max)
+}
+
+fn power_watts() -> Option<f64> {
+    fs::read_dir("/sys/class/hwmon")
+        .ok()?
+        .flatten()
+        .filter_map(|entry| {
+            let path = entry.path();
+            ["power1_average", "power1_input"]
+                .into_iter()
+                .find_map(|name| fs::read_to_string(path.join(name)).ok())
+        })
+        .filter_map(|value| value.trim().parse::<f64>().ok())
+        .map(|microwatts| microwatts / 1_000_000.0)
+        .reduce(f64::max)
+}
+
+fn is_whole_disk(name: &str) -> bool {
+    (name.starts_with("nvme") && !name.contains('p'))
+        || ((name.starts_with("sd") || name.starts_with("vd"))
+            && !name.chars().any(|character| character.is_ascii_digit()))
+}
+
+fn disk_bytes() -> Result<u64, AnyError> {
+    let mut sectors = 0_u64;
+    for line in fs::read_to_string("/proc/diskstats")?.lines() {
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        if fields.len() >= 10 && is_whole_disk(fields[2]) {
+            sectors += fields[5].parse::<u64>()? + fields[9].parse::<u64>()?;
+        }
+    }
+    Ok(sectors * 512)
+}
+
+fn network_bytes() -> Result<u64, AnyError> {
+    let mut bytes = 0_u64;
+    for line in fs::read_to_string("/proc/net/dev")?.lines().skip(2) {
+        let Some((interface, counters)) = line.split_once(':') else {
+            continue;
+        };
+        if interface.trim() == "lo" {
+            continue;
+        }
+        let fields: Vec<&str> = counters.split_whitespace().collect();
+        if fields.len() >= 9 {
+            bytes += fields[0].parse::<u64>()? + fields[8].parse::<u64>()?;
+        }
+    }
+    Ok(bytes)
 }
 
 fn collect_temperatures(path: &Path, output: &mut Vec<f64>) {
@@ -323,28 +394,27 @@ fn max_temperature() -> Option<f64> {
     values.into_iter().reduce(f64::max)
 }
 
-fn health_alerts(
-    config: &Config,
-    previous_cpu: CpuTimes,
-    current_cpu: CpuTimes,
-    ram: u64,
-    temperature: Option<f64>,
-) -> Vec<String> {
-    let mut alerts = Vec::new();
-    if temperature.is_some_and(|value| value > config.max_temperature_c) {
-        alerts.push(format!("temperature {:.1}C", temperature.unwrap()));
-    }
-    if ram < config.min_available_ram {
-        alerts.push(format!(
-            "available RAM {:.1}GiB",
-            ram as f64 / 1024_f64.powi(3)
-        ));
-    }
-    let cpu = cpu_percent(previous_cpu, current_cpu);
-    if cpu > config.max_cpu_percent {
-        alerts.push(format!("CPU {cpu:.1}%"));
-    }
-    alerts
+fn lerp_channel(start: u32, end: u32, fraction: f64) -> u32 {
+    (start as f64 + (end as f64 - start as f64) * fraction).round() as u32
+}
+
+fn lerp_color(start: u32, end: u32, fraction: f64) -> u32 {
+    let fraction = fraction.clamp(0.0, 1.0);
+    let red = lerp_channel((start >> 16) & 0xFF, (end >> 16) & 0xFF, fraction);
+    let green = lerp_channel((start >> 8) & 0xFF, (end >> 8) & 0xFF, fraction);
+    let blue = lerp_channel(start & 0xFF, end & 0xFF, fraction);
+    (red << 16) | (green << 8) | blue
+}
+
+fn resource_color(fraction: f64) -> u32 {
+    const STOPS: [u32; 4] = [0x66_CC_FF, 0x00_FF_00, 0xFF_FF_00, RED];
+    let position = fraction.clamp(0.0, 1.0) * (STOPS.len() - 1) as f64;
+    let segment = (position.floor() as usize).min(STOPS.len() - 2);
+    lerp_color(
+        STOPS[segment],
+        STOPS[segment + 1],
+        position - segment as f64,
+    )
 }
 
 fn utilization_color(busy: usize, total: usize) -> u32 {
@@ -370,11 +440,14 @@ fn router_running(user: &str, service: &str) -> bool {
         .is_ok_and(|status| status.success())
 }
 
-fn set_leds(config: &Config, color: u32) -> Result<(), AnyError> {
-    let value = format!("0x{color:06X}");
+fn set_leds(config: &Config, colors: &[u32]) -> Result<(), AnyError> {
+    let values: Vec<String> = colors
+        .iter()
+        .map(|color| format!("0x{color:06X}"))
+        .collect();
     let status = Command::new(&config.framework_tool)
         .args(["--rgbkbd", "0"])
-        .args(std::iter::repeat_n(&value, config.led_count))
+        .args(&values)
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .status()?;
@@ -387,75 +460,115 @@ fn set_leds(config: &Config, color: u32) -> Result<(), AnyError> {
 
 fn run() -> Result<(), AnyError> {
     let config = Config::from_env()?;
+    if config.led_count <= BOTTOM_RIGHT {
+        return Err("LED_COUNT must be at least 8 for four-corner mode".into());
+    }
     let mut previous_state = String::new();
     let mut previous_cpu = read_cpu_times()?;
+    let mut previous_disk_bytes = disk_bytes()?;
+    let mut previous_network_bytes = network_bytes()?;
+    let mut previous_sample = Instant::now();
     let mut next_health = Instant::now() + config.health;
-    let mut alerts = Vec::new();
-    let mut warning_phase = false;
+    let mut cpu_usage = 0.0;
+    let mut gpu_usage = gpu_usage_fraction().unwrap_or(0.0);
+    let mut power = power_watts().unwrap_or(0.0);
+    let mut ram_usage = memory_used_fraction()?;
+    let mut disk_usage = 0.0;
+    let mut network_usage = 0.0;
+    let mut temperature = max_temperature().unwrap_or(0.0);
     let mut unavailable_phase = false;
 
     loop {
         if Instant::now() >= next_health {
             next_health = Instant::now() + config.health;
-            match (read_cpu_times(), available_ram()) {
-                (Ok(current_cpu), Ok(ram)) => {
-                    alerts =
-                        health_alerts(&config, previous_cpu, current_cpu, ram, max_temperature());
+            match (
+                read_cpu_times(),
+                memory_used_fraction(),
+                disk_bytes(),
+                network_bytes(),
+            ) {
+                (Ok(current_cpu), Ok(ram), Ok(current_disk), Ok(current_network)) => {
+                    let elapsed = previous_sample.elapsed().as_secs_f64().max(0.001);
+                    cpu_usage = cpu_percent(previous_cpu, current_cpu);
+                    gpu_usage = gpu_usage_fraction().unwrap_or(gpu_usage);
+                    power = power_watts().unwrap_or(power);
+                    ram_usage = ram;
+                    disk_usage = current_disk.saturating_sub(previous_disk_bytes) as f64
+                        / elapsed
+                        / (config.max_disk_mbps * 1_000_000.0);
+                    network_usage = current_network.saturating_sub(previous_network_bytes) as f64
+                        * 8.0
+                        / elapsed
+                        / (config.max_network_mbps * 1_000_000.0);
+                    temperature = max_temperature().unwrap_or(temperature);
                     previous_cpu = current_cpu;
+                    previous_disk_bytes = current_disk;
+                    previous_network_bytes = current_network;
+                    previous_sample = Instant::now();
                 }
-                (cpu, ram) => eprintln!(
-                    "system health check failed: CPU={}, RAM={}",
+                (cpu, ram, disk, network) => eprintln!(
+                    "system metrics failed: CPU={}, RAM={}, disk={}, network={}",
                     cpu.err()
                         .map_or_else(|| "ok".to_owned(), |error| error.to_string()),
                     ram.err()
+                        .map_or_else(|| "ok".to_owned(), |error| error.to_string()),
+                    disk.err()
+                        .map_or_else(|| "ok".to_owned(), |error| error.to_string()),
+                    network
+                        .err()
                         .map_or_else(|| "ok".to_owned(), |error| error.to_string())
                 ),
             }
         }
 
-        let (color, state, description) = if alerts.is_empty() {
-            warning_phase = false;
-            match slot_usage(&config) {
-                Ok((busy, total)) => {
-                    unavailable_phase = false;
-                    (
-                        utilization_color(busy, total),
-                        format!("slots:{busy}/{total}"),
-                        format!("llama.cpp slots: {busy}/{total} processing"),
-                    )
-                }
-                Err(error) if router_running(&config.router_user, &config.router_service) => {
-                    unavailable_phase = !unavailable_phase;
-                    eprintln!("llama.cpp check failed: {error}");
-                    (
-                        if unavailable_phase { RED } else { OFF },
-                        format!("router-unavailable:{unavailable_phase}"),
-                        "llama-router active, llama.cpp unavailable".to_owned(),
-                    )
-                }
-                Err(error) => {
-                    unavailable_phase = false;
-                    eprintln!("llama.cpp check failed: {error}");
-                    (
-                        OFF,
-                        "off".to_owned(),
-                        "llama.cpp and router stopped".to_owned(),
-                    )
-                }
+        let (llama_color, llama_state) = match slot_usage(&config) {
+            Ok((busy, total)) => {
+                unavailable_phase = false;
+                (
+                    utilization_color(busy, total),
+                    format!("llama.cpp {busy}/{total} slots"),
+                )
             }
-        } else {
-            warning_phase = !warning_phase;
-            (
-                if warning_phase { RED } else { YELLOW },
-                format!("health:{warning_phase}:{}", alerts.join(",")),
-                format!("system warning: {}", alerts.join(", ")),
-            )
+            Err(error) if router_running(&config.router_user, &config.router_service) => {
+                unavailable_phase = !unavailable_phase;
+                eprintln!("llama.cpp check failed: {error}");
+                (
+                    if unavailable_phase { RED } else { OFF },
+                    "llama-router active, endpoint unavailable".to_owned(),
+                )
+            }
+            Err(error) => {
+                unavailable_phase = false;
+                eprintln!("llama.cpp check failed: {error}");
+                (OFF, "llama.cpp stopped".to_owned())
+            }
         };
 
-        match set_leds(&config, color) {
+        let temperature_fraction =
+            ((temperature - 30.0) / (config.max_temperature_c - 30.0)).clamp(0.0, 1.0);
+        let mut colors = vec![OFF; config.led_count];
+        colors[TOP_LEFT] = resource_color(temperature_fraction);
+        colors[1] = resource_color(gpu_usage);
+        colors[2] = resource_color(cpu_usage / 100.0);
+        colors[TOP_RIGHT] = resource_color(power / config.max_power_watts);
+        colors[BOTTOM_LEFT] = resource_color(ram_usage);
+        colors[5] = resource_color(disk_usage);
+        colors[6] = resource_color(network_usage);
+        colors[BOTTOM_RIGHT] = llama_color;
+        let state = format!(
+            "temp:{temperature:.1}:gpu:{gpu_usage:.3}:cpu:{cpu_usage:.1}:power:{power:.1}:ram:{ram_usage:.3}:disk:{disk_usage:.3}:network:{network_usage:.3}:{llama_state}"
+        );
+
+        match set_leds(&config, &colors) {
             Ok(()) => {
                 if state != previous_state {
-                    eprintln!("{description} -> #{color:06X}");
+                    eprintln!(
+                        "temperature {temperature:.1}C, GPU {:.1}%, CPU {cpu_usage:.1}%, power {power:.1}W, RAM {:.1}%, disk {:.1}%, network {:.1}%, {llama_state}",
+                        gpu_usage * 100.0,
+                        ram_usage * 100.0,
+                        disk_usage.clamp(0.0, 1.0) * 100.0,
+                        network_usage.clamp(0.0, 1.0) * 100.0,
+                    );
                     previous_state = state;
                 }
             }
@@ -475,22 +588,6 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn test_config() -> Config {
-        Config {
-            llamacpp_url: HttpUrl::parse("http://127.0.0.1:8080").unwrap(),
-            router_service: "llama-router.service".to_owned(),
-            router_user: "olivier".to_owned(),
-            framework_tool: "/usr/bin/framework_tool".into(),
-            poll: Duration::from_secs(2),
-            health: Duration::from_secs(8),
-            http_timeout: Duration::from_secs(1),
-            max_temperature_c: 90.0,
-            max_cpu_percent: 90.0,
-            min_available_ram: 8 * 1024_u64.pow(3),
-            led_count: 8,
-        }
-    }
 
     #[test]
     fn maps_capacity_to_white_pink_and_red() {
@@ -531,36 +628,11 @@ mod tests {
     }
 
     #[test]
-    fn warning_thresholds_are_strict() {
-        let config = test_config();
-        let previous = CpuTimes { idle: 0, total: 0 };
-        let at_boundary = CpuTimes {
-            idle: 10,
-            total: 100,
-        };
-        assert!(
-            health_alerts(
-                &config,
-                previous,
-                at_boundary,
-                config.min_available_ram,
-                Some(config.max_temperature_c),
-            )
-            .is_empty()
-        );
-
-        let above = CpuTimes {
-            idle: 9,
-            total: 100,
-        };
-        let alerts = health_alerts(
-            &config,
-            previous,
-            above,
-            config.min_available_ram - 1,
-            Some(config.max_temperature_c + 0.1),
-        );
-        assert_eq!(alerts.len(), 3);
+    fn resource_palette_has_expected_stops() {
+        assert_eq!(resource_color(0.0), 0x66_CC_FF);
+        assert_eq!(resource_color(1.0 / 3.0), 0x00_FF_00);
+        assert_eq!(resource_color(2.0 / 3.0), 0xFF_FF_00);
+        assert_eq!(resource_color(1.0), RED);
     }
 
     #[test]
