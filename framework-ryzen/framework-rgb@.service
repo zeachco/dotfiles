@@ -1,0 +1,13 @@
+[Unit]
+Description=Framework RGB indicator for %i's llama.cpp router
+After=systemd-user-sessions.service
+
+[Service]
+Type=simple
+Environment=ROUTER_USER=%i
+ExecStart=/usr/local/bin/framework-rgb
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
