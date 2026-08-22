@@ -38,7 +38,12 @@ fi
 
 # System update
 echo -e "${WARN}updating system packages...${NORM}"
-sudo pacman -Syu --noconfirm
+if command -v omarchy &>/dev/null; then
+  # Omarchy handles its own privilege escalation; -y runs unattended like --noconfirm
+  omarchy update -y
+else
+  sudo pacman -Syu --noconfirm
+fi
 
 # Install yay (AUR helper) if not present
 if ! command -v yay &>/dev/null; then
