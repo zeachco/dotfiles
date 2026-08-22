@@ -41,6 +41,11 @@ install_profile "shared"
 # Extract just the variant name from the OS_DIR path
 install_profile "$(basename $OS_DIR)"
 
+# Install the Framework Desktop RGB monitor as a systemd user daemon.
+if [[ "$unameOut" == Linux* ]]; then
+  "$SHELL" "$DOT_DIR/framework-ryzen/setup.sh"
+fi
+
 # Omarchy is an Arch overlay with setup-only configuration (no shell profile).
 # Apply it after the Arch profile so Hyprland overrides, including the numpad
 # workspace bindings, are stowed after the base OS configuration.

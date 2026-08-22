@@ -1,0 +1,12 @@
+[Unit]
+Description=Framework RGB indicator for llama.cpp capacity and system health
+After=llama-router.service
+
+[Service]
+Type=simple
+ExecStart=%h/dotfiles/framework-ryzen/ollama-framework-rgb
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

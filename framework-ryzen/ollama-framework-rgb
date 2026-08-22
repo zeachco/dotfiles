@@ -1,49 +1,120 @@
 #!/usr/bin/env python3
-"""Reflect Ollama's loaded-model RAM allocation on Framework Desktop ARGB LEDs."""
+"""Show llama.cpp capacity and system health on Framework Desktop ARGB LEDs."""
 
-import colorsys
 import json
 import logging
 import os
 import subprocess
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 
-OLLAMA_PS_URL = os.getenv("OLLAMA_PS_URL", "http://127.0.0.1:11434/api/ps")
+LLAMACPP_URL = os.getenv("LLAMACPP_URL", "http://127.0.0.1:8080").rstrip("/")
 FRAMEWORK_TOOL = os.getenv("FRAMEWORK_TOOL", "/usr/bin/framework_tool")
 LED_COUNT = int(os.getenv("LED_COUNT", "8"))
 POLL_SECONDS = float(os.getenv("POLL_SECONDS", "2"))
+HEALTH_SECONDS = float(os.getenv("HEALTH_SECONDS", "8"))
+HTTP_TIMEOUT = float(os.getenv("HTTP_TIMEOUT", "1.5"))
+ROUTER_SERVICE = os.getenv("ROUTER_SERVICE", "llama-router.service")
+MAX_TEMPERATURE_C = float(os.getenv("MAX_TEMPERATURE_C", "90"))
+MAX_CPU_PERCENT = float(os.getenv("MAX_CPU_PERCENT", "90"))
+MIN_AVAILABLE_RAM_BYTES = int(float(os.getenv("MIN_AVAILABLE_RAM_GB", "8")) * 1024**3)
 
 
-def physical_ram_bytes():
+def memory_available_bytes():
     with open("/proc/meminfo", encoding="ascii") as meminfo:
         for line in meminfo:
-            if line.startswith("MemTotal:"):
+            if line.startswith("MemAvailable:"):
                 return int(line.split()[1]) * 1024
-    raise RuntimeError("MemTotal not found in /proc/meminfo")
+    raise RuntimeError("MemAvailable not found in /proc/meminfo")
 
 
-def ollama_models():
-    with urllib.request.urlopen(OLLAMA_PS_URL, timeout=1.5) as response:
-        return json.load(response).get("models", [])
+def cpu_times():
+    with open("/proc/stat", encoding="ascii") as stat:
+        values = [int(value) for value in stat.readline().split()[1:]]
+    idle = values[3] + (values[4] if len(values) > 4 else 0)
+    return idle, sum(values)
 
 
-def utilization_color(models, total_ram):
-    if not models:
-        return 0xFFFFFF, 0.0
+def cpu_percent(previous, current):
+    idle_delta = current[0] - previous[0]
+    total_delta = current[1] - previous[1]
+    return 0.0 if total_delta <= 0 else 100.0 * (1.0 - idle_delta / total_delta)
 
-    # Ollama's /api/ps `size` is the memory allocated for each loaded model.
-    loaded_bytes = sum(max(0, int(model.get("size", 0))) for model in models)
-    fraction = min(1.0, loaded_bytes / total_ram)
 
-    # Clamp the bottom of the requested scale at 1%: green=120 degrees, red=0.
-    scaled = (max(0.01, fraction) - 0.01) / 0.99
-    hue = (120.0 * (1.0 - scaled)) / 360.0
-    red, green, blue = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
-    color = (round(red * 255) << 16) | (round(green * 255) << 8) | round(blue * 255)
-    return color, fraction
+def max_temperature_c():
+    temperatures = []
+    for root in ("/sys/class/hwmon", "/sys/class/thermal"):
+        for directory, _, files in os.walk(root):
+            for filename in files:
+                if (filename.startswith("temp") and filename.endswith("_input")) or filename == "temp":
+                    try:
+                        with open(os.path.join(directory, filename), encoding="ascii") as source:
+                            value = float(source.read().strip())
+                        temperatures.append(value / 1000.0 if value > 1000 else value)
+                    except (OSError, ValueError):
+                        pass
+    return max(temperatures) if temperatures else None
+
+
+def get_json(path, query=None):
+    url = f"{LLAMACPP_URL}{path}"
+    if query:
+        url = f"{url}?{urllib.parse.urlencode(query)}"
+    with urllib.request.urlopen(url, timeout=HTTP_TIMEOUT) as response:
+        return json.load(response)
+
+
+def available_models():
+    return [
+        model["id"]
+        for model in get_json("/v1/models").get("data", [])
+        if model.get("id") and model.get("status", {}).get("value") == "running"
+    ]
+
+
+def slot_usage():
+    slots = []
+    for model in available_models():
+        # Monitoring must never cause the router to load an otherwise idle model.
+        payload = get_json("/slots", {"model": model, "autoload": "false"})
+        if isinstance(payload, list):
+            slots.extend(payload)
+    busy = sum(bool(slot.get("is_processing")) for slot in slots)
+    return busy, len(slots)
+
+
+def router_service_running():
+    return subprocess.run(
+        ["systemctl", "--user", "status", ROUTER_SERVICE],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    ).returncode == 0
+
+
+def utilization_color(busy, total):
+    if not total or not busy:
+        return 0xFFFFFF
+    fraction = min(1.0, busy / total)
+    green_blue = round(255 * (1.0 - fraction))
+    return (0xFF << 16) | (green_blue << 8) | green_blue
+
+
+def health_alerts(previous_cpu, current_cpu):
+    temperature = max_temperature_c()
+    available_ram = memory_available_bytes()
+    cpu = cpu_percent(previous_cpu, current_cpu)
+    alerts = []
+    if temperature is not None and temperature > MAX_TEMPERATURE_C:
+        alerts.append(f"temperature {temperature:.1f}C")
+    if available_ram < MIN_AVAILABLE_RAM_BYTES:
+        alerts.append(f"available RAM {available_ram / 1024**3:.1f}GiB")
+    if cpu > MAX_CPU_PERCENT:
+        alerts.append(f"CPU {cpu:.1f}%")
+    return alerts
 
 
 def set_leds(color):
@@ -59,21 +130,46 @@ def set_leds(color):
 
 def main():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    total_ram = physical_ram_bytes()
     previous = None
+    previous_cpu = cpu_times()
+    next_health_check = time.monotonic() + HEALTH_SECONDS
+    alerts = []
+    warning_phase = False
+    unavailable_phase = False
 
     while True:
-        try:
-            models = ollama_models()
-            color, fraction = utilization_color(models, total_ram)
-            state = (color, tuple(sorted(model.get("name", "") for model in models)))
-            description = (
-                "Ollama idle" if not models else
-                f"{len(models)} model(s), {fraction:.1%} of RAM"
-            )
-        except (OSError, ValueError, urllib.error.URLError, json.JSONDecodeError) as error:
-            color, state, description = 0x000000, (0x000000, ()), "Ollama unavailable"
-            logging.debug("Ollama check failed: %s", error)
+        now = time.monotonic()
+        if now >= next_health_check:
+            current_cpu = cpu_times()
+            alerts = health_alerts(previous_cpu, current_cpu)
+            previous_cpu = current_cpu
+            next_health_check = now + HEALTH_SECONDS
+
+        if alerts:
+            warning_phase = not warning_phase
+            color = 0xFF0000 if warning_phase else 0xFFFF00
+            state = ("health", color, tuple(alerts))
+            description = "system warning: " + ", ".join(alerts)
+        else:
+            warning_phase = False
+            try:
+                busy, total = slot_usage()
+                color = utilization_color(busy, total)
+                state = ("slots", color, busy, total)
+                description = f"llama.cpp slots: {busy}/{total} processing"
+                unavailable_phase = False
+            except (OSError, ValueError, TypeError, urllib.error.URLError, json.JSONDecodeError) as error:
+                if router_service_running():
+                    unavailable_phase = not unavailable_phase
+                    color = 0xFF0000 if unavailable_phase else 0x000000
+                    state = ("router-unavailable", color)
+                    description = "llama-router active, llama.cpp unavailable"
+                else:
+                    color = 0x000000
+                    state = ("off", color)
+                    description = "llama.cpp and llama-router are not running"
+                    unavailable_phase = False
+                logging.debug("llama.cpp check failed: %s", error)
 
         if state != previous:
             try:
