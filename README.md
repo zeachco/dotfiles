@@ -36,6 +36,32 @@ bash ~/dotfiles/setup.sh
 
 you can just run `dotfiles_update` and it will reapply all changes and remove deprecated configs if any
 
+## Framework Desktop RGB dashboard
+
+On Linux systems with `framework_tool`, setup builds the Rust RGB monitor and installs it as the
+privileged `framework-rgb@<user>.service` system daemon. The eight LEDs form a live dashboard:
+
+```text
+0 Temperature   1 GPU load       2 CPU load       3 GPU power
+4 RAM usage     5 Disk activity  6 Network traffic 7 llama.cpp
+```
+
+System resources use a light-blue → green → yellow → red gradient. Temperature maps 30–90°C;
+the remaining resources map idle to their configured maximum. The llama.cpp indicator is white
+when idle, fades toward red as slots fill, turns red at full capacity, flashes red/off when the
+router service is active but unavailable, and turns off when the router is stopped. The monitor
+polls llama.cpp every two seconds and system resources every eight seconds.
+
+Useful commands:
+
+```sh
+systemctl status framework-rgb@"$USER".service
+journalctl -u framework-rgb@"$USER".service -f
+```
+
+Optional environment overrides can be added to the system unit for `MAX_TEMPERATURE_C` (default
+90), `MAX_POWER_WATTS` (120), `MAX_DISK_MBPS` (1000), and `MAX_NETWORK_MBPS` (1000).
+
 # Ubuntu special case
 
 For ubuntu, it also installs [omakub](https://omakub.org/) it's just too good to ignore, other OS manually installs the good parts of omakub that I want there like zellij, nvim, sh utils configs
