@@ -1,0 +1,10 @@
+{
+  "defaultModel": "qwen3.8",
+  "defaultProvider": "llamacpp",
+  "defaultThinkingLevel": "high",
+  "packages": [
+    "npm:@ollama/pi-web-search"
+  ],
+  "theme": "omarchy-system",
+  "lastChangelogVersion": "0.84.2"
+}

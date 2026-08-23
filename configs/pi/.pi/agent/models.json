@@ -1,0 +1,60 @@
+{
+  "providers": {
+    "llamacpp": {
+      "api": "openai-completions",
+      "apiKey": "llamacpp",
+      "baseUrl": "http://oli-llms.local:8080/v1",
+      "models": [
+        {
+          "id": "qwen3.8",
+          "name": "Qwen3.8 27B (light tier)",
+          "contextWindow": 131072,
+          "maxTokens": 32768,
+          "input": ["text", "image"],
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "xhigh",
+            "xhigh": "xhigh",
+            "max": "xhigh"
+          }
+        },
+        {
+          "id": "DeepSeek-V4-Flash-chat-v2",
+          "name": "DeepSeek V4 Flash 284B (heavy tier)",
+          "contextWindow": 32768,
+          "maxTokens": 8192,
+          "input": ["text"],
+          "reasoning": true
+        },
+        {
+          "id": "gpt-oss-120b-MXFP4",
+          "name": "gpt-oss 120B (heavy tier)",
+          "contextWindow": 131072,
+          "maxTokens": 32768,
+          "input": ["text"],
+          "reasoning": true
+        },
+        {
+          "id": "Qwen3-Coder-Next-UD-IQ4_XS",
+          "name": "Qwen3 Coder Next 80B-A3B (light tier)",
+          "contextWindow": 65536,
+          "maxTokens": 32768,
+          "input": ["text"],
+          "reasoning": true
+        },
+        {
+          "id": "GLM-4.7-Flash-UD-Q4_K_XL",
+          "name": "GLM-4.7 Flash (light tier, fan-out)",
+          "contextWindow": 65536,
+          "maxTokens": 16384,
+          "input": ["text"],
+          "reasoning": true
+        }
+      ]
+    }
+  }
+}

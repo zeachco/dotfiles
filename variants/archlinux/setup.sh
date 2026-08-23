@@ -84,5 +84,6 @@ stow_link alacritty
 stow_link alacritty-archlinux
 stow_link nvim
 stow_link opencode
+stow_link pi
 
 echo -e "${PASS}Arch Linux setup complete!${NORM}"
