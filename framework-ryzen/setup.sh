@@ -16,10 +16,6 @@ if ! command -v cargo >/dev/null 2>&1; then
   exit 0
 fi
 
-if ! command -v pkexec >/dev/null 2>&1; then
-  echo "Framework RGB daemon skipped: pkexec is not installed"
-  exit 0
-fi
 
 echo "Framework RGB: building Rust daemon..."
 cargo build --release --locked --manifest-path "$MANIFEST"
@@ -36,5 +32,5 @@ rm -f \
 systemctl --user daemon-reload
 
 echo "Framework RGB: installing privileged system daemon..."
-pkexec "$SCRIPT_DIR/install-root.sh" "$USER"
+sudo "$SCRIPT_DIR/install-root.sh" "$USER"
 echo "Framework RGB: enabled and started framework-rgb@$USER.service"
