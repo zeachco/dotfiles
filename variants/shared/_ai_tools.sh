@@ -13,6 +13,32 @@ _ai_debug() {
   printf '[debug] %s\n' "$@" >&2
 }
 
+# Run a command with a wall-clock limit, since stock macOS has no timeout(1).
+# Usage: some_input | _ai_timeout 60 ollama run model
+# Returns the command's own status, or 143 when it had to be killed.
+# Only the command itself is signalled, not a whole process tree, so pass a
+# single-process command (`ollama run` is one): a wrapper's surviving children
+# would keep the caller's stdout pipe open past the deadline.
+_ai_timeout() {
+  local secs="$1"
+  shift
+  # `<&0` is mandatory: without an explicit redirection, POSIX shells give a
+  # background job /dev/null as stdin whenever job control is off, which is
+  # the case inside $(...) — the piped-in prompt would silently vanish.
+  "$@" <&0 &
+  local cmd_pid=$!
+  # the watchdog must not inherit our stdout: it would hold the caller's
+  # command-substitution pipe open and stall $(...) for the full timeout even
+  # when the command itself finished immediately
+  (sleep "$secs"; kill -TERM "$cmd_pid" 2>/dev/null) >/dev/null 2>&1 &
+  local watchdog_pid=$!
+  wait "$cmd_pid" 2>/dev/null
+  local rc=$?
+  kill -TERM "$watchdog_pid" 2>/dev/null
+  wait "$watchdog_pid" 2>/dev/null
+  return "$rc"
+}
+
 # Run any command (aliases included) with debug tracing: `debug wt <url>`
 # NOTE: `DEBUG=true wt ...` does NOT work — the _set aliases expand to
 # `use '...' && <fn>`, so the prefix assignment only applies to `use`.
@@ -28,9 +54,13 @@ debug() {
 # steers the title toward a specific aspect of the work.
 # Prints only the summary (exit 0), or a failure message at the end (exit 1).
 # Default model is overridable with SUMMARIZE_MODEL (ollama pulls it on first use).
+# Each model call is bounded by --timeout= seconds (SUMMARIZE_TIMEOUT), so a
+# wedged ollama can never leave a caller hanging forever: several summarize
+# runs queue up on the model server whenever a batch of tabs is named at once.
 summarize() {
   local max_length=80 retries=3 content="" kind="" hint=""
   local model="${SUMMARIZE_MODEL:-mistral}"
+  local timeout="${SUMMARIZE_TIMEOUT:-60}"
 
   for arg in "$@"; do
     case "$arg" in
@@ -39,6 +69,7 @@ summarize() {
     --model=*) model="${arg#*=}" ;;
     --kind=*) kind="${arg#*=}" ;;
     --hint=*) hint="${arg#*=}" ;;
+    --timeout=*) timeout="${arg#*=}" ;;
     --*)
       echo "summarize: unknown option '$arg'" >&2
       return 1
@@ -57,7 +88,7 @@ summarize() {
   # keep small models focused: they lose the instructions on very long inputs
   content=$(printf '%s' "$content" | head -c 2000)
 
-  _ai_debug "summarize: model=$model len=$max_length retries=$retries" \
+  _ai_debug "summarize: model=$model len=$max_length retries=$retries timeout=${timeout}s" \
     "summarize: input (${#content} chars) >>>" "$content" "<<<"
 
   # tailor the first prompt line to what the caller is actually feeding in
@@ -97,7 +128,11 @@ in front of it. Never wrap the title in an English sentence.
 ${content}
 EOF
     )
-    raw=$(printf '%s\n' "$prompt" | ollama run --hidethinking --nowordwrap "$model" 2>/dev/null)
+    raw=$(printf '%s\n' "$prompt" |
+      _ai_timeout "$timeout" ollama run --hidethinking --nowordwrap "$model" 2>/dev/null)
+    if [ $? -ne 0 ] && [ -z "$raw" ]; then
+      echo "summarize: '$model' produced nothing within ${timeout}s" >&2
+    fi
     # strip ANSI escapes, keep the first non-empty line, drop wrapping quotes/punctuation
     result=$(printf '%s\n' "$raw" |
       sed -E "s/${esc}\[[0-9;?]*[a-zA-Z]//g" |
@@ -116,6 +151,11 @@ EOF
       sed -E 's/^[a-zA-Z]+(\([^)]*\))?!?:[[:space:]]*//' |
       sed -E "s/^${JIRA_PREFIX}[0-9]+:?[[:space:]]*//" |
       sed -E 's/^[[:space:]]+//')
+    # trim quotes once more: stripping a label or a commit prefix above can
+    # expose the opening quote of a `Title: "some work"` style answer, which
+    # the first pass could not see
+    result=$(printf '%s\n' "$result" |
+      sed -E 's/^["'"'"'`]+//; s/["'"'"'`.:;,!]+$//; s/^[[:space:]]+//; s/[[:space:]]+$//')
     length=${#result}
 
     _ai_debug "summarize: attempt $((attempt + 1)) raw output (${#raw} chars) >>>" "$raw" "<<<" \
@@ -149,12 +189,20 @@ _git_base_ref() {
   return 1
 }
 
-# Rename the current zellij tab to "#<pr-number>: <summary>" from the current
-# branch's PR (title + body through the model), or to "wip: <summary>" from
-# the branch's commit subjects since main/master when no PR exists. An optional
-# short prompt strongly guides the summary: `tab_autoname "focus on auth"`.
-# The tab id is captured first so the rename targets the tab this was typed in,
-# even if focus moved elsewhere during the slow gh/model calls.
+# Rename a zellij tab to "#<pr-number>: <summary>" from the current branch's
+# PR (title + body through the model), or to "wip: <summary>" from the branch's
+# commit subjects since main/master when no PR exists.
+# Options:
+#   --tab-id=N  the tab to rename. ALWAYS pass this when running unattended:
+#               `zellij action` talks to the session, not to the pane it was
+#               launched from, so the fallback below resolves the tab that is
+#               focused *right now* — which is the wrong one as soon as anything
+#               else (all_my_prs) opens another tab while this pane boots.
+#   --pr=N      the PR number this tab belongs to, when the caller already knows
+#               it. Keeps the "#N: " prefix even if `gh pr view` comes up empty,
+#               so the tab stays matchable by all_my_prs' dedup check.
+# Any remaining argument is a short prompt steering the summary:
+# `tab_autoname "focus on auth"`.
 tab_autoname() {
   if [ -z "$ZELLIJ" ]; then
     echo "Error: Not in a zellij session"
@@ -162,13 +210,25 @@ tab_autoname() {
   fi
   _git_check_repo || return 1
 
-  local tab_id
-  tab_id=$(zellij action current-tab-info 2>/dev/null | sed -n 's/^id: //p')
+  local tab_id="" known_pr="" hint="" arg
+  for arg in "$@"; do
+    case "$arg" in
+    --tab-id=*) tab_id="${arg#*=}" ;;
+    --pr=*) known_pr="${arg#*=}" ;;
+    *) hint="${hint:+$hint }$arg" ;;
+    esac
+  done
+
+  if [ -z "$tab_id" ]; then
+    # interactive use only: with no id given, the tab this was typed in is the
+    # one focused at this instant
+    tab_id=$(zellij action current-tab-info 2>/dev/null | sed -n 's/^id: //p')
+  fi
   if [ -z "$tab_id" ]; then
     echo "Error: could not get the current tab id"
     return 1
   fi
-  _ai_debug "tab-autoname: renaming tab id $tab_id"
+  _ai_debug "tab-autoname: renaming tab id $tab_id (pr=${known_pr:-unknown})"
 
   local branch=$(git branch --show-current)
   if [ -z "$branch" ]; then
@@ -178,7 +238,7 @@ tab_autoname() {
 
   # PR of the current branch first; commit subjects since main/master when
   # there is none
-  local hint="$*" kind prefix desc fallback="$branch" out
+  local kind prefix desc fallback="$branch" out
   out=$(gh pr view --json title,number,body \
     --jq '(.number|tostring), .title, (.body // "")' 2>/dev/null)
   if [ -n "$out" ]; then
@@ -193,7 +253,13 @@ tab_autoname() {
     _ai_debug "tab-autoname: using PR title+body for ${prefix%: }"
   else
     kind="commits"
-    prefix="wip: "
+    # a caller that knows the PR number keeps the tab keyed on it, so the dedup
+    # check in all_my_prs still matches when `gh pr view` finds nothing here
+    if [ -n "$known_pr" ]; then
+      prefix="#${known_pr}: "
+    else
+      prefix="wip: "
+    fi
     local base
     if base=$(_git_base_ref); then
       # keep the model input small: subjects only, newest first, capped
@@ -219,11 +285,12 @@ tab_autoname() {
   fi
 
   local new_name="${prefix}${short}"
-  # rename by the saved ID so it targets the tab this command was typed in
-  if zellij action rename-tab --tab-id "$tab_id" "$new_name" >/dev/null 2>&1; then
+  # rename by stable tab id, never by focus: this runs in a throwaway pane and
+  # the focused tab has very likely moved on by now
+  if zellij action rename-tab-by-id "$tab_id" "$new_name" >/dev/null 2>&1; then
     echo "Tab renamed to '$new_name'"
   else
-    echo "Error: failed to rename tab"
+    echo "Error: failed to rename tab id $tab_id"
     return 1
   fi
 }

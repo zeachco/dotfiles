@@ -4,6 +4,55 @@
 # ZELLIJ & WORKTREE UTILITIES
 # ==============================================================================
 
+# Print the id of the focused, non-floating pane of a tab (eg. terminal_7).
+# `list-panes` prints a space separated table whose TAB_NAME and TITLE columns
+# both contain spaces, so match on the shape of the pane id and on the trailing
+# FOCUSED/FLOATING/EXITED columns instead of on fixed field numbers.
+_zellij_focused_pane_id() {
+  zellij action list-panes --tab --state 2>/dev/null |
+    awk -v tab="$1" '
+      $1 == tab && $(NF - 2) == "true" && $(NF - 1) == "false" {
+        for (i = 4; i < NF - 2; i++)
+          if ($i ~ /^(terminal|plugin)_[0-9]+$/) { print $i; exit }
+      }'
+}
+
+# Type command lines into a pane, each one followed by Enter. Every `zellij
+# action` targets the session rather than the caller's pane, so addressing the
+# pane by id is what keeps keystrokes from landing in an unrelated pane when
+# several tabs are being set up back to back.
+_zellij_type() {
+  local pane_id="$1"
+  shift
+  local line
+  for line in "$@"; do
+    if [ -n "$pane_id" ]; then
+      zellij action write-chars --pane-id "$pane_id" "$line"
+      zellij action write --pane-id "$pane_id" 13
+    else
+      zellij action write-chars "$line"
+      zellij action write 13
+    fi
+  done
+}
+
+# Grow a pane leftwards by a number of 5% steps (or the focused one if no id).
+_zellij_grow_left() {
+  local pane_id="$1" steps="$2" i=0
+  while [ "$i" -lt "$steps" ]; do
+    if [ -n "$pane_id" ]; then
+      zellij action resize --pane-id "$pane_id" increase left
+    else
+      zellij action resize increase left
+    fi
+    i=$((i + 1))
+  done
+}
+
+# Open a zellij workspace (devbox shell + editor) on a branch's worktree.
+# Usage: zellij_branch_repo <branch|PR url|JIRA url> [tab_label] [--pr=N]
+# --pr=N names the tab "#N: <branch>" from the start and hands the number to
+# tab_autoname, so the tab is identifiable before the async rename lands.
 zellij_branch_repo() {
   if [ -z "$ZELLIJ" ]; then
     echo "Error: Not in a zellij session"
@@ -15,7 +64,21 @@ zellij_branch_repo() {
     return 1
   fi
 
-  local branch_name="${1:-main}"
+  local branch_name="" tab_label="" pr_number="" arg
+  for arg in "$@"; do
+    case "$arg" in
+    --pr=*) pr_number="${arg#*=}" ;;
+    *)
+      if [ -z "$branch_name" ]; then
+        branch_name="$arg"
+      else
+        tab_label="$arg"
+      fi
+      ;;
+    esac
+  done
+  branch_name="${branch_name:-main}"
+
   local tab_prefix=""
   case "$branch_name" in
     https://github.com/*/*/pull/*)
@@ -37,9 +100,14 @@ zellij_branch_repo() {
 
   local repo_root=$(git rev-parse --show-toplevel)
   local repo_name=$(basename "$repo_root")
-  local tab_label="${2:-$branch_name}"
-  local tab_name="${repo_name}:${tab_label}"
-  if [ -z "$2" ] && [ -n "$tab_prefix" ]; then
+  local tab_name="${repo_name}:${branch_name}"
+  if [ -n "$tab_label" ]; then
+    tab_name="${repo_name}:${tab_label}"
+  elif [ -n "$pr_number" ]; then
+    # key the tab on the PR number immediately: all_my_prs dedups on it, so it
+    # must not depend on the async tab_autoname rename having landed
+    tab_name="#${pr_number}: ${branch_name}"
+  elif [ -n "$tab_prefix" ]; then
     tab_name="$tab_prefix"
   fi
   local worktree_base="$HOME/worktrees/$repo_name"
@@ -71,37 +139,43 @@ zellij_branch_repo() {
     local target_path="$worktree_path"
   fi
 
-  # Create new zellij tab (does not affect current tab's state); discard the
-  # tab ID it prints, the tab renames itself via the injected tab_autoname
-  zellij action new-tab --name "$tab_name" >/dev/null
+  # Create the new zellij tab (does not affect current tab's state) and keep
+  # the tab id it prints: everything below addresses that tab and its panes
+  # explicitly, so a caller opening several workspaces in a row (all_my_prs)
+  # can never have keystrokes or renames land in another tab.
+  local tab_id
+  tab_id=$(zellij action new-tab --name "$tab_name" 2>/dev/null | head -n 1 | tr -dc '0-9')
+  if [ -z "$tab_id" ]; then
+    echo "Error: failed to create the zellij tab"
+    return 1
+  fi
 
   # Setup first pane (devbox shell, will exit after)
-  zellij action write-chars "cd \"$target_path\""
-  zellij action write 13
-  zellij action write-chars "ds && exit"
-  zellij action write 13
+  local shell_pane
+  shell_pane=$(_zellij_focused_pane_id "$tab_id")
+  _zellij_type "$shell_pane" "cd \"$target_path\"" "ds && exit"
 
   # Open the editor in a regular pane to the right of the devbox pane,
   # then grow it from 50% to ~2/3 of the width (each resize step is 5%)
-  zellij action new-pane --direction right
-  for _ in 1 2 3; do
-    zellij action resize increase left
-  done
-  zellij action write-chars "cd \"$target_path\""
-  zellij action write 13
-  zellij action write-chars "e ."
-  zellij action write 13
+  local editor_pane
+  editor_pane=$(zellij action new-pane --direction right 2>/dev/null | head -n 1 | tr -d '[:space:]')
+  _zellij_grow_left "$editor_pane" 3
+  _zellij_type "$editor_pane" "cd \"$target_path\"" "e ."
 
   # Auto-name the tab from its own PR/commits when no explicit name was
   # given, in a third pane split below that closes itself once done, so the
-  # slow gh/model calls never hold up the devbox shell or the editor
-  if [ -z "$2" ] && [ "$branch_name" != "main" ] && [ "$branch_name" != "master" ]; then
-    zellij action new-pane --direction down
-    zellij action write-chars "cd \"$target_path\" && tab_autoname; exit"
-    zellij action write 13
+  # slow gh/model calls never hold up the devbox shell or the editor.
+  # The tab id has to be passed in: that pane cannot work out on its own which
+  # tab it lives in, it would only ever see whichever tab is focused.
+  if [ -z "$tab_label" ] && [ "$branch_name" != "main" ] && [ "$branch_name" != "master" ]; then
+    local autoname_pane autoname_cmd
+    autoname_pane=$(zellij action new-pane --direction down 2>/dev/null | head -n 1 | tr -d '[:space:]')
+    autoname_cmd="cd \"$target_path\" && tab_autoname --tab-id=$tab_id"
+    [ -n "$pr_number" ] && autoname_cmd="$autoname_cmd --pr=$pr_number"
+    _zellij_type "$autoname_pane" "$autoname_cmd; exit"
   fi
 
-  echo "Tab '$tab_name' ready at $target_path"
+  echo "Tab '$tab_name' (id $tab_id) ready at $target_path"
 }
 _set wt "zellij_branch_repo"
 
@@ -114,10 +188,13 @@ all_my_prs() {
   fi
   _git_check_repo || return 1
 
+  local repo_name
+  repo_name=$(basename "$(git rev-parse --show-toplevel)")
+
   echo "Fetching your open PRs..."
   local prs
   prs=$(gh pr list --author "@me" --state open --json number,headRefName \
-    --jq '.[] | (.number|tostring) + " " + .headRefName')
+    --jq '.[] | (.number|tostring) + " " + .headRefName' </dev/null)
   if [ $? -ne 0 ]; then
     echo "Error: failed to list PRs (is gh authenticated?)"
     return 1
@@ -131,28 +208,50 @@ all_my_prs() {
   open_tabs=$(zellij action query-tab-names 2>/dev/null)
 
   # make sure the PR branches are known locally before creating worktrees
-  git fetch origin --quiet 2>/dev/null
+  git fetch origin --quiet </dev/null 2>/dev/null
 
-  local count=0 skipped=0 number branch
-  while read -r number branch; do
+  # the PR list is fed in on fd 3, not stdin: anything in the loop that reads
+  # stdin (a gh prompt, git asking for credentials) would otherwise swallow the
+  # remaining lines and those PRs would silently never get a workspace
+  local count=0 skipped=0 failed=0 number branch
+  while read -r number branch <&3; do
     [ -z "$branch" ] && continue
     echo ""
     echo "=== PR #${number} (${branch}) ==="
 
+    # Match every name a tab for this PR can carry. "#<number>: ..." is given
+    # at creation time and preserved by tab_autoname; "<repo>:<branch>" covers
+    # tabs opened before PR-numbered names, or whose autoname never landed.
+    # Both are deterministic — dedup must not depend on the async rename.
     if printf '%s\n' "$open_tabs" | grep -q "^#${number}\([^0-9]\|$\)"; then
       echo "Skipping: a tab starting with '#${number}' is already open."
       skipped=$((skipped + 1))
       continue
     fi
+    if printf '%s\n' "$open_tabs" | grep -qxF "${repo_name}:${branch}"; then
+      echo "Skipping: a tab named '${repo_name}:${branch}' is already open."
+      skipped=$((skipped + 1))
+      continue
+    fi
 
-    zellij_branch_repo "$branch"
-    count=$((count + 1))
-  done <<EOF
+    if zellij_branch_repo "$branch" --pr="$number"; then
+      count=$((count + 1))
+      # keep the snapshot in step, in case the same PR shows up twice
+      open_tabs=$(printf '%s\n#%s: %s' "$open_tabs" "$number" "$branch")
+    else
+      echo "Error: failed to open a workspace for PR #${number}"
+      failed=$((failed + 1))
+    fi
+  done 3<<EOF
 $prs
 EOF
 
   echo ""
   echo "Opened $count workspace(s); skipped $skipped already-open PR(s)."
+  if [ "$failed" -gt 0 ]; then
+    echo "Failed on $failed PR(s)."
+  fi
+  return 0
 }
 _set allprs "all_my_prs"
 
