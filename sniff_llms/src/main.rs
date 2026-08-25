@@ -9,7 +9,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Paragraph, Tabs, Wrap},
+    widgets::{Block, Borders, Paragraph, Wrap},
 };
 use serde_json::Value;
 use std::{
@@ -36,17 +36,57 @@ struct Packet {
 }
 struct Chat {
     id: String,
+    name: Option<String>,
     model: String,
     flow: String,
     request: Option<Value>,
     reasoning: String,
     answer: String,
+    tool_calls: String,
     finish: Option<String>,
     scroll: u16,
     follow: bool,
     chunks: usize,
     usage: Option<Value>,
     timings: Option<Value>,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AutoClean {
+    Never,
+    ToolCalls,
+    Stop,
+    Length,
+    ContentFilter,
+}
+impl AutoClean {
+    fn next(self) -> AutoClean {
+        match self {
+            AutoClean::Never => AutoClean::ToolCalls,
+            AutoClean::ToolCalls => AutoClean::Stop,
+            AutoClean::Stop => AutoClean::Length,
+            AutoClean::Length => AutoClean::ContentFilter,
+            AutoClean::ContentFilter => AutoClean::Never,
+        }
+    }
+    fn label(self) -> &'static str {
+        match self {
+            AutoClean::Never => "off",
+            AutoClean::ToolCalls => "tool_calls",
+            AutoClean::Stop => "stop",
+            AutoClean::Length => "length",
+            AutoClean::ContentFilter => "content_filter",
+        }
+    }
+    fn action_for(self, finish: &str) -> Option<String> {
+        let target = match self {
+            AutoClean::Never => return None,
+            AutoClean::ToolCalls => "tool_calls",
+            AutoClean::Stop => "stop",
+            AutoClean::Length => "length",
+            AutoClean::ContentFilter => "content_filter",
+        };
+        (finish == target).then(|| target.to_string())
+    }
 }
 struct App {
     port: u16,
@@ -55,6 +95,8 @@ struct App {
     selected: usize,
     ignored: HashSet<String>,
     status: String,
+    auto_clean: AutoClean,
+    rename: Option<String>,
 }
 
 impl App {
@@ -66,6 +108,8 @@ impl App {
             selected: 0,
             ignored: HashSet::new(),
             status: "waiting for traffic".into(),
+            auto_clean: AutoClean::Never,
+            rename: None,
         }
     }
     fn packet(&mut self, packet: Packet) {
@@ -127,11 +171,13 @@ impl App {
                     .into();
                 self.chats.push(Chat {
                     id: id.into(),
+                    name: None,
                     model,
                     flow: flow_key.into(),
                     request,
                     reasoning: String::new(),
                     answer: String::new(),
+                    tool_calls: String::new(),
                     finish: None,
                     scroll: 0,
                     follow: true,
@@ -139,9 +185,8 @@ impl App {
                     usage: None,
                     timings: None,
                 });
-                self.selected = self.chats.len() - 1;
-                self.status = format!("following {id}");
-                self.selected
+                self.status = format!("captured {id}");
+                self.chats.len() - 1
             });
         let chat = &mut self.chats[index];
         if let Some(model) = value.get("model").and_then(Value::as_str) {
@@ -167,22 +212,67 @@ impl App {
         if let Some(s) = delta.and_then(|v| v.get("content")).and_then(Value::as_str) {
             chat.answer.push_str(s);
         }
+        if let Some(calls) = delta.and_then(|v| v.get("tool_calls")).and_then(Value::as_array) {
+            for call in calls {
+                let id = call.get("id").and_then(Value::as_str).unwrap_or("");
+                let name = call
+                    .pointer("/function/name")
+                    .and_then(Value::as_str)
+                    .unwrap_or("function");
+                let args = call
+                    .pointer("/function/arguments")
+                    .map(|v| {
+                        v.as_str()
+                            .map(str::to_string)
+                            .unwrap_or_else(|| serde_json::to_string(v).unwrap_or_default())
+                    })
+                    .unwrap_or_default();
+                if !id.is_empty() {
+                    chat.tool_calls.push_str(&format!("[{id}] {name}\n"));
+                }
+                if !args.is_empty() {
+                    chat.tool_calls.push_str(&format!("    {args}\n"));
+                }
+            }
+        }
         if let Some(s) = choice.get("finish_reason").and_then(Value::as_str) {
             chat.finish = Some(s.into());
         }
+        let auto = {
+            let chat = &self.chats[index];
+            chat
+                .finish
+                .as_deref()
+                .and_then(|f| self.auto_clean.action_for(f))
+        };
+        if let Some(reason) = auto {
+            let id = self.chats[index].id.clone();
+            self.close_at(index);
+            self.status = format!("auto-cleaned {id} ({reason})");
+        }
     }
     fn close(&mut self) {
-        if self.chats.is_empty() {
+        self.close_at(self.selected)
+    }
+    fn close_at(&mut self, index: usize) {
+        if index >= self.chats.len() {
             return;
         }
-        let chat = self.chats.remove(self.selected);
+        let chat = self.chats.remove(index);
         self.ignored.insert(chat.id.clone());
         if let Some(flow) = self.flows.get_mut(&chat.flow) {
             flow.requests.clear();
             flow.request_buf.clear();
             flow.response_buf.clear();
         }
-        self.selected = self.selected.min(self.chats.len().saturating_sub(1));
+        if self.chats.is_empty() {
+            self.selected = 0;
+        } else {
+            if index < self.selected {
+                self.selected -= 1;
+            }
+            self.selected = self.selected.min(self.chats.len() - 1);
+        }
         self.status = format!("closed and forgot {}", chat.id);
     }
     fn dump(&mut self) {
@@ -198,6 +288,25 @@ impl App {
                 Ok(()) => format!("dumped {}", path.display()),
                 Err(e) => format!("dump failed: {e}"),
             };
+    }
+    fn rename_commit(&mut self) {
+        let buf = self.rename.take().unwrap_or_default();
+        let name = buf.trim().to_string();
+        if name.is_empty() {
+            if let Some(c) = self.chats.get_mut(self.selected) {
+                c.name = None;
+                self.status = "name cleared".into();
+            } else {
+                self.status = "no chat to rename".into();
+            }
+            return;
+        }
+        if let Some(c) = self.chats.get_mut(self.selected) {
+            c.name = Some(name.clone());
+            self.status = format!("renamed → {name}");
+        } else {
+            self.status = "no chat to rename".into();
+        }
     }
 }
 
@@ -251,11 +360,20 @@ fn number_at<'a>(value: Option<&'a Value>, keys: &[&str]) -> Option<&'a Value> {
 fn stats_text(c: &Chat) -> String {
     let mut stats = vec![
         format!("ID: {}", c.id),
+    ];
+    if let Some(name) = c.name.as_ref() {
+        stats.push(format!("Name: {name}"));
+    }
+    stats.extend([
         format!("Model: {}", c.model),
         format!("Finish: {}", c.finish.as_deref().unwrap_or("streaming")),
         format!("Chunks: {}", c.chunks),
         format!("Flow: {}", c.flow),
-    ];
+    ]);
+    let tool_count = c.tool_calls.lines().filter(|l| l.starts_with('[')).count();
+    if tool_count > 0 {
+        stats.push(format!("Tool calls: {tool_count}"));
+    }
     if let Some(usage) = c.usage.as_ref() {
         let prompt = number_at(Some(usage), &["prompt_tokens"]);
         let completion = number_at(Some(usage), &["completion_tokens"]);
@@ -365,22 +483,150 @@ fn request_text(request: Option<&Value>) -> String {
     out
 }
 fn render_chat(c: &Chat) -> String {
-    format!(
+    let mut out = format!(
         "{}\n\n=== REQUEST ===\n{}\n=== REASONING ===\n{}\n\n=== ANSWER ===\n{}\n",
         stats_text(c),
         request_text(c.request.as_ref()),
         c.reasoning,
         c.answer
-    )
+    );
+    if !c.tool_calls.trim().is_empty() {
+        out.push_str(&format!("\n=== TOOL CALLS ===\n{}\n", c.tool_calls.trim_end()));
+    }
+    out
 }
 
-fn render_body(c: &Chat) -> String {
+fn body_section(out: &mut Vec<Line<'static>>, header: &str, text: &str, style: Style) {
+    out.push(Line::from(Span::styled(
+        header.to_string(),
+        style.add_modifier(Modifier::BOLD),
+    )));
+    for l in text.lines() {
+        out.push(Line::from(Span::styled(l.to_string(), style)));
+    }
+    out.push(Line::from(""));
+}
+
+fn render_body(c: &Chat) -> Text<'static> {
+    let mut out: Vec<Line<'static>> = Vec::new();
+    let default = Style::default();
+    body_section(&mut out, "=== REQUEST ===", &request_text(c.request.as_ref()), default);
+    body_section(&mut out, "=== REASONING ===", &c.reasoning, default);
+    body_section(&mut out, "=== ANSWER ===", &c.answer, default);
+    if !c.tool_calls.trim().is_empty() {
+        let orange = Style::default().fg(Color::Rgb(255, 165, 0));
+        body_section(&mut out, "=== TOOL CALLS ===", c.tool_calls.trim_end(), orange);
+    }
+    Text::from(out)
+}
+
+fn build_tab_line(items: &[(String, Style)], selected: usize, available: usize) -> Line<'static> {
+    let n = items.len();
+    if n == 0 {
+        return Line::from(" no chats ");
+    }
+    let sep = " │ ";
+    let sep_w = 3usize;
+    let widths: Vec<usize> = items.iter().map(|(t, _)| t.chars().count()).collect();
+    let ind_text = |count: usize| format!(" +{count}");
+    let ind_width = |count: usize| ind_text(count).chars().count();
+    let fits = |a: usize, b: usize| -> bool {
+        let mut w = 0usize;
+        if a > 0 {
+            w += ind_width(a) + sep_w;
+        }
+        w += widths[a..b].iter().sum::<usize>();
+        w += sep_w * (b - a - 1);
+        if b < n {
+            w += sep_w + ind_width(n - b);
+        }
+        w <= available
+    };
+    let sel = selected.min(n - 1);
+    let mut a = sel;
+    let mut b = sel + 1;
+    while b < n && fits(a, b + 1) {
+        b += 1;
+    }
+    while a > 0 && fits(a - 1, b) {
+        a -= 1;
+    }
+    let dim = Style::default().fg(Color::DarkGray);
+    let mut spans: Vec<Span> = Vec::new();
+    if a > 0 {
+        spans.push(Span::styled(ind_text(a), dim));
+        spans.push(Span::raw(sep));
+    }
+    let sel_text = &items[sel].0;
+    let mut first = true;
+    for (text, style) in &items[a..b] {
+        if !first {
+            spans.push(Span::raw(sep));
+        }
+        first = false;
+        let style = if text == sel_text {
+            style
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(Modifier::UNDERLINED)
+        } else {
+            *style
+        };
+        spans.push(Span::styled(text.clone(), style));
+    }
+    if b < n {
+        spans.push(Span::raw(sep));
+        spans.push(Span::styled(ind_text(n - b), dim));
+    }
+    Line::from(spans)
+}
+
+fn first_chars(s: &str, n: usize) -> String {
+    s.chars().take(n).collect()
+}
+fn last_chars(s: &str, n: usize) -> String {
+    s.chars().rev().take(n).collect::<Vec<_>>().into_iter().rev().collect()
+}
+fn name_prompt(c: &Chat) -> String {
+    let first_user = c
+        .request
+        .as_ref()
+        .and_then(|r| r.get("messages").and_then(Value::as_array))
+        .and_then(|m| {
+            m.iter()
+                .find(|m| m.get("role").and_then(Value::as_str) == Some("user"))
+                .and_then(|m| m.get("content").and_then(Value::as_str))
+                .map(str::to_owned)
+        })
+        .map(|s| first_chars(&s, 100))
+        .unwrap_or_default();
+    let tail = last_chars(&c.answer, 1000);
     format!(
-        "=== REQUEST ===\n{}\n=== REASONING ===\n{}\n\n=== ANSWER ===\n{}\n",
-        request_text(c.request.as_ref()),
-        c.reasoning,
-        c.answer
+        "Name this chat conversation in 2-6 words. Reply with ONLY the name, no quotes, no trailing punctuation.\n\nFirst user message (first 100 chars):\n{first_user}\n\nEnd of conversation (last 1000 chars):\n{tail}"
     )
+}
+fn run_namer(model: &str, prompt: &str) -> Result<String, String> {
+    let mut child = Command::new("ollama")
+        .args(["run", "--nowordwrap", model])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("spawn ollama: {e}"))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(prompt.as_bytes())
+            .map_err(|e| e.to_string())?;
+    }
+    let out = child.wait_with_output().map_err(|e| e.to_string())?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+    }
+    let text = String::from_utf8_lossy(&out.stdout);
+    text.lines()
+        .find(|l| !l.trim().is_empty())
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .ok_or_else(|| "empty model output".into())
 }
 
 fn spawn_ngrep(port: u16, interface: &str) -> io::Result<(Child, Receiver<Packet>)> {
@@ -439,30 +685,31 @@ fn draw(frame: &mut ratatui::Frame, app: &mut App) {
             Constraint::Length(1),
         ])
         .split(frame.area());
-    let tabs = app
-        .chats
-        .iter()
-        .map(|c| {
-            let (marker, color) = match c.finish.as_deref() {
-                None => ("●", Color::Green),
-                Some("tool_calls") => ("✓", Color::DarkGray),
-                Some(_) => ("✓", Color::White),
-            };
-            Line::from(Span::styled(
-                format!(" {} {} ", middle_elide(&c.id, 22), marker),
-                Style::default().fg(color),
-            ))
-        })
-        .collect::<Vec<_>>();
+    let tab_line = {
+        let items: Vec<(String, Style)> = app
+            .chats
+            .iter()
+            .map(|c| {
+                let (marker, color) = match c.finish.as_deref() {
+                    None => ("●", Color::Green),
+                    Some("tool_calls") => ("✓", Color::DarkGray),
+                    Some(_) => ("✓", Color::White),
+                };
+                let label = c.name.clone().unwrap_or_else(|| c.id.clone());
+                (
+                    format!(" {} {} ", middle_elide(&label, 24), marker),
+                    Style::default().fg(color),
+                )
+            })
+            .collect();
+        build_tab_line(&items, app.selected, areas[0].width.saturating_sub(2) as usize)
+    };
     frame.render_widget(
-        Tabs::new(tabs)
-            .select(app.selected)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(" llama.cpp conversations "),
-            )
-            .highlight_style(Style::default().add_modifier(Modifier::BOLD)),
+        Paragraph::new(tab_line).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" llama.cpp conversations "),
+        ),
         areas[0],
     );
     if let Some(c) = app.chats.get_mut(app.selected) {
@@ -482,10 +729,7 @@ fn draw(frame: &mut ratatui::Frame, app: &mut App) {
         );
         let body = render_body(c);
         let visible = details[1].height.saturating_sub(2) as usize;
-        let max = Text::from(body.as_str())
-            .height()
-            .saturating_sub(visible)
-            .min(u16::MAX as usize) as u16;
+        let max = body.height().saturating_sub(visible).min(u16::MAX as usize) as u16;
         if c.follow {
             c.scroll = max
         }
@@ -508,21 +752,39 @@ fn draw(frame: &mut ratatui::Frame, app: &mut App) {
             areas[1],
         );
     }
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("←/→", Style::default().fg(Color::Cyan)),
-            Span::raw(" tabs  "),
-            Span::styled("↑/↓", Style::default().fg(Color::Cyan)),
-            Span::raw(" scroll  "),
-            Span::styled("x", Style::default().fg(Color::Cyan)),
-            Span::raw(" close/forget  "),
-            Span::styled("d", Style::default().fg(Color::Cyan)),
-            Span::raw(" dump  "),
-            Span::styled("q", Style::default().fg(Color::Cyan)),
-            Span::raw(format!(" quit  | {}", app.status)),
-        ])),
-        areas[2],
-    );
+    let bottom = match app.rename.as_ref() {
+        Some(buf) => Line::from(vec![
+            Span::styled(
+                " rename ",
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(format!(" {buf} ")),
+            Span::styled("│ Enter=save  Esc=cancel", Style::default().fg(Color::DarkGray)),
+        ]),
+        None => {
+            let key = |k: &'static str| Span::styled(k, Style::default().fg(Color::Cyan));
+            Line::from(vec![
+                Span::raw(format!(" {}  ", app.status)),
+                key("←/→"),
+                Span::raw(" tabs "),
+                key("↑/↓"),
+                Span::raw(" scroll "),
+                key("x"),
+                Span::raw(" close "),
+                key("d"),
+                Span::raw(" dump "),
+                key("a"),
+                Span::raw(format!(" auto-clean:{} ", app.auto_clean.label())),
+                key("r"),
+                Span::raw(" rename "),
+                key("R"),
+                Span::raw(" name "),
+                key("q"),
+                Span::raw(" quit"),
+            ])
+        }
+    };
+    frame.render_widget(Paragraph::new(bottom), areas[2]);
 }
 
 fn restore(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) {
@@ -551,15 +813,53 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     execute!(stdout, EnterAlternateScreen)?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout))?;
     let mut app = App::new(port);
+    let (name_tx, name_rx) = mpsc::channel::<(String, Result<String, String>)>();
     let result = loop {
         while let Ok(p) = rx.try_recv() {
             app.packet(p)
+        }
+        while let Ok((id, res)) = name_rx.try_recv() {
+            match res {
+                Ok(name) => {
+                    let name = name.trim().to_string();
+                    if name.is_empty() {
+                        app.status = "ai-name: empty result".into();
+                    } else if let Some(c) = app.chats.iter_mut().find(|c| c.id == id) {
+                        c.name = Some(name.clone());
+                        app.status = format!("named → {name}");
+                    } else {
+                        app.status = "ai-name: chat no longer open".into();
+                    }
+                }
+                Err(e) => app.status = format!("ai-name failed: {e}"),
+            }
         }
         terminal.draw(|f| draw(f, &mut app))?;
         if event::poll(Duration::from_millis(33))?
             && let Event::Key(k) = event::read()?
         {
             if k.kind != KeyEventKind::Press {
+                continue;
+            }
+            if app.rename.is_some() {
+                match k.code {
+                    KeyCode::Char(c) => {
+                        if let Some(buf) = app.rename.as_mut() {
+                            buf.push(c)
+                        }
+                    }
+                    KeyCode::Backspace => {
+                        if let Some(buf) = app.rename.as_mut() {
+                            buf.pop();
+                        }
+                    }
+                    KeyCode::Enter => app.rename_commit(),
+                    KeyCode::Esc => {
+                        app.rename = None;
+                        app.status = "rename cancelled".into();
+                    }
+                    _ => {}
+                }
                 continue;
             }
             match k.code {
@@ -588,6 +888,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 KeyCode::Char('x') => app.close(),
                 KeyCode::Char('d') => app.dump(),
+                KeyCode::Char('a') => {
+                    app.auto_clean = app.auto_clean.next();
+                    app.status = format!("auto-clean: {}", app.auto_clean.label())
+                }
+                KeyCode::Char('r') => {
+                    if app.chats.is_empty() {
+                        app.status = "no chat to rename".into()
+                    } else {
+                        app.rename = Some(String::new());
+                        app.status = "rename".into()
+                    }
+                }
+                KeyCode::Char('R') => {
+                    let Some(c) = app.chats.get(app.selected) else {
+                        app.status = "no chat to name".into();
+                        continue;
+                    };
+                    let prompt = name_prompt(c);
+                    let id = c.id.clone();
+                    let model = env::var("SNIFF_NAMER").unwrap_or_else(|_| "gemma4:e2b".into());
+                    let tx = name_tx.clone();
+                    app.status = format!("ai-naming with {model}…");
+                    thread::spawn(move || {
+                        let res = run_namer(&model, &prompt);
+                        let _ = tx.send((id, res));
+                    });
+                }
                 _ => {}
             }
         }
@@ -639,5 +966,92 @@ mod tests {
         assert_eq!(chat.model, "qwen3.8");
         assert_eq!(chat.chunks, 2);
         assert!(stats_text(chat).contains("prompt 10 | completion 2 | total 12"));
+    }
+
+    #[test]
+    fn tab_bar_shows_overflow_indicators_and_keeps_selected_visible() {
+        let style = Style::default();
+        let items: Vec<(String, Style)> = (0..6).map(|i| (format!(" tab{i} ● "), style)).collect();
+        let text = build_tab_line(&items, 3, 30).to_string();
+        assert!(text.contains("tab3"), "selected tab must be visible: {text}");
+        assert!(text.contains("+"), "overflow indicator expected: {text}");
+    }
+
+    #[test]
+    fn tab_bar_fits_all_tabs_when_wide_enough() {
+        let style = Style::default();
+        let items: Vec<(String, Style)> = (0..3).map(|i| (format!(" t{i} ● "), style)).collect();
+        let text = build_tab_line(&items, 1, 200).to_string();
+        assert!(text.contains("t0") && text.contains("t1") && text.contains("t2"));
+        assert!(!text.contains("+"), "no overflow expected: {text}");
+    }
+
+    #[test]
+    fn auto_clean_closes_chats_matching_finish_reason() {
+        let mut app = App::new(8080);
+        app.auto_clean = AutoClean::ToolCalls;
+        app.response(
+            "f",
+            json!({"id": "c1", "choices": [{"delta": {"content": "hi"}, "finish_reason": "tool_calls"}]}),
+        );
+        assert!(app.chats.is_empty(), "chat should be auto-cleaned");
+        assert!(app.ignored.contains("c1"));
+    }
+
+    #[test]
+    fn auto_clean_off_keeps_finished_chats() {
+        let mut app = App::new(8080);
+        app.auto_clean = AutoClean::Never;
+        app.response(
+            "f",
+            json!({"id": "c1", "choices": [{"delta": {}, "finish_reason": "tool_calls"}]}),
+        );
+        assert_eq!(app.chats.len(), 1);
+    }
+
+    #[test]
+    fn new_chats_do_not_steal_selection() {
+        let mut app = App::new(8080);
+        app.response("f", json!({"id": "c1", "choices": [{"delta": {"content": "a"}}]}));
+        app.response("f", json!({"id": "c2", "choices": [{"delta": {"content": "b"}}]}));
+        assert_eq!(app.selected, 0, "selection should stay on the first chat");
+        assert_eq!(app.chats.len(), 2);
+    }
+
+    #[test]
+    fn parses_tool_calls_into_log() {
+        let mut app = App::new(8080);
+        app.response(
+            "f",
+            json!({
+                "id": "c1",
+                "choices": [{"delta": {"tool_calls": [
+                    {"id": "call_1", "function": {"name": "get_weather", "arguments": "{\"city\":\"Paris\"}"}}
+                ]}}]
+            }),
+        );
+        let chat = &app.chats[0];
+        assert!(chat.tool_calls.contains("get_weather"), "got: {}", chat.tool_calls);
+        assert!(chat.tool_calls.contains("call_1"));
+        assert!(stats_text(chat).contains("Tool calls: 1"));
+    }
+
+    #[test]
+    fn rename_commit_sets_and_clears_name() {
+        let mut app = App::new(8080);
+        app.response("f", json!({"id": "c1", "choices": [{"delta": {"content": "a"}}]}));
+        app.rename = Some("my chat".into());
+        app.rename_commit();
+        assert_eq!(app.chats[0].name.as_deref(), Some("my chat"));
+        app.rename = Some("   ".into());
+        app.rename_commit();
+        assert!(app.chats[0].name.is_none());
+    }
+
+    #[test]
+    fn char_helpers() {
+        assert_eq!(first_chars("abcdef", 3), "abc");
+        assert_eq!(last_chars("abcdef", 3), "def");
+        assert_eq!(last_chars("ab", 5), "ab");
     }
 }
