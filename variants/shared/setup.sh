@@ -56,6 +56,7 @@ install eza                   # list tree for ls
 install lazygit
 install fzf
 install zellij
+install ngrep
 
 # Bash has built-in vi editing through Readline, so zsh-vi-mode is only
 # relevant when Zsh is the user's login shell.

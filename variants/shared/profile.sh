@@ -99,6 +99,7 @@ _set oo "opencode"
 
 alias e="nvim"
 alias v="nvim"
+alias sniff_llms='cargo run --release --manifest-path "$HOME/dotfiles/sniff_llms/Cargo.toml" --'
 
 killport() {
   lsof -i ":$1" | grep LISTEN | awk '{print $2}' | xargs kill -9
