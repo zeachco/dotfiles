@@ -1,6 +1,9 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "autoupdate": false,
+  "plugin": [
+    "file:///home/olivier/dotfiles/configs/opencode/.config/opencode/plugins/llamacpp-model-sync.ts"
+  ],
   "provider": {
     "llamacpp": {
       "npm": "@ai-sdk/openai-compatible",
@@ -19,26 +22,6 @@
           },
           "tool_call": true,
           "attachment": true,
-          "reasoning": true
-        },
-        "DeepSeek-V4-Flash-chat-v2": {
-          "name": "DeepSeek V4 Flash 284B (heavy tier)",
-          "limit": {
-            "context": 32768,
-            "output": 8192
-          },
-          "tool_call": true,
-          "attachment": false,
-          "reasoning": true
-        },
-        "gpt-oss-120b-MXFP4": {
-          "name": "gpt-oss 120B (heavy tier)",
-          "limit": {
-            "context": 131072,
-            "output": 32768
-          },
-          "tool_call": true,
-          "attachment": false,
           "reasoning": true
         },
         "Qwen3-Coder-Next-UD-IQ4_XS": {
@@ -60,6 +43,24 @@
           "tool_call": true,
           "attachment": false,
           "reasoning": true
+        },
+        "Ministral-3-3B-Instruct-2512-Q4_K_M": {
+          "name": "Ministral-3-3B-Instruct-2512-Q4_K_M"
+        },
+        "Qwen3-4B-Q4_K_M": {
+          "name": "Qwen3-4B-Q4_K_M"
+        },
+        "gemma-4-26B-A4B-it-GGUF": {
+          "name": "gemma-4-26B-A4B-it-GGUF"
+        },
+        "gemma-4-E2B-it-GGUF": {
+          "name": "gemma-4-E2B-it-GGUF"
+        },
+        "gemma-4-E4B-it-GGUF": {
+          "name": "gemma-4-E4B-it-GGUF"
+        },
+        "qwen2.5-coder-0.5b-instruct-q4_k_m": {
+          "name": "qwen2.5-coder-0.5b-instruct-q4_k_m"
         }
       }
     }

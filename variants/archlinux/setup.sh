@@ -84,6 +84,7 @@ stow_link alacritty
 stow_link alacritty-archlinux
 stow_link nvim
 stow_link opencode
+"$DOT_DIR/configs/opencode/setup-plugins.sh"
 stow_link pi
 
 echo -e "${PASS}Arch Linux setup complete!${NORM}"
