@@ -34,11 +34,7 @@
         {
           "id": "omarchy.tray",
           "pinned": [
-            "spotify-client",
-            "steam",
-            "Slack_status_icon_1",
-            "1Password_status_icon_1",
-            "vlc"
+            "Slack_status_icon_1"
           ],
           "hidden": []
         },
