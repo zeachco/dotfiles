@@ -34,6 +34,12 @@ struct Packet {
     header: String,
     payload: String,
 }
+#[derive(Default)]
+struct ToolCall {
+    id: String,
+    name: String,
+    arguments: String,
+}
 struct Chat {
     id: String,
     name: Option<String>,
@@ -42,7 +48,7 @@ struct Chat {
     request: Option<Value>,
     reasoning: String,
     answer: String,
-    tool_calls: String,
+    tool_calls: Vec<ToolCall>,
     finish: Option<String>,
     scroll: u16,
     follow: bool,
@@ -177,7 +183,7 @@ impl App {
                     request,
                     reasoning: String::new(),
                     answer: String::new(),
-                    tool_calls: String::new(),
+                    tool_calls: Vec::new(),
                     finish: None,
                     scroll: 0,
                     follow: true,
@@ -213,25 +219,38 @@ impl App {
             chat.answer.push_str(s);
         }
         if let Some(calls) = delta.and_then(|v| v.get("tool_calls")).and_then(Value::as_array) {
-            for call in calls {
-                let id = call.get("id").and_then(Value::as_str).unwrap_or("");
-                let name = call
-                    .pointer("/function/name")
-                    .and_then(Value::as_str)
-                    .unwrap_or("function");
-                let args = call
-                    .pointer("/function/arguments")
-                    .map(|v| {
-                        v.as_str()
-                            .map(str::to_string)
-                            .unwrap_or_else(|| serde_json::to_string(v).unwrap_or_default())
-                    })
-                    .unwrap_or_default();
-                if !id.is_empty() {
-                    chat.tool_calls.push_str(&format!("[{id}] {name}\n"));
+            for (pos, call) in calls.iter().enumerate() {
+                // Tool-call arguments stream as many small deltas; concatenate them
+                // per call (keyed by the delta `index`) instead of one line each.
+                let idx = call
+                    .get("index")
+                    .and_then(Value::as_u64)
+                    .map(|i| i as usize)
+                    .unwrap_or(pos);
+                while chat.tool_calls.len() <= idx {
+                    chat.tool_calls.push(ToolCall::default());
                 }
-                if !args.is_empty() {
-                    chat.tool_calls.push_str(&format!("    {args}\n"));
+                let tc = &mut chat.tool_calls[idx];
+                if tc.id.is_empty() {
+                    tc.id = call
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned)
+                        .unwrap_or_default();
+                }
+                if tc.name.is_empty() {
+                    tc.name = call
+                        .pointer("/function/name")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned)
+                        .unwrap_or_default();
+                }
+                if let Some(args) = call.pointer("/function/arguments") {
+                    let frag = match args {
+                        Value::String(s) => s.clone(),
+                        other => serde_json::to_string(other).unwrap_or_default(),
+                    };
+                    tc.arguments.push_str(&frag);
                 }
             }
         }
@@ -350,6 +369,16 @@ fn middle_elide(s: &str, max_chars: usize) -> String {
         .collect()
 }
 
+/// Re-serialize tool-call arguments as compact single-line JSON so the log does
+/// not fragment across many lines. Falls back to the raw text (with internal
+/// newlines collapsed to spaces) when it is not valid JSON.
+fn compact_arguments(raw: &str) -> String {
+    match serde_json::from_str::<Value>(raw) {
+        Ok(parsed) => serde_json::to_string(&parsed).unwrap_or_else(|_| raw.to_string()),
+        Err(_) => raw.split_whitespace().collect::<Vec<_>>().join(" "),
+    }
+}
+
 fn number_at<'a>(value: Option<&'a Value>, keys: &[&str]) -> Option<&'a Value> {
     let value = value?;
     keys.iter()
@@ -370,7 +399,11 @@ fn stats_text(c: &Chat) -> String {
         format!("Chunks: {}", c.chunks),
         format!("Flow: {}", c.flow),
     ]);
-    let tool_count = c.tool_calls.lines().filter(|l| l.starts_with('[')).count();
+    let tool_count = c
+        .tool_calls
+        .iter()
+        .filter(|tc| !tc.id.is_empty() || !tc.name.is_empty() || !tc.arguments.is_empty())
+        .count();
     if tool_count > 0 {
         stats.push(format!("Tool calls: {tool_count}"));
     }
@@ -482,6 +515,22 @@ fn request_text(request: Option<&Value>) -> String {
     }
     out
 }
+fn tool_calls_text(c: &Chat) -> String {
+    let mut out = String::new();
+    for tc in &c.tool_calls {
+        if tc.id.is_empty() && tc.name.is_empty() && tc.arguments.is_empty() {
+            continue;
+        }
+        let name: &str = if tc.name.is_empty() { "function" } else { &tc.name };
+        out.push_str(&format!("[{}] {name}\n", tc.id));
+        let args = compact_arguments(&tc.arguments);
+        if !args.is_empty() {
+            out.push_str(&format!("    {args}\n"));
+        }
+    }
+    out.trim_end().to_string()
+}
+
 fn render_chat(c: &Chat) -> String {
     let mut out = format!(
         "{}\n\n=== REQUEST ===\n{}\n=== REASONING ===\n{}\n\n=== ANSWER ===\n{}\n",
@@ -490,8 +539,8 @@ fn render_chat(c: &Chat) -> String {
         c.reasoning,
         c.answer
     );
-    if !c.tool_calls.trim().is_empty() {
-        out.push_str(&format!("\n=== TOOL CALLS ===\n{}\n", c.tool_calls.trim_end()));
+    if !c.tool_calls.is_empty() {
+        out.push_str(&format!("\n=== TOOL CALLS ===\n{}\n", tool_calls_text(c)));
     }
     out
 }
@@ -513,9 +562,9 @@ fn render_body(c: &Chat) -> Text<'static> {
     body_section(&mut out, "=== REQUEST ===", &request_text(c.request.as_ref()), default);
     body_section(&mut out, "=== REASONING ===", &c.reasoning, default);
     body_section(&mut out, "=== ANSWER ===", &c.answer, default);
-    if !c.tool_calls.trim().is_empty() {
+    if !c.tool_calls.is_empty() {
         let orange = Style::default().fg(Color::Rgb(255, 165, 0));
-        body_section(&mut out, "=== TOOL CALLS ===", c.tool_calls.trim_end(), orange);
+        body_section(&mut out, "=== TOOL CALLS ===", &tool_calls_text(c), orange);
     }
     Text::from(out)
 }
@@ -1019,21 +1068,58 @@ mod tests {
     }
 
     #[test]
-    fn parses_tool_calls_into_log() {
+    fn concatenates_streamed_tool_call_argument_fragments() {
+        let mut app = App::new(8080);
+        // Two deltas stream the same tool call's arguments in pieces.
+        app.response(
+            "f",
+            json!({
+                "id": "c1",
+                "choices": [{"delta": {"tool_calls": [
+                    {"index": 0, "id": "call_1", "function": {"name": "get_weather", "arguments": "{\"city\":"}}
+                ]}}]
+            }),
+        );
+        app.response(
+            "f",
+            json!({
+                "id": "c1",
+                "choices": [{"delta": {"tool_calls": [
+                    {"index": 0, "function": {"arguments": "\"Paris\"}"}}
+                ]}}]
+            }),
+        );
+        let chat = &app.chats[0];
+        assert_eq!(chat.tool_calls.len(), 1, "must be one call, not one line per fragment");
+        assert_eq!(chat.tool_calls[0].id, "call_1");
+        assert_eq!(chat.tool_calls[0].name, "get_weather");
+        assert_eq!(chat.tool_calls[0].arguments, "{\"city\":\"Paris\"}");
+        assert!(stats_text(chat).contains("Tool calls: 1"));
+    }
+
+    #[test]
+    fn compacts_pretty_printed_tool_call_arguments() {
         let mut app = App::new(8080);
         app.response(
             "f",
             json!({
                 "id": "c1",
                 "choices": [{"delta": {"tool_calls": [
-                    {"id": "call_1", "function": {"name": "get_weather", "arguments": "{\"city\":\"Paris\"}"}}
+                    {"index": 0, "id": "call_1",
+                     "function": {"name": "read_file",
+                                  "arguments": "{\n  \"path\": \"/tmp/agent-home/.local/share/agent/workspace\"\n}"}}
                 ]}}]
             }),
         );
         let chat = &app.chats[0];
-        assert!(chat.tool_calls.contains("get_weather"), "got: {}", chat.tool_calls);
-        assert!(chat.tool_calls.contains("call_1"));
-        assert!(stats_text(chat).contains("Tool calls: 1"));
+        let text = tool_calls_text(chat);
+        let lines: Vec<&str> = text.lines().collect();
+        // Pretty-printed arguments must collapse to a single compact line.
+        let open_braces = lines.iter().filter(|l| l.trim_start().starts_with('{')).count();
+        assert_eq!(open_braces, 1, "args should be one line: {lines:?}");
+        assert!(!lines.iter().any(|l| l.trim() == "}"), "no orphaned brace: {lines:?}");
+        assert!(text.contains("\"path\""));
+        assert!(text.contains("/tmp/agent-home"));
     }
 
     #[test]
