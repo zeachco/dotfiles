@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 # Fetch the model set into the router's tier directories. Resumable: rerun to continue
 # an interrupted download (curl -C -). Safe to run while the router is up; new models
 # are picked up on the next router restart.
@@ -9,19 +9,12 @@
 #     scanner doesn't try to pair them with a model as a shard/projector
 set -uo pipefail
 
-HF=https://huggingface.co
-
-fetch() { # repo file destdir
-  local repo="$1" file="$2" dest="$3"
-  local out="$dest/${file##*/}"
-  mkdir -p "$dest"
-  echo "==> $repo :: ${file##*/}"
-  curl -L --fail --retry 10 --retry-delay 5 --retry-all-errors -C - \
-    --progress-bar -o "$out" "$HF/$repo/resolve/main/$file" || {
-    echo "FAILED: $repo/$file" >&2
-    return 1
-  }
-}
+# fetch()/hf_ls()/fetch_report() live in _fetch-lib.sh, shared with
+# fetch-models-osx.sh. The shared version adds a size pre-check: `curl -C -` on an
+# already-complete file makes the CDN answer 416, which --fail turns into a non-zero
+# exit, so the old inline fetch() reported every finished model as FAILED on a re-run.
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
+. "$SCRIPT_DIR/_fetch-lib.sh"
 
 # --- heavy tier: one at a time -------------------------------------------------
 # 63.4 GB. Workhorse: best capability-per-token-rate on this box (~55 t/s).
@@ -39,3 +32,6 @@ fetch unsloth/GLM-4.7-Flash-GGUF GLM-4.7-Flash-UD-Q4_K_XL.gguf "$HOME/models/lig
 echo
 echo "Done. Restart the router to pick up new models:"
 echo "  systemctl --user restart llama-router   # or: killport 8080 && los"
+
+# Non-zero exit if any download failed, so a 404'd filename cannot pass as success.
+fetch_report

@@ -63,6 +63,47 @@
           "name": "qwen2.5-coder-0.5b-instruct-q4_k_m"
         }
       }
+    },
+    "llamacpp-olim3": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "llama.cpp (olim3)",
+      "options": {
+        "baseURL": "http://olim3.local:8080/v1",
+        "timeout": false,
+        "headerTimeout": false
+      },
+      "models": {
+        "Qwen3.8-27B": {
+          "name": "Qwen3.8 27B (olim3)",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          },
+          "tool_call": true,
+          "attachment": true,
+          "reasoning": true
+        },
+        "gemma-4-E4B-it": {
+          "name": "Gemma 4 E4B (olim3)",
+          "limit": {
+            "context": 65536,
+            "output": 16384
+          },
+          "tool_call": true,
+          "attachment": true,
+          "reasoning": false
+        },
+        "gemma-4-E2B-it": {
+          "name": "Gemma 4 E2B (olim3, fan-out)",
+          "limit": {
+            "context": 65536,
+            "output": 16384
+          },
+          "tool_call": true,
+          "attachment": true,
+          "reasoning": false
+        }
+      }
     }
   },
   "model": "llamacpp/qwen3.8",

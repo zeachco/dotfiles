@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  TEMPLATE -- installed to ~/Library/LaunchAgents by install.sh in this directory.
+
+  launchd performs NO variable expansion whatsoever: "$HOME", "~" and
+  "$(brew --prefix)" are literal strings, in paths and in EnvironmentVariables alike.
+  Every absolute path is therefore baked in at install time, which substitutes:
+
+    @LLAMA_SERVER@  absolute path to the server binary (from `brew --prefix`)
+    @SUBCOMMAND@    substituted with `server`, or the whole line deleted
+    @HOME@          $HOME
+    @BREW@          $(brew --prefix)   -- /opt/homebrew or /usr/local
+    @DOT_DIR@       $DOT_DIR
+
+  The @TOKEN@ form keeps this file valid XML, so `plutil -lint` lints the repo copy.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.zeachco.llama-router</string>
+
+  <!-- launchd never PATH-resolves argv[0]; it must be absolute. The opt/ symlink is
+       stable across `brew upgrade` (it points into the versioned Cellar), so an
+       upgrade does not invalidate this path -- but the running process keeps the old
+       dylibs mapped, so run `los-restart` after upgrading llama.cpp. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>@LLAMA_SERVER@</string>
+    <string>@SUBCOMMAND@</string>
+    <!-- No -m / --model. With no model argument llama-server starts in ROUTER mode:
+         it loads nothing, never touches Metal itself, and forks one child process
+         per model, routing on the JSON body's "model" field (or ?model= on GETs). A
+         child that OOMs or crashes takes only itself down, not the endpoint. -->
+    <string>--models-dir</string>
+    <string>@HOME@/models</string>
+    <string>--models-preset</string>
+    <string>@DOT_DIR@/configs/llama/osx.ini</string>
+    <!-- The router evicts on model COUNT, never on bytes. 4 with three models
+         present means it never evicts; see the budget comment in osx.ini. -->
+    <string>--models-max</string>
+    <string>4</string>
+    <!-- Explicit even though it is the default: load a model on first request. -->
+    <string>--models-autoload</string>
+    <!-- LAN-reachable as olim3.local:8080, per todos/network-exposure.md.
+         NOTE: no --api-key, and the macOS Application Firewall is disabled, so any
+         device on the network can drive this GPU and read every prompt. Add
+         --api-key here plus a matching Authorization header in every client if that
+         stops being acceptable. -->
+    <string>--host</string>
+    <string>0.0.0.0</string>
+    <string>--port</string>
+    <string>8080</string>
+    <!-- Long agent turns: do not let the HTTP layer cut a generation short. -->
+    <string>-to</string>
+    <string>3600</string>
+    <!-- /metrics: consumed by sniff_llms, and where spec-decode accept rates live. -->
+    <string>--metrics</string>
+  </array>
+
+  <!-- launchd's default cwd is "/". Point it at the model root so any relative path
+       that ends up in osx.ini (a future model-draft, say) resolves against ~/models
+       rather than the filesystem root.
+       SHARP EDGE: if this directory does not exist launchd refuses to spawn the job
+       (posix_spawn error 2) and writes NOTHING to StandardErrorPath -- the log file
+       is not even created. install.sh mkdir -p's it before bootstrapping. -->
+  <key>WorkingDirectory</key>
+  <string>@HOME@/models</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- launchd hands agents /usr/bin:/bin:/usr/sbin:/sbin and reads no shell
+         profile, so Homebrew's prefix has to be added by hand. -->
+    <key>PATH</key>
+    <string>@BREW@/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <!-- The router ALWAYS enumerates LLAMA_CACHE in addition to --models-dir.
+         Pinning it to a dedicated directory is what makes GET /v1/models return
+         exactly the three directories under ~/models and nothing a stray `-hf` pull
+         left in the macOS default (~/Library/Caches/llama.cpp).
+         Corollary: a manual `llama-server -hf ...` from a shell writes to a
+         DIFFERENT cache and will not show up in the router. -->
+    <key>LLAMA_CACHE</key>
+    <string>@HOME@/.cache/llama.cpp-router</string>
+    <!-- Deliberately NOT setting GGML_BACKEND_PATH. ggml is built with
+         GGML_BACKEND_DL=ON and GGML_BACKEND_DIR compiled in as
+         @BREW@/opt/ggml/libexec, so the Metal backend is already found there.
+         Adding the override buys nothing and gives a stale value a way to break a
+         working setup. If `grep -i metal` on the log ever shows no Metal backend:
+           <key>GGML_BACKEND_PATH</key><string>@BREW@/opt/ggml/libexec</string> -->
+  </dict>
+
+  <!-- Aqua ONLY, on purpose:
+       * Metal wants a GUI login session. Adding <string>Background</string> (as
+         ai.hermes.gateway.plist does) would let launchd also start this job in a
+         non-GUI ssh session: a second instance fighting for :8080, and in that
+         session a Metal device that may fail to create -> silent CPU inference.
+       * Consequence accepted: the router starts at LOGIN, not boot, and is torn
+         down at logout. Screen lock is not logout, so it survives that. On a
+         FileVault machine nothing runs before the first login anyway, so a
+         LaunchDaemon would buy very little and would lose $HOME and the GUI
+         session. -->
+  <key>LimitLoadToSessionType</key>
+  <array>
+    <string>Aqua</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- Unconditional restart. Model children dying is already isolated by router
+       mode; this covers the router process itself. launchd throttles respawns to one
+       per ThrottleInterval, so a permanent failure (:8080 taken, say) shows up as a
+       10 s crash loop in the log rather than a busy spin. -->
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <!-- The single most important key in this file. Model children inherit the
+       router's QoS class. ProcessType "Background" -- or "Adaptive", which decays to
+       it -- pins the job to THREAD_QOS_BACKGROUND: on an M4 Pro that means the 4
+       efficiency cores and throttled I/O, i.e. several times slower decode with no
+       error logged anywhere. launchd.plist(5) documents "Interactive" as running
+       "with the same resource limitations as apps, that is, none". -->
+  <key>ProcessType</key>
+  <string>Interactive</string>
+
+  <!-- Three resident models hold GGUF files and projectors open alongside every live
+       HTTP/SSE connection. launchd's default soft limit is 256 fds, and EMFILE here
+       surfaces as an opaque "failed to load model". -->
+  <key>SoftResourceLimits</key>
+  <dict>
+    <key>NumberOfFiles</key>
+    <integer>4096</integer>
+  </dict>
+
+  <!-- One file for both streams, matching homebrew.mxcl.ollama.plist. llama-server
+       writes banners to stdout and errors to stderr; split files lose the
+       interleaving, which is exactly what you need to read a failed model load.
+       launchd does NOT rotate these -- see install.sh's closing note. -->
+  <key>StandardOutPath</key>
+  <string>@HOME@/Library/Logs/llama-router/router.log</string>
+  <key>StandardErrorPath</key>
+  <string>@HOME@/Library/Logs/llama-router/router.log</string>
+</dict>
+</plist>

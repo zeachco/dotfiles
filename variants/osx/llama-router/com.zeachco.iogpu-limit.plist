@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Raise the Metal wired-memory cap at boot. Installed to /Library/LaunchDaemons by
+  install-wired-limit.sh (root) -- a system daemon rather than a user agent because
+  sysctl needs root and the value must be set before anything allocates.
+
+  iogpu.wired_limit_mb defaults to 0, meaning "roughly 75% of RAM", i.e. ~36 GiB of
+  this box's 48. Three resident models plus their KV caches want ~35.5 GiB, which
+  leaves no headroom, so this raises the cap to 42 GiB (43008 MiB). The sysctl resets
+  to 0 on EVERY reboot, which is the entire reason this daemon exists.
+
+  Trade-off: 42 GiB wired leaves only ~6 GiB of the 48 for macOS when all three
+  models are resident. See the budget comment in configs/llama/osx.ini.
+
+  No @TOKEN@ substitution needed -- every path here is absolute and fixed.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.zeachco.iogpu-limit</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/sbin/sysctl</string>
+    <string>-w</string>
+    <string>iogpu.wired_limit_mb=43008</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- A one-shot. KeepAlive would respawn sysctl forever after it exits 0. -->
+  <key>KeepAlive</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/var/log/zeachco-iogpu-limit.log</string>
+  <key>StandardErrorPath</key>
+  <string>/var/log/zeachco-iogpu-limit.log</string>
+</dict>
+</plist>
