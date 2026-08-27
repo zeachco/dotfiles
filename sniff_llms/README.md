@@ -6,11 +6,20 @@ The dotfiles setup installs `ngrep` and provides a `sniff_llms` shell alias, so
 the inspector can be launched from any directory:
 
 ```bash
-sniff_llms --port 8080 --interface any
+sniff_llms --interface any
 ```
 
 The alias runs `cargo run --release --` against this project's manifest and
 passes through all additional arguments.
+
+Capture listens on **all local TCP ports**, not a single one. Every packet is
+then classified by its HTTP framing (status line vs request line) or, for bare
+SSE data, by its JSON shape (`choices`/`completion` ⇒ response, `messages`/
+`prompt` ⇒ request). A cheap pre-filter (`/completions` path or LLM JSON keys)
+drops non-LLM traffic before any flow is created, and a chat is only opened
+when a response object carries both an `id` and a body (`choices`/`completion`/
+`prompt`). The LLM server endpoint for each flow is learned from the first
+framed packet, so requests and responses on any port pair up correctly.
 
 Keys: `Left/Right` switch chats, `Up/Down` scroll, `End` resumes following,
 `x` closes and forgets a chat, `d` writes `~/chat-id-{id}.log`, `a` cycles the

@@ -24,11 +24,14 @@ use std::{
     time::Duration,
 };
 
+const MAX_FLOWS: usize = 2000;
+
 #[derive(Default)]
 struct Flow {
     request_buf: String,
     response_buf: String,
     requests: Vec<Value>,
+    server: Option<String>,
 }
 struct Packet {
     header: String,
@@ -94,8 +97,12 @@ impl AutoClean {
         (finish == target).then(|| target.to_string())
     }
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Dir {
+    Request,
+    Response,
+}
 struct App {
-    port: u16,
     flows: HashMap<String, Flow>,
     chats: Vec<Chat>,
     selected: usize,
@@ -106,9 +113,8 @@ struct App {
 }
 
 impl App {
-    fn new(port: u16) -> Self {
+    fn new() -> Self {
         Self {
-            port,
             flows: HashMap::new(),
             chats: vec![],
             selected: 0,
@@ -122,15 +128,24 @@ impl App {
         let Some((src, dst)) = parse_header(&packet.header) else {
             return;
         };
-        let response = endpoint_port(src) == Some(self.port);
-        if !response && endpoint_port(dst) != Some(self.port) {
+        if !looks_like_llm(&packet.payload) {
             return;
         }
+        let Some(direction) = classify(&packet.payload) else {
+            return;
+        };
+        let response = direction == Dir::Response;
         let mut endpoints = [src.to_owned(), dst.to_owned()];
         endpoints.sort();
         let key = endpoints.join(" <-> ");
+        if !self.flows.contains_key(&key) && self.flows.len() >= MAX_FLOWS {
+            return;
+        }
         let objects = {
             let flow = self.flows.entry(key.clone()).or_default();
+            if flow.server.is_none() {
+                flow.server = Some(if response { src.to_owned() } else { dst.to_owned() });
+            }
             let buf = if response {
                 &mut flow.response_buf
             } else {
@@ -153,6 +168,9 @@ impl App {
         }
     }
     fn response(&mut self, flow_key: &str, value: Value) {
+        if !is_llm_response(&value) {
+            return;
+        }
         let Some(id) = value.get("id").and_then(Value::as_str) else {
             return;
         };
@@ -336,11 +354,81 @@ fn parse_header(s: &str) -> Option<(&str, &str)> {
     (p.next()? == "->").then_some(())?;
     Some((a, p.next()?))
 }
-fn endpoint_port(s: &str) -> Option<u16> {
-    s.rsplit_once(':')?.1.parse().ok()
-}
 fn is_request(v: &Value) -> bool {
     v.get("messages").is_some_and(Value::is_array) || v.get("prompt").is_some_and(Value::is_string)
+}
+fn is_llm_response(v: &Value) -> bool {
+    v.get("id").is_some_and(|v| v.is_string())
+        && (v.get("choices").is_some_and(Value::is_array)
+            || v.get("completion").is_some()
+            || v.get("prompt").is_some_and(Value::is_array))
+}
+/// Cheap pre-filter so all-port capture does not spin up flows for non-LLM HTTP.
+fn looks_like_llm(payload: &str) -> bool {
+    let p = payload.to_ascii_lowercase();
+    p.contains("/completions")
+        || p.contains("\"choices\"")
+        || p.contains("\"messages\"")
+        || p.contains("\"completion\"")
+        || p.contains("\"tool_calls\"")
+}
+/// First balanced JSON object in `s`, scanning past SSE `data:` prefixes.
+fn first_json(s: &str) -> Option<Value> {
+    let start = s.find('{')?;
+    let bytes = s.as_bytes();
+    let mut depth = 0usize;
+    let mut quoted = false;
+    let mut escaped = false;
+    for i in start..bytes.len() {
+        let b = bytes[i];
+        if quoted {
+            if escaped {
+                escaped = false
+            } else if b == b'\\' {
+                escaped = true
+            } else if b == b'"' {
+                quoted = false
+            }
+        } else {
+            match b {
+                b'"' => quoted = true,
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return serde_json::from_str(&s[start..=i]).ok();
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    None
+}
+/// Decide the direction of a packet from its HTTP framing or JSON shape.
+fn classify(payload: &str) -> Option<Dir> {
+    for line in payload.lines() {
+        let t = line.trim();
+        if t.is_empty() {
+            continue;
+        }
+        if t.starts_with("HTTP/") {
+            return Some(Dir::Response); // status line
+        }
+        let method = t.split_whitespace().next().unwrap_or("");
+        if ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"].contains(&method) {
+            return Some(Dir::Request); // request line
+        }
+        break; // first non-empty line is data, not a header
+    }
+    let v = first_json(payload)?;
+    if v.get("choices").is_some() || v.get("completion").is_some() {
+        Some(Dir::Response)
+    } else if v.get("messages").is_some() || v.get("prompt").is_some() {
+        Some(Dir::Request)
+    } else {
+        None
+    }
 }
 fn safe_name(s: &str) -> String {
     s.chars()
@@ -678,7 +766,7 @@ fn run_namer(model: &str, prompt: &str) -> Result<String, String> {
         .ok_or_else(|| "empty model output".into())
 }
 
-fn spawn_ngrep(port: u16, interface: &str) -> io::Result<(Child, Receiver<Packet>)> {
+fn spawn_ngrep(interface: &str) -> io::Result<(Child, Receiver<Packet>)> {
     let mut child = Command::new("pkexec")
         .arg("/usr/bin/ngrep")
         .args([
@@ -690,7 +778,7 @@ fn spawn_ngrep(port: u16, interface: &str) -> io::Result<(Child, Receiver<Packet
             "-W",
             "byline",
             "",
-            &format!("tcp port {port}"),
+            "tcp",
         ])
         .stdout(Stdio::piped())
         .spawn()?;
@@ -844,7 +932,7 @@ fn restore(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = env::args().collect::<Vec<_>>();
     if args.iter().any(|a| a == "-h" || a == "--help") {
-        println!("Usage: sniff-llms [--port 8080] [--interface any]");
+        println!("Usage: sniff-llms [--interface any]");
         return Ok(());
     }
     let option = |n: &str, d: &str| {
@@ -854,14 +942,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .cloned()
             .unwrap_or_else(|| d.into())
     };
-    let port: u16 = option("--port", "8080").parse()?;
     let interface = option("--interface", "any");
-    let (mut capture, rx) = spawn_ngrep(port, &interface)?;
+    let (mut capture, rx) = spawn_ngrep(&interface)?;
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout))?;
-    let mut app = App::new(port);
+    let mut app = App::new();
     let (name_tx, name_rx) = mpsc::channel::<(String, Result<String, String>)>();
     let result = loop {
         while let Ok(p) = rx.try_recv() {
@@ -986,7 +1073,7 @@ mod tests {
 
     #[test]
     fn retains_usage_only_stream_chunks() {
-        let mut app = App::new(8080);
+        let mut app = App::new();
         app.flows
             .entry("client <-> server".into())
             .or_default()
@@ -1037,7 +1124,7 @@ mod tests {
 
     #[test]
     fn auto_clean_closes_chats_matching_finish_reason() {
-        let mut app = App::new(8080);
+        let mut app = App::new();
         app.auto_clean = AutoClean::ToolCalls;
         app.response(
             "f",
@@ -1049,7 +1136,7 @@ mod tests {
 
     #[test]
     fn auto_clean_off_keeps_finished_chats() {
-        let mut app = App::new(8080);
+        let mut app = App::new();
         app.auto_clean = AutoClean::Never;
         app.response(
             "f",
@@ -1060,7 +1147,7 @@ mod tests {
 
     #[test]
     fn new_chats_do_not_steal_selection() {
-        let mut app = App::new(8080);
+        let mut app = App::new();
         app.response("f", json!({"id": "c1", "choices": [{"delta": {"content": "a"}}]}));
         app.response("f", json!({"id": "c2", "choices": [{"delta": {"content": "b"}}]}));
         assert_eq!(app.selected, 0, "selection should stay on the first chat");
@@ -1069,7 +1156,7 @@ mod tests {
 
     #[test]
     fn concatenates_streamed_tool_call_argument_fragments() {
-        let mut app = App::new(8080);
+        let mut app = App::new();
         // Two deltas stream the same tool call's arguments in pieces.
         app.response(
             "f",
@@ -1099,7 +1186,7 @@ mod tests {
 
     #[test]
     fn compacts_pretty_printed_tool_call_arguments() {
-        let mut app = App::new(8080);
+        let mut app = App::new();
         app.response(
             "f",
             json!({
@@ -1124,7 +1211,7 @@ mod tests {
 
     #[test]
     fn rename_commit_sets_and_clears_name() {
-        let mut app = App::new(8080);
+        let mut app = App::new();
         app.response("f", json!({"id": "c1", "choices": [{"delta": {"content": "a"}}]}));
         app.rename = Some("my chat".into());
         app.rename_commit();
@@ -1139,5 +1226,57 @@ mod tests {
         assert_eq!(first_chars("abcdef", 3), "abc");
         assert_eq!(last_chars("abcdef", 3), "def");
         assert_eq!(last_chars("ab", 5), "ab");
+    }
+
+    #[test]
+    fn classify_directions_by_http_and_json_shape() {
+        assert_eq!(classify("HTTP/1.1 200 OK\r\ncontent-type: text/event-stream"), Some(Dir::Response));
+        assert_eq!(classify("POST /v1/chat/completions HTTP/1.1"), Some(Dir::Request));
+        assert_eq!(
+            classify("data: {\"id\":\"c1\",\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}"),
+            Some(Dir::Response)
+        );
+        assert_eq!(
+            classify("{\"model\":\"qwen\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"),
+            Some(Dir::Request)
+        );
+        assert_eq!(classify("GET /index.html HTTP/1.1"), Some(Dir::Request));
+        assert_eq!(classify("garbage that is not llm"), None);
+    }
+
+    #[test]
+    fn llm_response_requires_id_and_body() {
+        assert!(is_llm_response(&json!({"id":"c1","choices":[{"delta":{}}]})));
+        assert!(is_llm_response(&json!({"id":"c1","choices":[],"usage":{}})));
+        assert!(!is_llm_response(&json!({"choices":[{"delta":{}}]})), "missing id");
+        assert!(!is_llm_response(&json!({"id":"c1","messages":[]})), "missing body");
+    }
+
+    #[test]
+    fn prefilter_keeps_llm_traffic_only() {
+        assert!(looks_like_llm("POST /v1/chat/completions HTTP/1.1"));
+        assert!(looks_like_llm("{\"choices\":[],\"id\":\"c1\"}"));
+        assert!(looks_like_llm("{\"messages\":[{\"role\":\"user\"}]}"));
+        assert!(!looks_like_llm("GET /index.html HTTP/1.1"));
+    }
+
+    #[test]
+    fn all_ports_packet_routes_by_content_not_port() {
+        let mut app = App::new();
+        // Request from client 5555 to server 8080 (no fixed port configured).
+        app.packet(Packet {
+            header: "T 192.168.1.50:5555 -> 192.168.1.50:8080".into(),
+            payload: "{\"model\":\"qwen\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}".into(),
+        });
+        // Response back from the same server endpoint.
+        app.packet(Packet {
+            header: "T 192.168.1.50:8080 -> 192.168.1.50:5555".into(),
+            payload: "{\"id\":\"c1\",\"model\":\"qwen\",\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}".into(),
+        });
+        assert_eq!(app.chats.len(), 1, "one chat expected");
+        assert_eq!(app.chats[0].id, "c1");
+        assert_eq!(app.chats[0].model, "qwen");
+        // The non-LLM flow must not have been created.
+        assert!(!app.flows.keys().any(|k| !k.contains("8080")), "no stray flows");
     }
 }
