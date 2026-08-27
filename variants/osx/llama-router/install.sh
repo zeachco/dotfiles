@@ -61,16 +61,23 @@ mkdir -p \
   "$HOME/Library/Logs/llama-router" \
   "$AGENT_DIR"
 
-# ---- raise the Metal wired limit -------------------------------------------------
-# Needs root, so it is gated on its own idempotence check: only shell out to sudo when
-# the daemon or the live sysctl is actually out of date. A no-op update must not
-# prompt for a password.
+# ---- raise the Metal wired limit (OPT-IN) ----------------------------------------
+# Off by default because it is measured to be unnecessary: all three models resident
+# come to 33.06 GiB, which fits under the ~36 GiB default cap with room to spare (see
+# the measured budget in configs/llama/osx.ini). Raising the cap does not reduce
+# memory pressure -- it only permits larger allocations, and the box already swaps
+# ~3.4 GB with all three loaded because 33 GiB of GPU memory plus macOS exceeds the
+# 48 GiB of physical RAM.
+#
+# Enable it only alongside a raise in `c`:  LOS_RAISE_WIRED_LIMIT=1
 WIRED_INSTALLER="$SCRIPT_DIR/install-wired-limit.sh"
 WIRED_PLIST="$SCRIPT_DIR/com.zeachco.iogpu-limit.plist"
 WIRED_INSTALLED="/Library/LaunchDaemons/com.zeachco.iogpu-limit.plist"
 WIRED_MB="$(sed -n 's/.*iogpu\.wired_limit_mb=\([0-9]*\).*/\1/p' "$WIRED_PLIST" | head -1)"
 
-if [[ -f "$WIRED_INSTALLED" ]] \
+if [[ "${LOS_RAISE_WIRED_LIMIT:-}" != "1" ]]; then
+  : # default cap is sufficient; see the note above
+elif [[ -f "$WIRED_INSTALLED" ]] \
   && cmp -s "$WIRED_PLIST" "$WIRED_INSTALLED" \
   && [[ "$(sysctl -n iogpu.wired_limit_mb)" == "$WIRED_MB" ]]; then
   echo "llama router: iogpu.wired_limit_mb already at ${WIRED_MB} MiB"
