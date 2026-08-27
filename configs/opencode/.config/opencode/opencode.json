@@ -61,6 +61,9 @@
         },
         "qwen2.5-coder-0.5b-instruct-q4_k_m": {
           "name": "qwen2.5-coder-0.5b-instruct-q4_k_m"
+        },
+        "Qwen3.8-Flash-Next": {
+          "name": "Qwen3.8-Flash-Next"
         }
       }
     },
