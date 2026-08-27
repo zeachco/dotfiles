@@ -96,6 +96,7 @@ _set lg "lazygit"
 _set ld "lazydocker"
 _set ds "devbox shell"
 _set oo "opencode"
+_set prs "gh pr list  --author \"@me\""
 
 alias e="nvim"
 alias v="nvim"
