@@ -12,8 +12,6 @@ install zellij
 install zsh
 install s-tui # cli tool for CPU benchmarks
 
-script_install ollama "curl -fsS https://ollama.com/install.sh | $SHELL"
-
 # Check neovim version and install/update if needed
 neovimVersion=$(nvim --version 2>/dev/null | head -n 1 | awk '{print $2}' || echo "0.0.0")
 

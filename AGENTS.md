@@ -19,7 +19,7 @@ Darwin → osx
 | Variant   | PM         | Stow Configs                        | Notes                                        |
 | --------- | ---------- | ----------------------------------- | -------------------------------------------- |
 | shared    | agnostic   | alacritty                           | Base: git, rg, fd, gh, fzf, zellij           |
-| debian    | apt        | claude, alacritty-debian, nvim      | Core tools, ollama                           |
+| debian    | apt        | claude, alacritty-debian, nvim      | Core tools                                   |
 | ubuntu    | apt        | Same as debian                      | + devbox, shortcuts.sh (GNOME keys)          |
 | osx       | brew       | 7 pkgs (aerospace, sketchybar, etc) | Generates zellij os.toml                     |
 | archlinux | pacman+yay | wireplumber                         | AUR helper, 20+ pac*/yay* functions          |

@@ -18,7 +18,6 @@ install g++
 install make
 install gh github-cli
 install s-tui # cli tool for CPU benchmarks
-script_install ollama "curl -fsS https://ollama.com/install.sh | $SHELL"
 
 stow_link alacritty
 stow_link alacritty-debian
