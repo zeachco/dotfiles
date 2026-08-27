@@ -10,6 +10,7 @@ omarchy_preinstalled_bindings = false
 require("default.hypr.omarchy")
 
 -- Load dotfiles-owned overrides after Omarchy's defaults.
+require("hypr.monitors")
 require("hypr.input")
 require("hypr.bindings")
 require("hypr.looknfeel")
