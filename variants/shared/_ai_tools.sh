@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # ==============================================================================
-# AI UTILITIES (local ollama models)
+# AI UTILITIES (local llama.cpp models)
 # ==============================================================================
 
 # Our JIRA tickets follow the format ${JIRA_PREFIX}<number>, e.g. PED-1234
@@ -13,30 +13,74 @@ _ai_debug() {
   printf '[debug] %s\n' "$@" >&2
 }
 
-# Run a command with a wall-clock limit, since stock macOS has no timeout(1).
-# Usage: some_input | _ai_timeout 60 ollama run model
-# Returns the command's own status, or 143 when it had to be killed.
-# Only the command itself is signalled, not a whole process tree, so pass a
-# single-process command (`ollama run` is one): a wrapper's surviving children
-# would keep the caller's stdout pipe open past the deadline.
-_ai_timeout() {
-  local secs="$1"
-  shift
-  # `<&0` is mandatory: without an explicit redirection, POSIX shells give a
-  # background job /dev/null as stdin whenever job control is off, which is
-  # the case inside $(...) — the piped-in prompt would silently vanish.
-  "$@" <&0 &
-  local cmd_pid=$!
-  # the watchdog must not inherit our stdout: it would hold the caller's
-  # command-substitution pipe open and stall $(...) for the full timeout even
-  # when the command itself finished immediately
-  (sleep "$secs"; kill -TERM "$cmd_pid" 2>/dev/null) >/dev/null 2>&1 &
-  local watchdog_pid=$!
-  wait "$cmd_pid" 2>/dev/null
-  local rc=$?
-  kill -TERM "$watchdog_pid" 2>/dev/null
-  wait "$watchdog_pid" 2>/dev/null
-  return "$rc"
+# Base URL of the local llama.cpp router. Every host in this repo binds :8080 --
+# `los` (variants/shared/_llama.sh) on Linux, the com.zeachco.llama-router launchd
+# agent on macOS. Resolved at call time, not at source time: variants/osx/profile.sh
+# defines LOS_URL and there is no guaranteed source order between the two files.
+_ai_url() {
+  printf '%s' "${AI_LLAMA_URL:-${LOS_URL:-http://127.0.0.1:8080}}"
+}
+
+# Map a model name onto an id the router actually serves.
+# The same model is named differently per host: the macOS router serves gemma out
+# of a directory (`gemma-4-E2B-it`) while the Linux one names it after the HF repo
+# (`gemma-4-E2B-it-GGUF`). Match the request against GET /v1/models -- exact id
+# first, then a case-insensitive substring -- so one default works on both boxes.
+# Falls back to the name as given, letting the server report the miss itself.
+_ai_resolve_model() {
+  local want="$1" ids match
+  ids=$(curl -fsS --max-time 5 "$(_ai_url)/v1/models" 2>/dev/null |
+    grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' |
+    sed -E 's/.*"([^"]*)"$/\1/')
+  if [ -z "$ids" ]; then
+    _ai_debug "resolve: no answer from $(_ai_url)/v1/models, using '$want' as-is"
+    printf '%s' "$want"
+    return 0
+  fi
+  if printf '%s\n' "$ids" | grep -qxF "$want"; then
+    printf '%s' "$want"
+    return 0
+  fi
+  match=$(printf '%s\n' "$ids" | grep -i -m 1 -F "$want")
+  if [ -n "$match" ]; then
+    _ai_debug "resolve: '$want' -> '$match'"
+    printf '%s' "$match"
+    return 0
+  fi
+  _ai_debug "resolve: '$want' matches none of: $(printf '%s' "$ids" | tr '\n' ' ')"
+  printf '%s' "$want"
+}
+
+# One-shot chat completion against the router: prompt on stdin, answer on stdout.
+# Usage: printf '%s' "$prompt" | _ai_complete "$model" "$timeout_secs"
+# curl's --max-time bounds the whole exchange, so a wedged server can never leave
+# a caller hanging: several summarize runs queue on the router whenever a batch of
+# tabs is named at once.
+# jq builds the body because the prompt is arbitrary text (PR descriptions, commit
+# messages) that must be JSON-escaped, never interpolated into a string.
+_ai_complete() {
+  local model="$1" timeout="${2:-60}" max_tokens="${3:-512}"
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "_ai_complete: jq is required to talk to the llama.cpp router" >&2
+    return 1
+  fi
+  # temperature is deliberately not 0: summarize retries a too-long answer, and
+  # greedy decoding would hand back the exact same line every attempt.
+  #
+  # enable_thinking=false is what makes a one-line answer cheap: gemma 4's
+  # template reasons by default and llama.cpp puts that in reasoning_content, so
+  # a thinking run burns ~320 tokens to fill `content` instead of ~10. Templates
+  # that do not know the kwarg simply ignore it, and max_tokens stays generous
+  # enough for one of those to think its way to an answer anyway.
+  jq -Rs --arg model "$model" --argjson max_tokens "$max_tokens" \
+    '{model: $model, max_tokens: $max_tokens, temperature: 0.7, stream: false,
+      chat_template_kwargs: {enable_thinking: false},
+      messages: [{role: "user", content: .}]}' |
+    curl -fsS --max-time "$timeout" \
+      -H 'Content-Type: application/json' \
+      --data-binary @- \
+      "$(_ai_url)/v1/chat/completions" 2>/dev/null |
+    jq -r '.choices[0].message.content // ""'
 }
 
 # Run any command (aliases included) with debug tracing: `debug wt <url>`
@@ -48,18 +92,19 @@ debug() {
 
 # Summarize a work description (JIRA ticket, GitHub PR, or commit messages)
 # into a short agent-workflow tab name.
-# Usage: gh pr view 123 --json body -q .body | summarize --len=30 --retries=3 [--model=tinyllama]
+# Usage: gh pr view 123 --json body -q .body | summarize --len=30 --retries=3 [--model=gemma-4-E2B-it]
 # --kind=pr|commits tailors the prompt to the input (PR title+body vs commit
 # messages); anything else keeps the generic wording. --hint=... strongly
 # steers the title toward a specific aspect of the work.
 # Prints only the summary (exit 0), or a failure message at the end (exit 1).
-# Default model is overridable with SUMMARIZE_MODEL (ollama pulls it on first use).
-# Each model call is bounded by --timeout= seconds (SUMMARIZE_TIMEOUT), so a
-# wedged ollama can never leave a caller hanging forever: several summarize
-# runs queue up on the model server whenever a batch of tabs is named at once.
+# Runs on the local llama.cpp router (AI_LLAMA_URL, default http://127.0.0.1:8080)
+# against the cheapest model on the box: gemma 4 E2B, overridable with
+# SUMMARIZE_MODEL. The name is resolved against GET /v1/models, so the host's own
+# id for it ("gemma-4-E2B-it" or "gemma-4-E2B-it-GGUF") is picked automatically.
+# Each model call is bounded by --timeout= seconds (SUMMARIZE_TIMEOUT).
 summarize() {
   local max_length=80 retries=3 content="" kind="" hint=""
-  local model="${SUMMARIZE_MODEL:-mistral}"
+  local model="${SUMMARIZE_MODEL:-gemma-4-E2B-it}"
   local timeout="${SUMMARIZE_TIMEOUT:-60}"
 
   for arg in "$@"; do
@@ -88,6 +133,8 @@ summarize() {
   # keep small models focused: they lose the instructions on very long inputs
   content=$(printf '%s' "$content" | head -c 2000)
 
+  model=$(_ai_resolve_model "$model")
+
   _ai_debug "summarize: model=$model len=$max_length retries=$retries timeout=${timeout}s" \
     "summarize: input (${#content} chars) >>>" "$content" "<<<"
 
@@ -109,7 +156,6 @@ PR description, or git commit messages." ;;
     guidance=$(printf '\nNaming guidance (prioritize this strongly): %s\n' "$hint")
   fi
 
-  local esc=$(printf '\033')
   local attempt=0 prompt raw result length
   while true; do
     prompt=$(cat <<EOF
@@ -128,14 +174,15 @@ in front of it. Never wrap the title in an English sentence.
 ${content}
 EOF
     )
-    raw=$(printf '%s\n' "$prompt" |
-      _ai_timeout "$timeout" ollama run --hidethinking --nowordwrap "$model" 2>/dev/null)
-    if [ $? -ne 0 ] && [ -z "$raw" ]; then
+    raw=$(printf '%s\n' "$prompt" | _ai_complete "$model" "$timeout")
+    if [ -z "$raw" ]; then
       echo "summarize: '$model' produced nothing within ${timeout}s" >&2
     fi
-    # strip ANSI escapes, keep the first non-empty line, drop wrapping quotes/punctuation
+    # drop a reasoning block first (harmless for gemma, needed as soon as
+    # SUMMARIZE_MODEL points at a thinking model), then keep the first non-empty
+    # line and strip wrapping quotes/punctuation
     result=$(printf '%s\n' "$raw" |
-      sed -E "s/${esc}\[[0-9;?]*[a-zA-Z]//g" |
+      sed -E '/<think>/,/<\/think>/d' |
       sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' |
       grep -m 1 . |
       sed -E 's/^["'"'"'`]+//; s/["'"'"'`.:;,!]+$//')
