@@ -110,9 +110,10 @@ Management endpoints: `POST /models/load`, `POST /models/unload`, `DELETE /model
 Filtering is by directory, which is the only mechanism the router gives us:
 
 ```
-~/models/
- ├─ light/                              # ≤ ~45 GB, several can coexist
+ ~/models/
+ ├─ light/                              # ≤ ~45 GB, several can coexist (the 87 GiB Flash-Next is the exception)
  │   ├─ Qwen3-Coder-Next-UD-Q4_K_XL/
+ │   ├─ Qwen3.8-Flash-Next/             # 3 shards, UD-IQ4_XS, ~87 GiB
  │   └─ GLM-4.7-Flash-Q4_K_M.gguf
  └─ heavy/                              # one at a time
      ├─ DeepSeek-V4-Flash-chat-v2/      # move the existing dir here
@@ -288,6 +289,7 @@ Download into the tier directories under `~/models/` (481 GB free).
 | --------------- | ----------------------------------------- | ----------------------- | -------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
 | **Workhorse**   | `gpt-oss-120b` (117B-A5.1B)               | MXFP4                   | ~63 GB   | ~55 t/s tg                     | Default chat + agentic coding; best capability-per-token-rate here. Goes in `heavy/`.                                                   |
 | **Loop engine** | `unsloth/Qwen3-Coder-Next-GGUF` (80B-A3B) | UD-Q4_K_XL              | ~45 GB   | ≫55 t/s (3B active)            | Hours-long autonomous loops, 256k ctx, 70.6% SWE-bench Verified.                                                                       |
+| **Next arch**   | `unsloth/Qwen3.8-Flash-Next-GGUF` (125B+51B-A6B) | UD-IQ4_XS        | ~87 GiB  | TBD (6B active)                | Qwen4-preview arch: Gated DeltaNet + QSA hybrid attention, text-only (no mmproj). Needs llama.cpp PR #27742 before it loads.         |
 | **Fan-out**     | `GLM-4.7-Flash` (30B class)               | Q4_K_M                  | ~19 GB   | 60–100 t/s                     | Cheap parallel subagents, quick tool calls. Good `los` companion.                                                                      |
 | **Capability**  | existing DeepSeek V4 Flash 284B-A13B      | custom IQ2_XXS/Q4_K mix | 90.9 GiB | ~13 t/s, more with speculation | Hard planning/architecture steps only — ~155 t/s prefill means a 20k-token turn costs ~2 min before the first token. Not a loop engine. |
 

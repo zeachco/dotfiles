@@ -28,6 +28,14 @@ fetch ggml-org/gpt-oss-120b-GGUF eagle3-gpt-oss-120b-Q8_0.gguf "$HOME/models/dra
 fetch unsloth/Qwen3-Coder-Next-GGUF Qwen3-Coder-Next-UD-IQ4_XS.gguf "$HOME/models/light"
 # 17.5 GB. Fan-out: cheap parallel subagents and quick tool calls.
 fetch unsloth/GLM-4.7-Flash-GGUF GLM-4.7-Flash-UD-Q4_K_XL.gguf "$HOME/models/light"
+# 87.3 GiB. Qwen3.8-Flash-Next: 125B + 51B n-gram embedding, 6B active. Three shards
+# MUST share one subdirectory -- the scanner reads a dir as one multi-shard model and
+# the dir name is the id. UD-IQ4_XS over UD-Q4_K_XL (103.7 GiB), same call as
+# Coder-Next: the bigger quant does not share the tier. The GGUF declares the
+# qwen4exp arch, which needs llama.cpp PR #27742 (unsloth) -- rebuild before first load.
+fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf "$HOME/models/light/Qwen3.8-Flash-Next"
+fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00002-of-00003.gguf "$HOME/models/light/Qwen3.8-Flash-Next"
+fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00003-of-00003.gguf "$HOME/models/light/Qwen3.8-Flash-Next"
 
 echo
 echo "Done. Restart the router to pick up new models:"
