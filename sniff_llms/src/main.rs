@@ -47,6 +47,7 @@ struct Chat {
     id: String,
     name: Option<String>,
     model: String,
+    backend: Option<String>,
     flow: String,
     request: Option<Value>,
     reasoning: String,
@@ -197,6 +198,7 @@ impl App {
                     id: id.into(),
                     name: None,
                     model,
+                    backend: detect_backend(&value).map(str::to_string),
                     flow: flow_key.into(),
                     request,
                     reasoning: String::new(),
@@ -215,6 +217,9 @@ impl App {
         let chat = &mut self.chats[index];
         if let Some(model) = value.get("model").and_then(Value::as_str) {
             chat.model = model.into();
+        }
+        if let Some(backend) = detect_backend(&value) {
+            chat.backend = Some(backend.to_string());
         }
         if let Some(usage) = value.get("usage") {
             chat.usage = Some(usage.clone());
@@ -363,6 +368,32 @@ fn is_llm_response(v: &Value) -> bool {
             || v.get("completion").is_some()
             || v.get("prompt").is_some_and(Value::is_array))
 }
+/// Guess the serving backend from response-only signals. `None` means
+/// "plain OpenAI-compatible, no distinguishing marker".
+fn detect_backend(v: &Value) -> Option<&'static str> {
+    if v.get("timings").is_some() {
+        return Some("llama.cpp");
+    }
+    if v.get("prompt_eval_count").is_some()
+        || v.get("eval_count").is_some()
+        || v.get("done_reason").is_some()
+    {
+        return Some("ollama");
+    }
+    if v.get("provider_name").is_some() {
+        return Some("openrouter");
+    }
+    if let Some(id) = v.get("id").and_then(Value::as_str) {
+        if id.starts_with("gen-") {
+            return Some("openrouter");
+        }
+        if id.starts_with("msg_") {
+            return Some("anthropic");
+        }
+    }
+    None
+}
+
 /// Cheap pre-filter so all-port capture does not spin up flows for non-LLM HTTP.
 fn looks_like_llm(payload: &str) -> bool {
     let p = payload.to_ascii_lowercase();
@@ -481,8 +512,11 @@ fn stats_text(c: &Chat) -> String {
     if let Some(name) = c.name.as_ref() {
         stats.push(format!("Name: {name}"));
     }
+    stats.push(format!("Model: {}", c.model));
+    if let Some(backend) = c.backend.as_deref() {
+        stats.push(format!("Backend: {backend}"));
+    }
     stats.extend([
-        format!("Model: {}", c.model),
         format!("Finish: {}", c.finish.as_deref().unwrap_or("streaming")),
         format!("Chunks: {}", c.chunks),
         format!("Flow: {}", c.flow),
@@ -1102,6 +1136,34 @@ mod tests {
         assert_eq!(chat.model, "qwen3.8");
         assert_eq!(chat.chunks, 2);
         assert!(stats_text(chat).contains("prompt 10 | completion 2 | total 12"));
+    }
+
+    #[test]
+    fn detects_backend_from_response_markers() {
+        assert_eq!(
+            detect_backend(&json!({"timings": {"predicted_per_second": 1.0}})),
+            Some("llama.cpp")
+        );
+        assert_eq!(
+            detect_backend(
+                &json!({"id": "c1", "choices": [], "prompt_eval_count": 10, "eval_count": 5})
+            ),
+            Some("ollama")
+        );
+        assert_eq!(
+            detect_backend(&json!({"id": "gen-abc123", "choices": []})),
+            Some("openrouter")
+        );
+        assert_eq!(
+            detect_backend(&json!({"id": "msg_01abc", "type": "message"})),
+            Some("anthropic")
+        );
+        assert_eq!(
+            detect_backend(
+                &json!({"id": "chatcmpl-1", "choices": [], "system_fingerprint": "abc"})
+            ),
+            None
+        );
     }
 
     #[test]
