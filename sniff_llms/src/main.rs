@@ -212,45 +212,47 @@ impl App {
         if self.ignored.contains(id) {
             return;
         }
-        // A chat belongs to one flow: a local router can carry the same chat id
-        // on two legs (agent<->router and router<->server), and merging them
-        // would double every token.
-        let index = self
-            .chats
-            .iter()
-            .position(|c| c.id == id && c.flow == flow_key)
-            .unwrap_or_else(|| {
-                let request = self
-                    .flows
-                    .get(flow_key)
-                    .and_then(|f| f.requests.last())
-                    .cloned();
-                let model = value
-                    .get("model")
-                    .and_then(Value::as_str)
-                    .or_else(|| request.as_ref()?.get("model")?.as_str())
-                    .unwrap_or("unknown")
-                    .into();
-                self.chats.push(Chat {
-                    id: id.into(),
-                    name: None,
-                    model,
-                    backend: detect_backend(&value).map(str::to_string),
-                    flow: flow_key.into(),
-                    request,
-                    reasoning: String::new(),
-                    answer: String::new(),
-                    tool_calls: Vec::new(),
-                    finish: None,
-                    scroll: 0,
-                    follow: true,
-                    chunks: 0,
-                    usage: None,
-                    timings: None,
-                });
-                self.status = format!("captured {id}");
-                self.chats.len() - 1
+        // A router can expose the same stream on several ports. Keep a single
+        // chat per response id and let the first observed flow own it. Chunks
+        // mirrored on another router leg must not create a second tab or append
+        // every streamed token a second time.
+        let index = if let Some(index) = self.chats.iter().position(|c| c.id == id) {
+            if self.chats[index].flow != flow_key {
+                return;
+            }
+            index
+        } else {
+            let request = self
+                .flows
+                .get(flow_key)
+                .and_then(|f| f.requests.last())
+                .cloned();
+            let model = value
+                .get("model")
+                .and_then(Value::as_str)
+                .or_else(|| request.as_ref()?.get("model")?.as_str())
+                .unwrap_or("unknown")
+                .into();
+            self.chats.push(Chat {
+                id: id.into(),
+                name: None,
+                model,
+                backend: detect_backend(&value).map(str::to_string),
+                flow: flow_key.into(),
+                request,
+                reasoning: String::new(),
+                answer: String::new(),
+                tool_calls: Vec::new(),
+                finish: None,
+                scroll: 0,
+                follow: true,
+                chunks: 0,
+                usage: None,
+                timings: None,
             });
+            self.status = format!("captured {id}");
+            self.chats.len() - 1
+        };
         let chat = &mut self.chats[index];
         if let Some(model) = value.get("model").and_then(Value::as_str) {
             chat.model = model.into();
@@ -354,28 +356,14 @@ impl App {
         }
         self.status = format!("closed and forgot {}", chat.id);
     }
-    /// The server-side port of a chat's flow, when known.
-    fn server_port(&self, c: &Chat) -> Option<String> {
-        self.flows
-            .get(&c.flow)
-            .and_then(|f| f.server.as_deref())
-            .and_then(|s| s.rsplit(':').next())
-            .map(str::to_string)
-    }
     fn dump(&mut self) {
         let Some(chat) = self.chats.get(self.selected) else {
             return;
         };
-        let shared = self.chats.iter().filter(|c| c.id == chat.id).count() > 1;
-        let suffix = if shared {
-            format!("-{}", self.server_port(chat).unwrap_or_else(|| "?".into()))
-        } else {
-            String::new()
-        };
         let path = env::var_os("HOME")
             .map(PathBuf::from)
             .unwrap_or_else(|| ".".into())
-            .join(format!("chat-id-{}{suffix}.log", safe_name(&chat.id)));
+            .join(format!("chat-id-{}.log", safe_name(&chat.id)));
         self.status =
             match File::create(&path).and_then(|mut f| f.write_all(render_chat(chat).as_bytes())) {
                 Ok(()) => format!("dumped {}", path.display()),
@@ -917,19 +905,6 @@ fn draw(frame: &mut ratatui::Frame, app: &mut App) {
         ])
         .split(frame.area());
     let tab_line = {
-        // When the same chat id is captured on several flows (router legs),
-        // suffix the tab with the server port so the legs stay distinguishable.
-        let dup_ids: HashSet<&str> = {
-            let mut counts: HashMap<&str, usize> = HashMap::new();
-            for c in &app.chats {
-                *counts.entry(c.id.as_str()).or_insert(0) += 1;
-            }
-            counts
-                .into_iter()
-                .filter(|(_, n)| *n > 1)
-                .map(|(id, _)| id)
-                .collect()
-        };
         let items: Vec<(String, Style)> = app
             .chats
             .iter()
@@ -939,12 +914,7 @@ fn draw(frame: &mut ratatui::Frame, app: &mut App) {
                     Some("tool_calls") => ("✓", Color::DarkGray),
                     Some(_) => ("✓", Color::White),
                 };
-                let mut label = c.name.clone().unwrap_or_else(|| c.id.clone());
-                if dup_ids.contains(c.id.as_str()) {
-                    if let Some(port) = app.server_port(c) {
-                        label = format!("{label}:{port}");
-                    }
-                }
+                let label = c.name.clone().unwrap_or_else(|| c.id.clone());
                 (
                     format!(" {} {} ", middle_elide(&label, 24), marker),
                     Style::default().fg(color),
@@ -1214,6 +1184,23 @@ mod tests {
         assert_eq!(chat.model, "qwen3.8");
         assert_eq!(chat.chunks, 2);
         assert!(stats_text(chat).contains("prompt 10 | completion 2 | total 12"));
+    }
+
+    #[test]
+    fn groups_same_chat_id_across_ports_without_duplicating_stream() {
+        let mut app = App::new();
+        app.response(
+            "client:5000 <-> router:8000",
+            json!({"id": "c1", "choices": [{"delta": {"content": "hello"}}]}),
+        );
+        app.response(
+            "router:5001 <-> server:9000",
+            json!({"id": "c1", "choices": [{"delta": {"content": "hello"}}]}),
+        );
+
+        assert_eq!(app.chats.len(), 1, "same id must have only one tab");
+        assert_eq!(app.chats[0].answer, "hello", "mirrored chunk must be ignored");
+        assert_eq!(app.chats[0].chunks, 1, "mirrored chunk must not affect stats");
     }
 
     #[test]

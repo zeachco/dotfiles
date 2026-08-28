@@ -19,7 +19,10 @@ SSE data, by its JSON shape (`choices`/`completion` ⇒ response, `messages`/
 drops non-LLM traffic before any flow is created, and a chat is only opened
 when a response object carries both an `id` and a body (`choices`/`completion`/
 `prompt`). The LLM server endpoint for each flow is learned from the first
-framed packet, so requests and responses on any port pair up correctly.
+framed packet, so requests and responses on any port pair up correctly. When a
+router mirrors the same response ID across multiple port pairs, the first
+observed flow owns one conversation tab and chunks from the other legs are
+ignored, preventing duplicated streamed output.
 
 Keys: `Left/Right` switch chats, `Up/Down` scroll, `End` resumes following,
 `x` closes and forgets a chat, `d` writes `~/chat-id-{id}.log`, `a` cycles the
