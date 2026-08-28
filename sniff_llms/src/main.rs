@@ -129,24 +129,58 @@ impl App {
         let Some((src, dst)) = parse_header(&packet.header) else {
             return;
         };
-        if !looks_like_llm(&packet.payload) {
-            return;
-        }
-        let Some(direction) = classify(&packet.payload) else {
-            return;
-        };
-        let response = direction == Dir::Response;
         let mut endpoints = [src.to_owned(), dst.to_owned()];
         endpoints.sort();
         let key = endpoints.join(" <-> ");
-        if !self.flows.contains_key(&key) && self.flows.len() >= MAX_FLOWS {
-            return;
-        }
+        let direction = match framed_direction(&packet.payload) {
+            // HTTP framing tells us the direction outright.
+            Some(d) => {
+                if !looks_like_llm(&packet.payload) {
+                    return;
+                }
+                if !self.flows.contains_key(&key) && self.flows.len() >= MAX_FLOWS {
+                    return;
+                }
+                let flow = self.flows.entry(key.clone()).or_default();
+                if flow.server.is_none() {
+                    flow.server = Some(if d == Dir::Response { src.to_owned() } else { dst.to_owned() });
+                }
+                d
+            }
+            // Unframed body data. A brand-new flow must identify itself as LLM
+            // traffic from its content; an existing flow is trusted and the
+            // direction comes from the endpoints, because mid-body segments of a
+            // large request carry no markers at all.
+            None => {
+                if let Some(server) = self.flows.get(&key).and_then(|f| f.server.as_deref()) {
+                    if src == server {
+                        Dir::Response
+                    } else if dst == server {
+                        Dir::Request
+                    } else {
+                        return;
+                    }
+                } else {
+                    if !looks_like_llm(&packet.payload) {
+                        return;
+                    }
+                    let Some(d) = classify(&packet.payload) else {
+                        return;
+                    };
+                    if self.flows.len() >= MAX_FLOWS {
+                        return;
+                    }
+                    let flow = self.flows.entry(key.clone()).or_default();
+                    if flow.server.is_none() {
+                        flow.server = Some(if d == Dir::Response { src.to_owned() } else { dst.to_owned() });
+                    }
+                    d
+                }
+            }
+        };
+        let response = direction == Dir::Response;
         let objects = {
             let flow = self.flows.entry(key.clone()).or_default();
-            if flow.server.is_none() {
-                flow.server = Some(if response { src.to_owned() } else { dst.to_owned() });
-            }
             let buf = if response {
                 &mut flow.response_buf
             } else {
@@ -178,10 +212,13 @@ impl App {
         if self.ignored.contains(id) {
             return;
         }
+        // A chat belongs to one flow: a local router can carry the same chat id
+        // on two legs (agent<->router and router<->server), and merging them
+        // would double every token.
         let index = self
             .chats
             .iter()
-            .position(|c| c.id == id)
+            .position(|c| c.id == id && c.flow == flow_key)
             .unwrap_or_else(|| {
                 let request = self
                     .flows
@@ -317,14 +354,28 @@ impl App {
         }
         self.status = format!("closed and forgot {}", chat.id);
     }
+    /// The server-side port of a chat's flow, when known.
+    fn server_port(&self, c: &Chat) -> Option<String> {
+        self.flows
+            .get(&c.flow)
+            .and_then(|f| f.server.as_deref())
+            .and_then(|s| s.rsplit(':').next())
+            .map(str::to_string)
+    }
     fn dump(&mut self) {
         let Some(chat) = self.chats.get(self.selected) else {
             return;
         };
+        let shared = self.chats.iter().filter(|c| c.id == chat.id).count() > 1;
+        let suffix = if shared {
+            format!("-{}", self.server_port(chat).unwrap_or_else(|| "?".into()))
+        } else {
+            String::new()
+        };
         let path = env::var_os("HOME")
             .map(PathBuf::from)
             .unwrap_or_else(|| ".".into())
-            .join(format!("chat-id-{}.log", safe_name(&chat.id)));
+            .join(format!("chat-id-{}{suffix}.log", safe_name(&chat.id)));
         self.status =
             match File::create(&path).and_then(|mut f| f.write_all(render_chat(chat).as_bytes())) {
                 Ok(()) => format!("dumped {}", path.display()),
@@ -436,8 +487,10 @@ fn first_json(s: &str) -> Option<Value> {
     }
     None
 }
-/// Decide the direction of a packet from its HTTP framing or JSON shape.
-fn classify(payload: &str) -> Option<Dir> {
+/// Direction from HTTP framing alone: a status line means the packet comes
+/// from the server, a request line means it comes from the client. `None`
+/// when the first non-empty line is body data.
+fn framed_direction(payload: &str) -> Option<Dir> {
     for line in payload.lines() {
         let t = line.trim();
         if t.is_empty() {
@@ -450,7 +503,14 @@ fn classify(payload: &str) -> Option<Dir> {
         if ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"].contains(&method) {
             return Some(Dir::Request); // request line
         }
-        break; // first non-empty line is data, not a header
+        return None; // first non-empty line is data, not a header
+    }
+    None
+}
+/// Decide the direction of a packet from its HTTP framing or JSON shape.
+fn classify(payload: &str) -> Option<Dir> {
+    if let Some(d) = framed_direction(payload) {
+        return Some(d);
     }
     let v = first_json(payload)?;
     if v.get("choices").is_some() || v.get("completion").is_some() {
@@ -857,6 +917,19 @@ fn draw(frame: &mut ratatui::Frame, app: &mut App) {
         ])
         .split(frame.area());
     let tab_line = {
+        // When the same chat id is captured on several flows (router legs),
+        // suffix the tab with the server port so the legs stay distinguishable.
+        let dup_ids: HashSet<&str> = {
+            let mut counts: HashMap<&str, usize> = HashMap::new();
+            for c in &app.chats {
+                *counts.entry(c.id.as_str()).or_insert(0) += 1;
+            }
+            counts
+                .into_iter()
+                .filter(|(_, n)| *n > 1)
+                .map(|(id, _)| id)
+                .collect()
+        };
         let items: Vec<(String, Style)> = app
             .chats
             .iter()
@@ -866,7 +939,12 @@ fn draw(frame: &mut ratatui::Frame, app: &mut App) {
                     Some("tool_calls") => ("✓", Color::DarkGray),
                     Some(_) => ("✓", Color::White),
                 };
-                let label = c.name.clone().unwrap_or_else(|| c.id.clone());
+                let mut label = c.name.clone().unwrap_or_else(|| c.id.clone());
+                if dup_ids.contains(c.id.as_str()) {
+                    if let Some(port) = app.server_port(c) {
+                        label = format!("{label}:{port}");
+                    }
+                }
                 (
                     format!(" {} {} ", middle_elide(&label, 24), marker),
                     Style::default().fg(color),
