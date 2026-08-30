@@ -4,7 +4,7 @@
   "plugin": [
     "file:///home/olivier/dotfiles/configs/opencode/.config/opencode/plugins/llamacpp-model-sync.ts"
   ],
-  "default_agent": "brainstorm",
+  "default_agent": "build",
   "agent": {
     "build": {
       "mode": "primary",
