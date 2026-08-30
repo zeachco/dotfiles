@@ -11,6 +11,7 @@ install make
 install zellij
 install zsh
 install s-tui # cli tool for CPU benchmarks
+install nvtop # per-process GPU/VRAM usage (supports AMDGPU)
 
 # Check neovim version and install/update if needed
 neovimVersion=$(nvim --version 2>/dev/null | head -n 1 | awk '{print $2}' || echo "0.0.0")
