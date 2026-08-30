@@ -15,7 +15,7 @@
 #
 # All three models here ship an mmproj, so all three get a subdirectory -- and the
 # directory names below are therefore the exact strings that must appear as section
-# headers in configs/llama/osx.ini and as model ids in any client config. All three
+# headers in llamacpp/osx/osx.ini and as model ids in any client config. All three
 # repos also happen to name the projector `mmproj-BF16.gguf`, which is a second reason
 # the subdirectories are mandatory: they would collide at the top level.
 #
@@ -25,7 +25,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
-. "$SCRIPT_DIR/_fetch-lib.sh"
+. "$SCRIPT_DIR/../shared/_fetch-lib.sh"
 
 MODELS="${LOS_MODELS_DIR:-$HOME/models}"
 DRAFTS="${LOS_DRAFTS_DIR:-$HOME/models-drafts}"
@@ -46,7 +46,7 @@ fetch unsloth/Qwen3.8-27B-GGUF mmproj-BF16.gguf           "$MODELS/Qwen3.8-27B"
 
 # --- MTP draft heads ------- 1.57 GB total. Optional speculative decode. ----------
 # Cheap enough to always have on disk; wiring them up is a commented-out block at the
-# bottom of configs/llama/osx.ini, to be enabled one model at a time after reading the
+# bottom of llamacpp/osx/osx.ini, to be enabled one model at a time after reading the
 # accept rate off /metrics.
 fetch unsloth/gemma-4-E2B-it-GGUF MTP/mtp-gemma-4-E2B-it-Q8_0.gguf "$DRAFTS"
 fetch unsloth/gemma-4-E4B-it-GGUF MTP/mtp-gemma-4-E4B-it-Q8_0.gguf "$DRAFTS"
@@ -60,6 +60,6 @@ echo
 echo "Restart the router, then confirm the ids the router actually assigned:"
 echo "  los-restart && los-models"
 echo "They must be exactly: gemma-4-E2B-it, gemma-4-E4B-it, Qwen3.8-27B"
-echo "Cross-check them against configs/llama/osx.ini with: los-check"
+echo "Cross-check them against llamacpp/osx/osx.ini with: los-check"
 
 fetch_report

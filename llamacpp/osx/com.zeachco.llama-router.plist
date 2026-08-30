@@ -35,7 +35,7 @@
     <string>--models-dir</string>
     <string>@HOME@/models</string>
     <string>--models-preset</string>
-    <string>@DOT_DIR@/configs/llama/osx.ini</string>
+    <string>@DOT_DIR@/llamacpp/osx/osx.ini</string>
     <!-- The router evicts on model COUNT, never on bytes. 4 with three models
          present means it never evicts; see the budget comment in osx.ini. -->
     <string>--models-max</string>

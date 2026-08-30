@@ -86,18 +86,7 @@ stow_link opencode
 "$DOT_DIR/configs/opencode/setup-plugins.sh"
 stow_link pi
 
-# Install the llama.cpp router (light tier) as a systemd --user service. Skips
-# itself when ~/dev/llama.cpp/build/bin/llama-server has not been built yet (see
-# ryzen-llm-setup.md), so this is harmless on an Arch box without that setup.
-#
-# Invoked with a literal `bash`, NOT "$SHELL": utils.sh runs this file as
-# `$SHELL <script>` and $SHELL is /bin/zsh on this box, so the shebang is ignored.
-# install.sh uses `set -euo pipefail` plus ${BASH_SOURCE[0]}, and under zsh that
-# resolves to the CALLER's cwd without aborting -- a silently wrong path, not an
-# error.
-#
-# `|| echo` so a router failure does not abort the rest of the Arch setup.
-bash "$DOT_DIR/variants/archlinux/llama-router/install.sh" ||
-  echo -e "${FAIL}llama router install failed${NORM}"
+# All llama.cpp setup (router install, model fetch check) lives in llamacpp/.
+bash "$DOT_DIR/llamacpp/archlinux/setup.sh"
 
 echo -e "${PASS}Arch Linux setup complete!${NORM}"

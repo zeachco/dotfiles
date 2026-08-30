@@ -11,7 +11,7 @@
   to 0 on EVERY reboot, which is the entire reason this daemon exists.
 
   Trade-off: 42 GiB wired leaves only ~6 GiB of the 48 for macOS when all three
-  models are resident. See the budget comment in configs/llama/osx.ini.
+  models are resident. See the budget comment in llamacpp/osx/osx.ini.
 
   No @TOKEN@ substitution needed -- every path here is absolute and fixed.
 -->

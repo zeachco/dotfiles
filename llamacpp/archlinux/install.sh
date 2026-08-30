@@ -2,7 +2,7 @@
 #
 # Install the llama.cpp router (light tier) as a systemd --user service.
 #
-# Mirrors variants/osx/llama-router/install.sh: guard, render the template, cmp -s it
+# Mirrors llamacpp/osx/install.sh: guard, render the template, cmp -s it
 # against what is already installed, and exit 0 BEFORE touching the running service
 # when nothing changed. Re-running on every `dotfiles_update` is a no-op.
 #
@@ -92,5 +92,5 @@ echo "llama router: logs with: journalctl --user -u $UNIT -f"
 
 if [[ -z "$(ls -A "$HOME/models/light" 2>/dev/null || true)" ]]; then
   echo "llama router: ~/models/light is empty. Fetch the model set with:"
-  echo "              bash ${DOT_DIR:-$HOME/dotfiles}/configs/llama/fetch-models.sh"
+  echo "              bash ${DOT_DIR:-$HOME/dotfiles}/llamacpp/archlinux/fetch-models.sh"
 fi

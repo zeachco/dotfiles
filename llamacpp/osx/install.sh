@@ -64,7 +64,7 @@ mkdir -p \
 # ---- raise the Metal wired limit (OPT-IN) ----------------------------------------
 # Off by default because it is measured to be unnecessary: all three models resident
 # come to 33.06 GiB, which fits under the ~36 GiB default cap with room to spare (see
-# the measured budget in configs/llama/osx.ini). Raising the cap does not reduce
+# the measured budget in llamacpp/osx/osx.ini). Raising the cap does not reduce
 # memory pressure -- it only permits larger allocations, and the box already swaps
 # ~3.4 GB with all three loaded because 33 GiB of GPU memory plus macOS exceeds the
 # 48 GiB of physical RAM.
@@ -164,5 +164,5 @@ echo "              rotate these; add /etc/newsyslog.d/llama-router.conf if it g
 
 if [[ -z "$(ls -A "$HOME/models" 2>/dev/null || true)" ]]; then
   echo "llama router: ~/models is empty. Fetch the model set (~29 GB, not automatic):"
-  echo "              bash $DOT_DIR/configs/llama/fetch-models-osx.sh"
+  echo "              bash $DOT_DIR/llamacpp/osx/fetch-models-osx.sh"
 fi

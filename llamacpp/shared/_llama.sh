@@ -16,7 +16,7 @@ ensure_llama_cpp() {
   return 1
 }
 
-LOS_CONF_DIR="${LOS_CONF_DIR:-$HOME/dotfiles/configs/llama}"
+LOS_CONF_DIR="${LOS_CONF_DIR:-$HOME/dotfiles/llamacpp/archlinux}"
 
 llama-ollama-server() {
   local model
@@ -80,7 +80,7 @@ _los_free_memory() {
 # models, not bytes, so the big DeepSeek-class weights live in a separate "heavy"
 # tier directory/preset that is never enumerated alongside the light tier).
 #
-# The persistent systemd --user service (variants/archlinux/llama-router) already
+# The persistent systemd --user service (llamacpp/archlinux) already
 # runs this same "light" invocation with a CPUQuota; this manual launcher is for the
 # "heavy" tier (never a service, one model at a time) and for ad-hoc light-tier runs
 # outside the unit, e.g. with a different LOS_PORT.

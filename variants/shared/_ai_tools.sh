@@ -14,7 +14,7 @@ _ai_debug() {
 }
 
 # Base URL of the local llama.cpp router. Every host in this repo binds :8080 --
-# `los` (variants/shared/_llama.sh) on Linux, the com.zeachco.llama-router launchd
+# `los` (llamacpp/shared/_llama.sh) on Linux, the com.zeachco.llama-router launchd
 # agent on macOS. Resolved at call time, not at source time: variants/osx/profile.sh
 # defines LOS_URL and there is no guaranteed source order between the two files.
 _ai_url() {

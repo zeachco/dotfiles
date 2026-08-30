@@ -37,20 +37,6 @@ if needs colima; then
   brew install colima
 fi
 
-# llama.cpp, used in router mode by the com.zeachco.llama-router launchd agent below.
-# The brew formula depends on `ggml`, which on Apple Silicon is built with
-# GGML_METAL=ON (only Intel macOS gets METAL=OFF) and GGML_BACKEND_DL=ON, with the
-# backends dlopen'd from $(brew --prefix)/opt/ggml/libexec -- so this is a
-# Metal-accelerated build with no source compile needed.
-#
-# Checked with `brew list` rather than `needs llama-server`: v0.3.0 ships both a
-# multi-tool `llama` and per-subcommand `llama-*` binaries, so a binary-name probe is
-# fragile across upgrades. Same idiom as the font-jetbrains-mono-nerd-font check above.
-if ! brew list llama.cpp >/dev/null 2>&1; then
-  echo -e "${WARN}installing ${NORM}llama.cpp..."
-  brew install llama.cpp
-fi
-
 # arg 1 is the brew namespace, arg 2 is the Application namespace
 function force_install {
   if needs "$1"; then
@@ -107,24 +93,6 @@ defaults write com.apple.dock expose-animation-duration -float 0.1
 # Allows grab windows with Ctrl+CMD
 defaults write -g NSWindowShouldDragOnGesture -bool true
 
-# Install the llama.cpp router as a launchd user agent. Must come after the
-# `brew install llama.cpp` above: the installer bakes an absolute binary path into the
-# plist and skips itself entirely when that binary is missing.
-#
-# Invoked with a literal `bash`, NOT "$SHELL": utils.sh runs this file as
-# `$SHELL <script>` and $SHELL is /bin/zsh here, so the shebang is ignored. install.sh
-# uses `set -euo pipefail` plus ${BASH_SOURCE[0]}, and under zsh that resolves to the
-# CALLER's cwd without aborting -- a silently wrong path, not an error.
-#
-# `|| echo` so a router failure does not abort the rest of the macOS setup.
-bash "$DOT_DIR/variants/osx/llama-router/install.sh" ||
-  echo -e "${FAIL}llama router install failed${NORM}"
-
-# The model set (~29 GB) is NOT fetched here by default. install_profile runs this
-# file on every `dotfiles_update`, there is no consent step anywhere in the setup
-# flow, and the router does not need models to start -- verifying it boots and answers
-# /health with an empty ~/models is a better first milestone than a 29 GB download.
-if [[ "${LOS_FETCH_MODELS:-}" == "1" ]]; then
-  bash "$DOT_DIR/configs/llama/fetch-models-osx.sh" ||
-    echo -e "${FAIL}llama model fetch failed${NORM}"
-fi
+# All llama.cpp setup (brew install, router install, optional model fetch via
+# LOS_FETCH_MODELS=1) lives in llamacpp/.
+bash "$DOT_DIR/llamacpp/osx/setup.sh"

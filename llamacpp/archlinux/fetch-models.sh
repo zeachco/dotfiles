@@ -14,7 +14,7 @@ set -uo pipefail
 # already-complete file makes the CDN answer 416, which --fail turns into a non-zero
 # exit, so the old inline fetch() reported every finished model as FAILED on a re-run.
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
-. "$SCRIPT_DIR/_fetch-lib.sh"
+. "$SCRIPT_DIR/../shared/_fetch-lib.sh"
 
 # --- heavy tier: one at a time -------------------------------------------------
 # 63.4 GB. Workhorse: best capability-per-token-rate on this box (~55 t/s).

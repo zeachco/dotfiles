@@ -21,7 +21,7 @@ Type=simple
 Environment=LLAMA_CACHE=%h/.cache/llama.cpp-light
 ExecStart=%h/dev/llama.cpp/build/bin/llama-server \
   --models-dir %h/models/light \
-  --models-preset %h/dotfiles/configs/llama/light.ini \
+  --models-preset %h/dotfiles/llamacpp/archlinux/light.ini \
   --models-max 5 \
   --host 0.0.0.0 \
   --port 8080 \

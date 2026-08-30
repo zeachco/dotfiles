@@ -45,14 +45,14 @@ docker() {
 # re-application here. `launchctl setenv` leaks a variable into every GUI process and
 # does not survive a reboot, which is the only reason the ollama line exists.
 #
-# These are los-PREFIXED functions, not a redefinition of `los`: variants/shared/
-# _llama.sh defines `alias los='llama-ollama-server'`, and a shell alias shadows a
-# same-named function defined later -- a bare `los()` here would silently do nothing
-# without an `unalias los` first.
+# These are los-PREFIXED functions, not a redefinition of `los`:
+# llamacpp/shared/_llama.sh defines `alias los='llama-ollama-server'`, and a shell
+# alias shadows a same-named function defined later -- a bare `los()` here would
+# silently do nothing without an `unalias los` first.
 LOS_LABEL="com.zeachco.llama-router"
 LOS_URL="http://127.0.0.1:8080"
 LOS_LOG="$HOME/Library/Logs/llama-router/router.log"
-LOS_INI="$HOME/dotfiles/configs/llama/osx.ini"
+LOS_INI="$HOME/dotfiles/llamacpp/osx/osx.ini"
 
 _los_target() { echo "gui/$(id -u)/$LOS_LABEL"; }
 

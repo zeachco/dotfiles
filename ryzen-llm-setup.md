@@ -11,7 +11,7 @@ or die), then speed.
 
 - `~/dev/llama.cpp` @ `b10524-22-g0e1d9185c`, built in `build/` with **`GGML_VULKAN=ON`,
   `GGML_HIP=OFF`** — Vulkan only.
-- `variants/shared/_llama.sh` defines `llama-ollama-server` (`los`): fzf-picks an `ollama list`
+- `llamacpp/shared/_llama.sh` defines `llama-ollama-server` (`los`): fzf-picks an `ollama list`
   entry, resolves its blob via `ollama show --modelfile`, exports `$GGUF`, starts `llama-server` on
   :8080 with `-ngl 999 -fa on --jinja -c ${LOS_CTX:-131072} --parallel ${LOS_PARALLEL:-2}`.
 - `~/models/DeepSeek-V4-Flash-chat-v2/…-chat-v2-imatrix-fixed.gguf` — **90.9 GiB** hand-tuned mixed
@@ -125,11 +125,11 @@ existing `DeepSeek-V4-Flash-chat-v2/` already has the right shape — just `mv` 
 
 ### The two launchers
 
-**Implemented** in `variants/shared/_llama.sh`. The existing fzf function was renamed to `los-pick`,
+**Implemented** in `llamacpp/shared/_llama.sh`. The existing fzf function was renamed to `los-pick`,
 kept as a one-off flag-experiment tool, since `los` is now the router.
 
 ```bash
-LOS_CONF_DIR="${LOS_CONF_DIR:-$HOME/dotfiles/configs/llama}"
+LOS_CONF_DIR="${LOS_CONF_DIR:-$HOME/dotfiles/llamacpp/archlinux}"
 
 # A 90.9 GiB load cannot share memory with a resident ollama runner, and the unit
 # keeps models for 30m (OLLAMA_KEEP_ALIVE) across 3 slots (OLLAMA_MAX_LOADED_MODELS).
@@ -169,12 +169,12 @@ Separate `LLAMA_CACHE` per tier is what stops an `-hf` pull in one tier from sho
 
 ### Presets
 
-`configs/llama/light.ini` and `configs/llama/heavy.ini`. Keys are CLI args without leading dashes;
+`llamacpp/archlinux/light.ini` and `llamacpp/archlinux/heavy.ini`. Keys are CLI args without leading dashes;
 short forms (`c`, `ngl`) and env-var names (`LLAMA_ARG_*`) work too. Precedence: router CLI args >
 model section > `[*]` global section.
 
 ```ini
-; configs/llama/light.ini
+; llamacpp/archlinux/light.ini
 version = 1
 
 [*]
@@ -190,7 +190,7 @@ np = 2
 ```
 
 ```ini
-; configs/llama/heavy.ini
+; llamacpp/archlinux/heavy.ini
 version = 1
 
 [*]
@@ -212,13 +212,13 @@ guessing from filenames. Three keys are preset-only and not CLI args: `load-on-s
 
 **Implemented**: the light tier runs as a systemd **user** service
 (`~/.config/systemd/user/llama-router.service`, `WantedBy=default.target`), so hours-long loops
-survive terminal exit. Installed by `variants/archlinux/llama-router/install.sh` (called from
+survive terminal exit. Installed by `llamacpp/archlinux/install.sh` (called from
 `variants/archlinux/setup.sh`), which skips itself if `llama-server` has not been built yet. The
 unit sets `CPUQuota=90%` by default — leaves headroom for the desktop during CPU-side work (warmup,
 tokenization, anything not offloaded to the GPU). It also passes `--threads`/`--threads-batch` at
 half of `nproc` by default, capping ggml's own thread pool the same way CPUQuota caps the cgroup.
 Override either with `LOS_CPU_QUOTA=<percent>` / `LOS_THREADS=<n>` `bash
-variants/archlinux/llama-router/install.sh` to re-render, or `systemctl --user edit
+llamacpp/archlinux/install.sh` to re-render, or `systemctl --user edit
 llama-router.service` to override `CPUQuota=` directly without touching the tracked template. The
 same `LOS_THREADS` default applies to the manual `los`/`los-heavy` launchers in `_llama.sh`. The
 heavy tier stays a manual `los-heavy` invocation, never a service, since it is mutually exclusive
