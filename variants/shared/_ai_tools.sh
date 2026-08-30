@@ -236,23 +236,23 @@ _git_base_ref() {
   return 1
 }
 
-# Rename a zellij tab to "#<pr-number>: <summary>" from the current branch's
+# Rename a Herdr tab to "#<pr-number>: <summary>" from the current branch's
 # PR (title + body through the model), or to "wip: <summary>" from the branch's
 # commit subjects since main/master when no PR exists.
 # Options:
 #   --tab-id=N  the tab to rename. ALWAYS pass this when running unattended:
-#               `zellij action` talks to the session, not to the pane it was
-#               launched from, so the fallback below resolves the tab that is
-#               focused *right now* — which is the wrong one as soon as anything
-#               else (all_my_prs) opens another tab while this pane boots.
+#               the fallback below resolves $HERDR_TAB_ID, the tab the calling
+#               pane happens to live in *right now* — which is the wrong one
+#               as soon as anything else (all_my_prs) opens another tab while
+#               this pane boots.
 #   --pr=N      the PR number this tab belongs to, when the caller already knows
 #               it. Keeps the "#N: " prefix even if `gh pr view` comes up empty,
 #               so the tab stays matchable by all_my_prs' dedup check.
 # Any remaining argument is a short prompt steering the summary:
 # `tab_autoname "focus on auth"`.
 tab_autoname() {
-  if [ -z "$ZELLIJ" ]; then
-    echo "Error: Not in a zellij session"
+  if [ -z "$HERDR_ENV" ]; then
+    echo "Error: Not in a Herdr session"
     return 1
   fi
   _git_check_repo || return 1
@@ -267,9 +267,9 @@ tab_autoname() {
   done
 
   if [ -z "$tab_id" ]; then
-    # interactive use only: with no id given, the tab this was typed in is the
-    # one focused at this instant
-    tab_id=$(zellij action current-tab-info 2>/dev/null | sed -n 's/^id: //p')
+    # interactive use only: with no id given, fall back to the tab of the
+    # pane this was typed in
+    tab_id="$HERDR_TAB_ID"
   fi
   if [ -z "$tab_id" ]; then
     echo "Error: could not get the current tab id"
@@ -334,7 +334,7 @@ tab_autoname() {
   local new_name="${prefix}${short}"
   # rename by stable tab id, never by focus: this runs in a throwaway pane and
   # the focused tab has very likely moved on by now
-  if zellij action rename-tab-by-id "$tab_id" "$new_name" >/dev/null 2>&1; then
+  if herdr tab rename "$tab_id" "$new_name" >/dev/null 2>&1; then
     echo "Tab renamed to '$new_name'"
   else
     echo "Error: failed to rename tab id $tab_id"

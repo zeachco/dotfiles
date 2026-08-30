@@ -1,61 +1,16 @@
 #!/bin/sh
 
 # ==============================================================================
-# ZELLIJ & WORKTREE UTILITIES
+# HERDR & WORKTREE UTILITIES
 # ==============================================================================
 
-# Print the id of the focused, non-floating pane of a tab (eg. terminal_7).
-# `list-panes` prints a space separated table whose TAB_NAME and TITLE columns
-# both contain spaces, so match on the shape of the pane id and on the trailing
-# FOCUSED/FLOATING/EXITED columns instead of on fixed field numbers.
-_zellij_focused_pane_id() {
-  zellij action list-panes --tab --state 2>/dev/null |
-    awk -v tab="$1" '
-      $1 == tab && $(NF - 2) == "true" && $(NF - 1) == "false" {
-        for (i = 4; i < NF - 2; i++)
-          if ($i ~ /^(terminal|plugin)_[0-9]+$/) { print $i; exit }
-      }'
-}
-
-# Type command lines into a pane, each one followed by Enter. Every `zellij
-# action` targets the session rather than the caller's pane, so addressing the
-# pane by id is what keeps keystrokes from landing in an unrelated pane when
-# several tabs are being set up back to back.
-_zellij_type() {
-  local pane_id="$1"
-  shift
-  local line
-  for line in "$@"; do
-    if [ -n "$pane_id" ]; then
-      zellij action write-chars --pane-id "$pane_id" "$line"
-      zellij action write --pane-id "$pane_id" 13
-    else
-      zellij action write-chars "$line"
-      zellij action write 13
-    fi
-  done
-}
-
-# Grow a pane leftwards by a number of 5% steps (or the focused one if no id).
-_zellij_grow_left() {
-  local pane_id="$1" steps="$2" i=0
-  while [ "$i" -lt "$steps" ]; do
-    if [ -n "$pane_id" ]; then
-      zellij action resize --pane-id "$pane_id" increase left
-    else
-      zellij action resize increase left
-    fi
-    i=$((i + 1))
-  done
-}
-
-# Open a zellij workspace (devbox shell + editor) on a branch's worktree.
-# Usage: zellij_branch_repo <branch|PR url|JIRA url> [tab_label] [--pr=N]
+# Open a Herdr workspace (devbox shell + editor) on a branch's worktree.
+# Usage: herdr_branch_repo <branch|PR url|JIRA url> [tab_label] [--pr=N]
 # --pr=N names the tab "#N: <branch>" from the start and hands the number to
 # tab_autoname, so the tab is identifiable before the async rename lands.
-zellij_branch_repo() {
-  if [ -z "$ZELLIJ" ]; then
-    echo "Error: Not in a zellij session"
+herdr_branch_repo() {
+  if [ -z "$HERDR_ENV" ]; then
+    echo "Error: Not in a Herdr session"
     return 1
   fi
 
@@ -113,77 +68,70 @@ zellij_branch_repo() {
   local worktree_base="$HOME/worktrees/$repo_name"
   local worktree_path="$worktree_base/$branch_name"
 
+  # Let Herdr own the Git worktree: `worktree create`/`open` runs `git
+  # worktree add` (or checks out the existing one) and opens a fresh
+  # workspace/tab/pane for it in a single call, so there is no more tab or
+  # pane juggling to do by hand here.
+  local result
   if [ "$branch_name" = "main" ] || [ "$branch_name" = "master" ]; then
-    # For main/master, just use the repo root directly
-    local target_path="$repo_root"
+    # For main/master, just open the repo root directly
+    result=$(herdr workspace create --cwd "$repo_root" --label "$tab_name" --focus)
   elif [ -d "$worktree_path" ]; then
     echo "Worktree already exists at: $worktree_path"
-    local target_path="$worktree_path"
+    result=$(herdr worktree open --cwd "$repo_root" --path "$worktree_path" --branch "$branch_name" --label "$tab_name" --focus)
   else
     mkdir -p "$worktree_base"
     echo "Creating worktree for $branch_name..."
-
-    # Check if branch exists locally or remotely
-    if git show-ref --verify --quiet "refs/heads/$branch_name"; then
-      git worktree add "$worktree_path" "$branch_name"
-    elif git show-ref --verify --quiet "refs/remotes/origin/$branch_name"; then
-      git worktree add "$worktree_path" "$branch_name"
-    else
-      git worktree add -b "$branch_name" "$worktree_path"
-    fi
-
-    if [ $? -ne 0 ]; then
-      echo "Error: Failed to create worktree"
-      return 1
-    fi
-    local target_path="$worktree_path"
+    result=$(herdr worktree create --cwd "$repo_root" --branch "$branch_name" --path "$worktree_path" --label "$tab_name" --focus)
   fi
-
-  # Create the new zellij tab (does not affect current tab's state) and keep
-  # the tab id it prints: everything below addresses that tab and its panes
-  # explicitly, so a caller opening several workspaces in a row (all_my_prs)
-  # can never have keystrokes or renames land in another tab.
-  local tab_id
-  tab_id=$(zellij action new-tab --name "$tab_name" 2>/dev/null | head -n 1 | tr -dc '0-9')
-  if [ -z "$tab_id" ]; then
-    echo "Error: failed to create the zellij tab"
+  if [ $? -ne 0 ]; then
+    echo "Error: Failed to open the worktree in Herdr"
     return 1
   fi
 
-  # Setup first pane (devbox shell, will exit after)
-  local shell_pane
-  shell_pane=$(_zellij_focused_pane_id "$tab_id")
-  _zellij_type "$shell_pane" "cd \"$target_path\"" "ds && exit"
+  local target_path tab_id root_pane
+  target_path=$(echo "$result" | jq -r '.result.worktree.path // empty')
+  target_path="${target_path:-$repo_root}"
+  tab_id=$(echo "$result" | jq -r '.result.tab.tab_id // empty')
+  root_pane=$(echo "$result" | jq -r '.result.root_pane.pane_id // empty')
+  if [ -z "$tab_id" ] || [ -z "$root_pane" ]; then
+    echo "Error: unexpected response from herdr"
+    return 1
+  fi
 
-  # Open the editor in a regular pane to the right of the devbox pane,
-  # then grow it from 50% to ~2/3 of the width (each resize step is 5%)
+  # Devbox shell in the root pane (will exit after), editor split to its
+  # right; both stay unfocused so the new tab (already focused above) keeps
+  # showing the pane the caller actually wants to look at first.
+  herdr pane run "$root_pane" "cd \"$target_path\" && ds && exit"
   local editor_pane
-  editor_pane=$(zellij action new-pane --direction right 2>/dev/null | head -n 1 | tr -d '[:space:]')
-  _zellij_grow_left "$editor_pane" 3
-  _zellij_type "$editor_pane" "cd \"$target_path\"" "e ."
+  editor_pane=$(herdr pane split "$root_pane" --direction right --cwd "$target_path" --no-focus | jq -r '.result.pane.pane_id // empty')
+  [ -n "$editor_pane" ] && herdr pane run "$editor_pane" "e ."
 
   # Auto-name the tab from its own PR/commits when no explicit name was
-  # given, in a third pane split below that closes itself once done, so the
-  # slow gh/model calls never hold up the devbox shell or the editor.
-  # The tab id has to be passed in: that pane cannot work out on its own which
-  # tab it lives in, it would only ever see whichever tab is focused.
-  if [ -z "$tab_label" ] && [ "$branch_name" != "main" ] && [ "$branch_name" != "master" ]; then
+  # given, in a third pane split below the editor that closes itself once
+  # done, so the slow gh/model calls never hold up the devbox shell or the
+  # editor. The tab id has to be passed in: that pane cannot work out on its
+  # own which tab it lives in, it would only ever see whichever tab is
+  # focused.
+  if [ -z "$tab_label" ] && [ "$branch_name" != "main" ] && [ "$branch_name" != "master" ] && [ -n "$editor_pane" ]; then
     local autoname_pane autoname_cmd
-    autoname_pane=$(zellij action new-pane --direction down 2>/dev/null | head -n 1 | tr -d '[:space:]')
-    autoname_cmd="cd \"$target_path\" && tab_autoname --tab-id=$tab_id"
-    [ -n "$pr_number" ] && autoname_cmd="$autoname_cmd --pr=$pr_number"
-    _zellij_type "$autoname_pane" "$autoname_cmd; exit"
+    autoname_pane=$(herdr pane split "$editor_pane" --direction down --cwd "$target_path" --no-focus | jq -r '.result.pane.pane_id // empty')
+    if [ -n "$autoname_pane" ]; then
+      autoname_cmd="tab_autoname --tab-id=$tab_id"
+      [ -n "$pr_number" ] && autoname_cmd="$autoname_cmd --pr=$pr_number"
+      herdr pane run "$autoname_pane" "$autoname_cmd; exit"
+    fi
   fi
 
   echo "Tab '$tab_name' (id $tab_id) ready at $target_path"
 }
-_set wt "zellij_branch_repo"
+_set wt "herdr_branch_repo"
 
-# Fetch all my open PRs for this repo and create a zellij workspace (wt)
+# Fetch all my open PRs for this repo and create a Herdr workspace (wt)
 # for each one, using the PR's actual branch for the worktree
 all_my_prs() {
-  if [ -z "$ZELLIJ" ]; then
-    echo "Error: Not in a zellij session"
+  if [ -z "$HERDR_ENV" ]; then
+    echo "Error: Not in a Herdr session"
     return 1
   fi
   _git_check_repo || return 1
@@ -205,7 +153,7 @@ all_my_prs() {
   fi
 
   local open_tabs
-  open_tabs=$(zellij action query-tab-names 2>/dev/null)
+  open_tabs=$(herdr tab list 2>/dev/null | jq -r '.result.tabs[].label')
 
   # make sure the PR branches are known locally before creating worktrees
   git fetch origin --quiet </dev/null 2>/dev/null
@@ -234,7 +182,7 @@ all_my_prs() {
       continue
     fi
 
-    if zellij_branch_repo "$branch" --pr="$number"; then
+    if herdr_branch_repo "$branch" --pr="$number"; then
       count=$((count + 1))
       # keep the snapshot in step, in case the same PR shows up twice
       open_tabs=$(printf '%s\n#%s: %s' "$open_tabs" "$number" "$branch")
