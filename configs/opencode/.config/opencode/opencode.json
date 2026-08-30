@@ -4,6 +4,54 @@
   "plugin": [
     "file:///home/olivier/dotfiles/configs/opencode/.config/opencode/plugins/llamacpp-model-sync.ts"
   ],
+  "default_agent": "brainstorm",
+  "agent": {
+    "build": {
+      "mode": "primary",
+      "model": "alibaba-cn/qwen3-8b",
+      // "prompt": "{file:./prompts/build.txt}",
+      "permission": {
+        "edit": "allow",
+        "bash": "allow"
+      }
+    },
+    "plan": {
+      "mode": "primary",
+      "model": "alibaba-cn/qwen3-8b",
+      "permission": {
+        "edit": "deny",
+        "bash": "deny"
+      }
+    },
+    "brainstorm": {
+      "mode": "all",
+      "description": "Devil's advocate, ideas disproofing or proposing plan mutations, basically challenging assumptions, defining task expectations and going in depth",
+      "model": "alibaba-cn/qwen3-8b",
+      "prompt": "You are a brainstorm agent. You can access current system tools to prove ideas or explore around, but should not make edits.",
+      "permission": {
+        "edit": "deny",
+        "bash": "allow"
+      }
+    },
+    "generate-code": {
+      "description": "Sub agent used to generate large chunks of coded and keep the main orchestrer with lighter tokens, optimized for fast code generation",
+      "mode": "subagent",
+      "model": "alibaba-cn/qwen2-5-coder-32b-instruct",
+      "permission": {
+        "edit": "deny",
+        "bash": "deny"
+      }
+    },
+    "code-reviewer": {
+      "description": "Reviews code for best practices and potential issues",
+      "mode": "subagent",
+      "model": "alibaba-cn/qwen3-8b",
+      "prompt": "You are a code reviewer. Focus on security, performance, and maintainability.",
+      "permission": {
+        "edit": "deny"
+      }
+    }
+  },
   "provider": {
     "llamacpp": {
       "npm": "@ai-sdk/openai-compatible",
