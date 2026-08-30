@@ -1,0 +1,47 @@
+# TEMPLATE -- installed to ~/.config/systemd/user by install.sh in this directory.
+# Reconciled against the unit already hand-installed and running on the Ryzen box
+# (host 0.0.0.0, models-max 5, graphical-session.target, TimeoutStartSec=0 for a cold
+# multi-GiB load) rather than the other way around -- this file follows production,
+# CPUQuota/--threads are the only additions install.sh introduces.
+#
+# %h is systemd's own user-unit specifier for $HOME -- no install-time substitution
+# needed for paths. Only @CPU_QUOTA@ and @THREADS@ are rendered by install.sh.
+#   @CPU_QUOTA@     percentage for CPUQuota=, default 90 (see LOS_CPU_QUOTA)
+#   @THREADS@       -t/--threads-batch value, default nproc/2 (see LOS_THREADS)
+
+[Unit]
+Description=llama.cpp router (light tier) on :8080
+Documentation=file:///home/olivier/dotfiles/ryzen-llm-setup.md
+After=graphical-session.target
+
+[Service]
+Type=simple
+# Per-tier cache: cached models are enumerated unconditionally, ahead of --models-dir,
+# so a shared cache would leak heavy models into the light tier.
+Environment=LLAMA_CACHE=%h/.cache/llama.cpp-light
+ExecStart=%h/dev/llama.cpp/build/bin/llama-server \
+  --models-dir %h/models/light \
+  --models-preset %h/dotfiles/configs/llama/light.ini \
+  --models-max 5 \
+  --host 0.0.0.0 \
+  --port 8080 \
+  -to 3600 \
+  --threads @THREADS@ \
+  --threads-batch @THREADS@
+# A cold load of a large model must not be mistaken for a failed start.
+TimeoutStartSec=0
+Restart=on-failure
+RestartSec=5
+
+# Caps the router AND every model child it forks (CPUQuota applies to the unit's
+# whole cgroup), so a long prompt-processing pass on the CPU fallback path cannot
+# starve the rest of the desktop. GPU offload (-ngl 999 in light.ini) means this
+# rarely bites during generation, but it does during warmup/tokenization and any
+# tensor llama.cpp keeps on the CPU. --threads/--threads-batch above cap ggml's own
+# thread pool the same way. Override per-machine without editing this file:
+# `systemctl --user edit llama-router.service`, or reinstall with
+# LOS_CPU_QUOTA=<percent> and/or LOS_THREADS=<n> bash install.sh.
+CPUQuota=@CPU_QUOTA@%
+
+[Install]
+WantedBy=default.target

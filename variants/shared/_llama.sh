@@ -16,6 +16,8 @@ ensure_llama_cpp() {
   return 1
 }
 
+LOS_CONF_DIR="${LOS_CONF_DIR:-$HOME/dotfiles/configs/llama}"
+
 llama-ollama-server() {
   local model
   local from
@@ -62,4 +64,49 @@ llama-ollama-server() {
     --port 8080
 }
 
-alias los='llama-ollama-server'
+alias los-pick='llama-ollama-server'
+
+# A 90.9 GiB load cannot share memory with a resident ollama runner, and the unit
+# keeps models for 30m (OLLAMA_KEEP_ALIVE) across 3 slots (OLLAMA_MAX_LOADED_MODELS).
+_los_free_memory() {
+  ollama ps 2>/dev/null | tail -n +2 | awk '{print $1}' | while read -r m; do
+    [[ -n "$m" ]] && ollama stop "$m"
+  done
+}
+
+# Router mode: no -m, so llama-server loads nothing itself and forks one child
+# process per model, routed on the JSON body's "model" field. See
+# ryzen-llm-setup.md Phase 1 for the directory-split rationale (--models-max counts
+# models, not bytes, so the big DeepSeek-class weights live in a separate "heavy"
+# tier directory/preset that is never enumerated alongside the light tier).
+#
+# The persistent systemd --user service (variants/archlinux/llama-router) already
+# runs this same "light" invocation with a CPUQuota; this manual launcher is for the
+# "heavy" tier (never a service, one model at a time) and for ad-hoc light-tier runs
+# outside the unit, e.g. with a different LOS_PORT.
+_los_router() {
+  local tier="$1" max="$2"; shift 2
+  local half_cores=$(( $(nproc) / 2 ))
+  ((half_cores < 1)) && half_cores=1
+  ensure_llama_cpp || return 1
+  _los_free_memory
+  LLAMA_CACHE="$HOME/.cache/llama.cpp-$tier" \
+    "$LLAMA_CPP_BUILD/bin/llama-server" \
+      --models-dir "$HOME/models/$tier" \
+      --models-preset "$LOS_CONF_DIR/$tier.ini" \
+      --models-max "$max" \
+      --host 127.0.0.1 --port "${LOS_PORT:-8080}" \
+      -to 3600 \
+      --threads "${LOS_THREADS:-$half_cores}" \
+      --threads-batch "${LOS_THREADS:-$half_cores}" \
+      "$@"
+}
+
+# Small/medium models, up to 4 resident. DeepSeek-class is excluded by directory.
+# Duplicates the systemd unit's ExecStart -- use this for a foreground/ad-hoc run
+# (`killport 8080` first if the service already owns :8080).
+los() { _los_router light 4 "$@"; }
+
+# One model at a time, the big ones. Mutually exclusive with `los` and the systemd
+# service on :8080 -- `killport 8080` before switching tiers, or pass LOS_PORT.
+los-heavy() { _los_router heavy 1 "$@"; }

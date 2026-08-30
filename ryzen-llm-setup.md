@@ -125,8 +125,8 @@ existing `DeepSeek-V4-Flash-chat-v2/` already has the right shape — just `mv` 
 
 ### The two launchers
 
-Add to `variants/shared/_llama.sh`. Rename the existing fzf function to `los-pick` to keep it as a
-one-off flag-experiment tool, since `los` is being reused for the router.
+**Implemented** in `variants/shared/_llama.sh`. The existing fzf function was renamed to `los-pick`,
+kept as a one-off flag-experiment tool, since `los` is now the router.
 
 ```bash
 LOS_CONF_DIR="${LOS_CONF_DIR:-$HOME/dotfiles/configs/llama}"
@@ -210,8 +210,19 @@ Section names must match the ids the router assigns, so confirm against `GET /v1
 guessing from filenames. Three keys are preset-only and not CLI args: `load-on-startup`,
 `stop-timeout` (seconds before force-kill on unload, default 10), `dedup-cache-models`.
 
-Run the router as a systemd **user** service (`~/.config/systemd/user/llama-router.service`,
-`WantedBy=default.target`) once the tier choice settles, so hours-long loops survive terminal exit.
+**Implemented**: the light tier runs as a systemd **user** service
+(`~/.config/systemd/user/llama-router.service`, `WantedBy=default.target`), so hours-long loops
+survive terminal exit. Installed by `variants/archlinux/llama-router/install.sh` (called from
+`variants/archlinux/setup.sh`), which skips itself if `llama-server` has not been built yet. The
+unit sets `CPUQuota=90%` by default — leaves headroom for the desktop during CPU-side work (warmup,
+tokenization, anything not offloaded to the GPU). It also passes `--threads`/`--threads-batch` at
+half of `nproc` by default, capping ggml's own thread pool the same way CPUQuota caps the cgroup.
+Override either with `LOS_CPU_QUOTA=<percent>` / `LOS_THREADS=<n>` `bash
+variants/archlinux/llama-router/install.sh` to re-render, or `systemctl --user edit
+llama-router.service` to override `CPUQuota=` directly without touching the tracked template. The
+same `LOS_THREADS` default applies to the manual `los`/`los-heavy` launchers in `_llama.sh`. The
+heavy tier stays a manual `los-heavy` invocation, never a service, since it is mutually exclusive
+with the light tier on :8080.
 
 ## Phase 2 — Size the context for a 90.9 GiB model
 
