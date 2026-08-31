@@ -56,6 +56,7 @@ install eza                   # list tree for ls
 install lazygit
 install fzf
 install zellij
+install tmux
 install ngrep
 
 # Bash has built-in vi editing through Readline, so zsh-vi-mode is only
@@ -74,6 +75,7 @@ script_install claude "curl -fsSL https://claude.ai/install.sh | bash && echo 'e
 
 stow_link alacritty
 stow_link zellij
+stow_link tmux
 
 # # not using OMZSH
 # if [ -d "$HOME/.oh-my-zsh" ] && [ -f "$HOME/.zshrc" ]; then

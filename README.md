@@ -99,6 +99,7 @@ Uses [mise](https://mise.jdx.dev/) and [devbox](https://www.jetify.com/devbox) t
 - ligature nerd fonts
 - fzf (fast file searching)
 - zellij (terminal multiplexer with session and workspace management)
+- tmux (terminal multiplexer, Omarchy keybindings shared across Linux and macOS)
 - g++ compiler
 
 ## bash functions
