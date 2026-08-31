@@ -6,6 +6,14 @@ dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/boo
 -- Keep Omarchy's window-manager bindings without its app launchers.
 omarchy_preinstalled_bindings = false
 
+-- Omarchy's default/hypr/apps/1password.lua tags 1Password "+floating-window",
+-- which system.lua turns into float + center + 875x600. A later `tile = true`
+-- rule does not out-rank it, so stop the file loading at all: require() honours
+-- a pre-seeded package.loaded entry. Re-add its no_screen_share rule below.
+-- If an Omarchy update renames that file, this stub silently stops working and
+-- 1Password floats again.
+package.loaded["default.hypr.apps.1password"] = true
+
 -- Load Omarchy defaults.
 require("default.hypr.omarchy")
 
@@ -27,3 +35,6 @@ o.window("Alacritty", { focus_on_activate = false })
 -- Updates, and Install terminals tiled instead.
 o.window("steam", { tile = true })
 o.window("org\\.omarchy\\.terminal", { tile = true })
+
+-- Kept from the stubbed-out Omarchy 1Password defaults: stay out of screen shares.
+o.window("^(1[p|P]assword)$", { no_screen_share = true })
