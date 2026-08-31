@@ -1,0 +1,270 @@
+#!/usr/bin/env bash
+# Use an Android phone as a webcam and/or as a secondary display.
+#
+# Why this exists:
+#   This machine has no camera at all (no /dev/video*, no USB imaging device),
+#   so the phone is the only webcam available. The same adb link doubles as a
+#   cheap extra monitor for reference material.
+#
+#   Both modes talk to the phone over the USB cable via adb. Nothing is exposed
+#   on the LAN: the second-screen mode serves VNC on localhost only and reaches
+#   the phone through `adb reverse`, which tunnels over USB.
+#
+# Two Hyprland/Omarchy gotchas this script works around, both verified on
+# Hyprland 0.56.2 with Omarchy's Lua config:
+#
+#   1. `hyprctl keyword monitor ...` does NOT work. Omarchy configures Hyprland
+#      from Lua (~/.config/hypr/monitors.lua), and Hyprland refuses the keyword
+#      with "keyword can't work with non-legacy parsers. Use eval." It fails
+#      loudly but changes nothing, so geometry must go through the
+#      wlr-output-management protocol instead -> wlr-randr.
+#
+#   2. wlr-randr applies a whole output state per invocation. A second call
+#      that omits --custom-mode silently reverts the output to its preferred
+#      mode (1920x1080 for a headless output). So mode, scale and position must
+#      all be set in ONE wlr-randr call.
+#
+# Usage:
+#   phone cam [front|back] [size]   phone camera -> /dev/video0 as a webcam
+#   phone screen [--landscape]      phone as an extra Hyprland output over VNC
+#   phone setup                     install dependencies and system config
+#
+# Examples:
+#   phone cam                       front camera, 1280x720
+#   phone cam back 1920x1080
+#   phone screen                    portrait, sized to the phone's own panel
+#   phone screen --landscape
+
+set -euo pipefail
+
+OUT_NAME=phonescreen
+VNC_PORT="${PHONE_VNC_PORT:-5900}"
+VIDEO_DEV="${PHONE_VIDEO_DEV:-/dev/video0}"
+
+INFO='\033[0;36m'; WARN='\033[0;33m'; FAIL='\033[0;31m'; PASS='\033[0;32m'; NORM='\033[0m'
+
+die() { echo -e "${FAIL}$*${NORM}" >&2; exit 1; }
+
+# ---------------------------------------------------------------------------
+# Find an authorized phone and print its adb serial.
+# ---------------------------------------------------------------------------
+phone_serial() {
+    local devices
+    mapfile -t devices < <(adb devices 2>/dev/null | awk 'NR>1 && $2=="device" {print $1}')
+    if [ "${#devices[@]}" -eq 0 ]; then
+        {
+            echo -e "${FAIL}No authorized ADB device found.${NORM}"
+            echo "  - plug the phone in over USB"
+            echo "  - enable Developer options -> USB debugging"
+            echo "  - accept the 'Allow USB debugging?' prompt on the phone"
+            echo "Current adb state:"
+            adb devices 2>&1 | sed 's/^/    /'
+        } >&2
+        return 1
+    fi
+    printf '%s\n' "${devices[0]}"
+}
+
+# ---------------------------------------------------------------------------
+# phone cam - stream the phone's camera into the v4l2loopback device.
+# ---------------------------------------------------------------------------
+cmd_cam() {
+    local facing="${1:-front}" size="${2:-1280x720}" serial release
+
+    command -v scrcpy >/dev/null || die "scrcpy not installed - run: phone setup"
+    # /proc/modules rather than `lsmod | grep -q`: grep -q exits on the first
+    # match, lsmod dies of SIGPIPE (141), and `set -o pipefail` then reports the
+    # pipeline as failed - so the module always looked missing.
+    if ! grep -q '^v4l2loopback ' /proc/modules; then
+        echo -e "${WARN}v4l2loopback not loaded; loading...${NORM}"
+        pkexec /usr/bin/modprobe v4l2loopback
+    fi
+    [ -e "$VIDEO_DEV" ] || die "$VIDEO_DEV missing - run: phone setup"
+
+    serial=$(phone_serial) || exit 1
+    release=$(adb -s "$serial" shell getprop ro.build.version.release 2>/dev/null | tr -d '\r')
+    echo -e "${INFO}Device:${NORM} $serial (Android ${release:-unknown})"
+
+    # --video-source=camera needs Android 12+. Older phones fall back to
+    # mirroring the screen, which means opening the camera app by hand.
+    if [ -n "$release" ] && [ "${release%%.*}" -lt 12 ] 2>/dev/null; then
+        echo -e "${WARN}Android $release is below 12: --video-source=camera is unavailable.${NORM}" >&2
+        echo -e "${WARN}Falling back to screen mirroring - open the camera app on the phone.${NORM}" >&2
+        exec scrcpy --v4l2-sink="$VIDEO_DEV" --no-playback --no-audio --stay-awake
+    fi
+
+    echo -e "${INFO}Streaming${NORM} $facing camera at $size -> $VIDEO_DEV"
+    echo "Pick 'Phone Camera' as the camera in Chrome/Zoom/OBS. Ctrl-C to stop."
+    exec scrcpy \
+        --video-source=camera \
+        --camera-facing="$facing" \
+        --camera-size="$size" \
+        --v4l2-sink="$VIDEO_DEV" \
+        --no-playback \
+        --no-audio
+}
+
+# ---------------------------------------------------------------------------
+# phone screen - add a headless Hyprland output and serve it to the phone.
+# ---------------------------------------------------------------------------
+screen_cleanup() {
+    echo
+    echo -e "${INFO}Tearing down second screen...${NORM}"
+    if [ -n "${WAYVNC_PID:-}" ] && kill -0 "$WAYVNC_PID" 2>/dev/null; then
+        kill "$WAYVNC_PID" 2>/dev/null || true
+        wait "$WAYVNC_PID" 2>/dev/null || true
+    fi
+    hyprctl output remove "$OUT_NAME" >/dev/null 2>&1 || true
+    if [ -n "${SERIAL:-}" ]; then
+        adb -s "$SERIAL" reverse --remove "tcp:$VNC_PORT" >/dev/null 2>&1 || true
+    fi
+    echo -e "${PASS}Done - $OUT_NAME removed.${NORM}"
+}
+
+cmd_screen() {
+    local landscape=0 raw_size raw_dens res dens w h scale
+    [ "${1:-}" = "--landscape" ] && landscape=1
+
+    [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || die "Not inside a Hyprland session."
+    command -v wayvnc   >/dev/null || die "wayvnc not installed - run: phone setup"
+    command -v wlr-randr >/dev/null || die "wlr-randr not installed - run: phone setup"
+
+    SERIAL=$(phone_serial) || exit 1
+
+    # Read the phone's real panel geometry so the output matches it pixel for
+    # pixel and the VNC client does not have to rescale.
+    raw_size=$(adb -s "$SERIAL" shell wm size 2>/dev/null | tr -d '\r')
+    raw_dens=$(adb -s "$SERIAL" shell wm density 2>/dev/null | tr -d '\r')
+    res=$(printf '%s\n' "$raw_size" | awk -F': ' \
+        '/Override size/{o=$2} /Physical size/{p=$2} END{print (o!="" ? o : p)}')
+    dens=$(printf '%s\n' "$raw_dens" | awk -F': ' \
+        '/Override density/{o=$2} /Physical density/{p=$2} END{print (o!="" ? o : p)}')
+
+    if [ -z "$res" ]; then
+        echo -e "${WARN}Could not read the phone's resolution; assuming 1080x2400.${NORM}" >&2
+        res=1080x2400
+    fi
+    [ -z "$dens" ] && dens=420
+
+    w=${res%x*}
+    h=${res#*x}
+    if [ "$landscape" = 1 ] && [ "$w" -lt "$h" ]; then
+        local tmp=$w; w=$h; h=$tmp
+    fi
+
+    # Aim for Android's own density ratio (density/160), but only accept a
+    # scale that divides both axes into whole logical pixels - otherwise
+    # Hyprland rounds it and the image ends up letterboxed on the phone.
+    scale=$(python3 - "$w" "$h" "$dens" <<'PY'
+import sys
+w, h, dens = int(sys.argv[1]), int(sys.argv[2]), float(sys.argv[3])
+target = dens / 160.0
+best, best_err = 1.0, None
+for cand in (3.0, 2.5, 2.0, 1.75, 1.5, 1.25, 1.0):
+    if (w / cand).is_integer() and (h / cand).is_integer():
+        err = abs(cand - target)
+        if best_err is None or err < best_err:
+            best, best_err = cand, err
+print(f"{best:g}")
+PY
+)
+
+    echo -e "${INFO}Phone:${NORM}  $SERIAL"
+    local logical
+    logical=$(awk -v w="$w" -v h="$h" -v s="$scale" 'BEGIN{printf "%dx%d", w/s, h/s}')
+    echo -e "${INFO}Panel:${NORM}  ${w}x${h} at ${dens}dpi -> scale ${scale} (logical ${logical})"
+    echo -e "${INFO}Place:${NORM}  $OUT_NAME (auto, right of existing monitors)"
+
+    hyprctl output create headless "$OUT_NAME" >/dev/null
+    trap screen_cleanup EXIT INT TERM
+
+    # One single wlr-randr call - see gotcha 2 in the header. Deliberately no
+    # --pos: an explicit position makes Hyprland re-run auto placement for the
+    # real monitors, which shoves the primary display sideways (DP-4 jumped to
+    # x=2992) and leaves the phone on its left. Letting auto placement do the
+    # work parks the phone to the right of everything and leaves DP-4 at 0,0.
+    wlr-randr --output "$OUT_NAME" \
+        --custom-mode "${w}x${h}@60" \
+        --scale "$scale" >/dev/null
+
+    adb -s "$SERIAL" reverse "tcp:$VNC_PORT" "tcp:$VNC_PORT" >/dev/null
+
+    cat <<EOF
+
+${OUT_NAME} is live. On the phone, open a VNC client (AVNC, bVNC) and connect to:
+
+    127.0.0.1:${VNC_PORT}
+
+Send a window there with:  hyprctl dispatch movewindow mon:${OUT_NAME}
+Ctrl-C here to remove the screen.
+
+EOF
+    # Run wayvnc in the background and wait on it, rather than exec or a plain
+    # foreground call. exec would replace this shell and discard the EXIT trap,
+    # leaking the headless output and the adb tunnel. A foreground call keeps
+    # the trap but bash defers signal handling until the child exits, so a
+    # SIGTERM aimed at this script alone would hang. `wait` is interruptible,
+    # so the trap fires immediately either way.
+    wayvnc -o "$OUT_NAME" -r -f 30 127.0.0.1 "$VNC_PORT" &
+    WAYVNC_PID=$!
+    wait "$WAYVNC_PID"
+}
+
+# ---------------------------------------------------------------------------
+# phone setup - dependencies, virtual camera, launcher hygiene.
+# ---------------------------------------------------------------------------
+cmd_setup() {
+    command -v pacman >/dev/null || die "phone setup only supports Arch/Omarchy."
+
+    echo -e "${INFO}Installing packages...${NORM}"
+    # linux-headers + dkms are needed to build v4l2loopback against the running
+    # kernel; the dkms hook rebuilds it automatically on kernel updates.
+    pkexec /usr/bin/pacman -S --needed --noconfirm \
+        linux-headers dkms v4l2loopback-dkms scrcpy android-tools wayvnc wlr-randr
+
+    echo -e "${INFO}Configuring the virtual camera...${NORM}"
+    # exclusive_caps=1 makes the loopback advertise capture caps only while a
+    # producer is attached, which is what Chrome/Firefox/Zoom require to list it.
+    pkexec /usr/bin/bash -c '
+        set -e
+        cat > /etc/modprobe.d/v4l2loopback.conf <<EOF
+# Virtual webcam fed by scrcpy from an Android phone (see dotfiles/bin/phone).
+options v4l2loopback devices=1 video_nr=0 card_label="Phone Camera" exclusive_caps=1
+EOF
+        echo v4l2loopback > /etc/modules-load.d/v4l2loopback.conf
+        modprobe -r v4l2loopback 2>/dev/null || true
+        modprobe v4l2loopback
+    '
+
+    # scrcpy ships desktop entries that clutter the launcher; this script is the
+    # intended entry point, so hide them with user-level overrides.
+    echo -e "${INFO}Hiding scrcpy launcher entries...${NORM}"
+    local appdir="$HOME/.local/share/applications"
+    mkdir -p "$appdir"
+    local entry
+    for entry in scrcpy scrcpy-console; do
+        cat > "$appdir/${entry}.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=${entry}
+NoDisplay=true
+Hidden=true
+EOF
+    done
+    command -v update-desktop-database >/dev/null && \
+        update-desktop-database "$appdir" 2>/dev/null || true
+
+    echo -e "${PASS}phone setup complete.${NORM}"
+    echo "  phone cam     - use the phone as a webcam"
+    echo "  phone screen  - use the phone as a second display"
+}
+
+case "${1:-}" in
+    cam)    shift; cmd_cam "$@" ;;
+    screen) shift; cmd_screen "$@" ;;
+    setup)  shift; cmd_setup "$@" ;;
+    ""|-h|--help|help)
+        sed -n '2,40p' "$0" | sed 's/^# \?//'
+        ;;
+    *) die "Unknown subcommand '$1'. Try: phone --help" ;;
+esac

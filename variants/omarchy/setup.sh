@@ -21,6 +21,15 @@ fi
 # Keep automatic locking enabled while disabling the optional screensaver.
 omarchy-toggle screensaver-off on
 
+# Phone as webcam / second screen (see bin/phone). Bootstrap only when the
+# virtual camera module is missing: `phone setup` opens a pkexec dialog, and
+# there is nothing to do once the packages are in place, so routine setup runs
+# stay silent.
+if command -v hyprctl &>/dev/null && ! pacman -Qq v4l2loopback-dkms &>/dev/null; then
+  echo -e "${INFO}bootstrapping ${NORM}phone webcam/second-screen support..."
+  "$DOT_DIR/bin/phone" setup
+fi
+
 # Apply and validate Hyprland configuration when setup runs in a live session.
 if command -v hyprctl &>/dev/null && [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
   echo -e "${INFO}reloading ${NORM}Hyprland configuration..."

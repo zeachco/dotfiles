@@ -115,6 +115,13 @@ alias systemctl-list='systemctl list-units --type=service --state=running'
 # automatically whenever the earbuds disconnect.
 _set btfix "$DOT_DIR/bin/bt-controller-refresh --now"
 
+# Android phone as a webcam (this machine has no camera) or as an extra screen.
+# `phone cam` feeds /dev/video0 via scrcpy + v4l2loopback; `phone screen` adds a
+# headless Hyprland output and serves it to the phone over VNC through the USB
+# cable. `phone setup` installs the dependencies. See bin/phone for the
+# Hyprland-on-Lua gotchas it works around.
+_set phone "$DOT_DIR/bin/phone"
+
 # System info using utils.sh colors
 sysinfo() {
     echo -e "${INFO}=== System Information ===${NORM}"
