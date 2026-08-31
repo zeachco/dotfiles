@@ -8,7 +8,7 @@
   "agent": {
     "build": {
       "mode": "primary",
-      "model": "alibaba-cn/qwen3-8b",
+      "model": "llamacpp/qwen3.8",
       // "prompt": "{file:./prompts/build.txt}",
       "permission": {
         "edit": "allow",
@@ -17,7 +17,7 @@
     },
     "plan": {
       "mode": "primary",
-      "model": "alibaba-cn/qwen3-8b",
+      "model": "llamacpp/qwen3.8",
       "permission": {
         "edit": "deny",
         "bash": "deny"
@@ -26,7 +26,7 @@
     "brainstorm": {
       "mode": "all",
       "description": "Devil's advocate, ideas disproofing or proposing plan mutations, basically challenging assumptions, defining task expectations and going in depth",
-      "model": "alibaba-cn/qwen3-8b",
+      "model": "llamacpp/qwen3.8",
       "prompt": "You are a brainstorm agent. You can access current system tools to prove ideas or explore around, but should not make edits.",
       "permission": {
         "edit": "deny",
@@ -36,7 +36,7 @@
     "generate-code": {
       "description": "Sub agent used to generate large chunks of coded and keep the main orchestrer with lighter tokens, optimized for fast code generation",
       "mode": "subagent",
-      "model": "alibaba-cn/qwen2-5-coder-32b-instruct",
+      "model": "llamacpp/Qwen3-Coder-Next-UD-IQ4_XS",
       "permission": {
         "edit": "deny",
         "bash": "deny"
@@ -45,7 +45,7 @@
     "code-reviewer": {
       "description": "Reviews code for best practices and potential issues",
       "mode": "subagent",
-      "model": "alibaba-cn/qwen3-8b",
+      "model": "llamacpp/qwen3.8",
       "prompt": "You are a code reviewer. Focus on security, performance, and maintainability.",
       "permission": {
         "edit": "deny"
