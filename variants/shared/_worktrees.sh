@@ -99,23 +99,18 @@ herdr_branch_repo() {
     return 1
   fi
 
-  # Devbox shell in the root pane (will exit after), editor split to its
-  # right; both stay unfocused so the new tab (already focused above) keeps
-  # showing the pane the caller actually wants to look at first.
-  herdr pane run "$root_pane" "cd \"$target_path\" && ds && exit"
-  local editor_pane
-  editor_pane=$(herdr pane split "$root_pane" --direction right --cwd "$target_path" --no-focus | jq -r '.result.pane.pane_id // empty')
-  [ -n "$editor_pane" ] && herdr pane run "$editor_pane" "e ."
+  # Devbox shell in the root pane, then the editor in the same pane once the
+  # shell exits.
+  herdr pane run "$root_pane" "cd \"$target_path\" && ds && e ."
 
   # Auto-name the tab from its own PR/commits when no explicit name was
-  # given, in a third pane split below the editor that closes itself once
-  # done, so the slow gh/model calls never hold up the devbox shell or the
-  # editor. The tab id has to be passed in: that pane cannot work out on its
-  # own which tab it lives in, it would only ever see whichever tab is
-  # focused.
-  if [ -z "$tab_label" ] && [ "$branch_name" != "main" ] && [ "$branch_name" != "master" ] && [ -n "$editor_pane" ]; then
+  # given, in a second pane split below that closes itself once done, so the
+  # slow gh/model calls never hold up the devbox shell or the editor. The tab
+  # id has to be passed in: that pane cannot work out on its own which tab it
+  # lives in, it would only ever see whichever tab is focused.
+  if [ -z "$tab_label" ] && [ "$branch_name" != "main" ] && [ "$branch_name" != "master" ]; then
     local autoname_pane autoname_cmd
-    autoname_pane=$(herdr pane split "$editor_pane" --direction down --cwd "$target_path" --no-focus | jq -r '.result.pane.pane_id // empty')
+    autoname_pane=$(herdr pane split "$root_pane" --direction down --cwd "$target_path" --no-focus | jq -r '.result.pane.pane_id // empty')
     if [ -n "$autoname_pane" ]; then
       autoname_cmd="tab_autoname --tab-id=$tab_id"
       [ -n "$pr_number" ] && autoname_cmd="$autoname_cmd --pr=$pr_number"
