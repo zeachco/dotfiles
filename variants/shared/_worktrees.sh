@@ -78,7 +78,8 @@ herdr_branch_repo() {
     result=$(herdr workspace create --cwd "$repo_root" --label "$tab_name" --focus)
   elif [ -d "$worktree_path" ]; then
     echo "Worktree already exists at: $worktree_path"
-    result=$(herdr worktree open --cwd "$repo_root" --path "$worktree_path" --branch "$branch_name" --label "$tab_name" --focus)
+    # --path and --branch are mutually exclusive here; the path is what we know
+    result=$(herdr worktree open --cwd "$repo_root" --path "$worktree_path" --label "$tab_name" --focus)
   else
     mkdir -p "$worktree_base"
     echo "Creating worktree for $branch_name..."
@@ -89,7 +90,7 @@ herdr_branch_repo() {
     return 1
   fi
 
-  local target_path tab_id root_pane
+  local target_path tab_id root_pane already_open
   target_path=$(echo "$result" | jq -r '.result.worktree.path // empty')
   target_path="${target_path:-$repo_root}"
   tab_id=$(echo "$result" | jq -r '.result.tab.tab_id // empty')
@@ -97,6 +98,17 @@ herdr_branch_repo() {
   if [ -z "$tab_id" ] || [ -z "$root_pane" ]; then
     echo "Error: unexpected response from herdr"
     return 1
+  fi
+
+  # Herdr already had this worktree open and handed back its existing tab. Its
+  # answer beats any label match: a tab renamed by tab_autoname before its PR
+  # existed carries neither "#<number>: " nor "<repo>:<branch>". Stop here —
+  # running the pane command again would cd and restart the editor on top of
+  # whatever is running in that pane. Return 2 so callers can count it apart.
+  already_open=$(echo "$result" | jq -r '.result.already_open // false')
+  if [ "$already_open" = "true" ]; then
+    echo "Already open in tab id $tab_id at $target_path"
+    return 2
   fi
 
   # Devbox shell in the root pane, then the editor in the same pane once the
@@ -177,14 +189,21 @@ all_my_prs() {
       continue
     fi
 
-    if herdr_branch_repo "$branch" --pr="$number"; then
+    herdr_branch_repo "$branch" --pr="$number"
+    case $? in
+    0)
       count=$((count + 1))
       # keep the snapshot in step, in case the same PR shows up twice
       open_tabs=$(printf '%s\n#%s: %s' "$open_tabs" "$number" "$branch")
-    else
+      ;;
+    2)
+      skipped=$((skipped + 1))
+      ;;
+    *)
       echo "Error: failed to open a workspace for PR #${number}"
       failed=$((failed + 1))
-    fi
+      ;;
+    esac
   done 3<<EOF
 $prs
 EOF
