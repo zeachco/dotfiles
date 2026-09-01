@@ -2,5 +2,3 @@ themes/current
 
 # Machine-local theme state (created before the matching Stow package is linked)
 configs/alacritty/.config/alacritty/theme.toml
-configs/zellij/.config/zellij/themes/current.kdl
-configs/zellij-omarchy/.config/zellij/themes/current.kdl

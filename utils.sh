@@ -132,14 +132,6 @@ function ensure_current_theme() {
   fi
 
   case "$package" in
-  zellij | zellij-omarchy)
-    local zellij_theme_dir="$DOT_DIR/configs/$package/.config/zellij/themes"
-    mkdir -p "$zellij_theme_dir"
-    if [[ ! -f "$zellij_theme_dir/current.kdl" ]]; then
-      sed 's/themes {$/themes {\n  current {/; /^  [a-z-]* {$/d' \
-        "$current_theme/zellij.kdl" >"$zellij_theme_dir/current.kdl"
-    fi
-    ;;
   nvim)
     local colorscheme
     colorscheme=$(sed -n 's/^[[:space:]]*colorscheme = "\([^"]*\)".*/\1/p' "$current_theme/neovim.lua" | tail -n 1)

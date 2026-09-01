@@ -217,7 +217,7 @@ EOF
 }
 _set allprs "all_my_prs"
 
-zellij_branch_repo_delete() {
+worktree_branch_delete() {
   if ! git rev-parse --git-dir > /dev/null 2>&1; then
     echo "Error: Not in a git repository"
     return 1
@@ -252,7 +252,7 @@ zellij_branch_repo_delete() {
 
   echo "Worktree removed. Closing tab in 2 seconds..."
 }
-_set wtd "zellij_branch_repo_delete"
+_set wtd "worktree_branch_delete"
 
 # ==============================================================================
 # JIRA WORKTREE UTILITIES
@@ -379,51 +379,36 @@ _worktree_init() {
   git reset --hard origin/main
 }
 
-# Setup zellij pane with commands
-# Args: worktree_path, commands...
-_zellij_pane_init() {
-  local worktree_path="$1"
-  shift
-
-  zellij action write-chars "cd \"$worktree_path\""
-  zellij action write 13  # Enter key
-
-  zellij action write-chars "git fetch origin && git reset --hard origin/main"
-  zellij action write 13  # Enter key
-
-  # Execute remaining commands
-  for cmd in "$@"; do
-    zellij action write-chars "$cmd"
-    zellij action write 13  # Enter key
-  done
-}
-
-# Setup zellij workspace for development work
+# Setup a Herdr workspace for development work: an editor pane on the left and
+# a command pane on the right, both starting in the worktree.
 # Args: worktree_path, tab_name, right_pane_cmd
-_zellij_setup_workspace() {
+_herdr_setup_workspace() {
   local worktree_path="$1"
   local tab_name="$2"
   local right_pane_cmd="$3"
 
-  echo "Creating zellij workspace: $tab_name"
-  zellij action new-tab --name "$tab_name"
+  echo "Creating Herdr workspace: $tab_name"
+  local result root_pane right_pane
+  result=$(herdr workspace create --cwd "$worktree_path" --label "$tab_name" --focus) || {
+    echo "Error: Failed to create the Herdr workspace"
+    return 1
+  }
 
-  # Split pane vertically (50/50)
-  zellij action new-pane --direction right
+  root_pane=$(echo "$result" | jq -r '.result.root_pane.pane_id // empty')
+  if [ -z "$root_pane" ]; then
+    echo "Error: unexpected response from herdr"
+    return 1
+  fi
 
-  # Setup left pane (nvim)
-  zellij action move-focus left
-  _zellij_pane_init "$worktree_path" "nvim ."
+  right_pane=$(herdr pane split "$root_pane" --direction right --cwd "$worktree_path" --no-focus | jq -r '.result.pane.pane_id // empty')
 
-  # Setup right pane (custom command)
-  zellij action move-focus right
-  _zellij_pane_init "$worktree_path" "$right_pane_cmd"
-
-  # Focus back to left pane
-  zellij action move-focus left
+  herdr pane run "$root_pane" "cd \"$worktree_path\" && e ."
+  if [ -n "$right_pane" ]; then
+    herdr pane run "$right_pane" "$right_pane_cmd"
+  fi
 
   echo "Workspace ready!"
-  echo "Left pane: nvim | Right pane: $right_pane_cmd"
+  echo "Left pane: editor | Right pane: $right_pane_cmd"
 }
 
 # Checkout GitHub PR branch
@@ -487,9 +472,9 @@ jira_claude() {
     local branch_name=$(git branch --show-current)
     local tab_name="${repo_name}:${branch_name}"
 
-    if [ -n "$ZELLIJ" ]; then
-      # Setup zellij workspace with just nvim (no Claude)
-      _zellij_setup_workspace "$repo_root" "$tab_name" "echo 'Ready to work on PR'"
+    if [ -n "$HERDR_ENV" ]; then
+      # Setup a Herdr workspace with just the editor (no Claude)
+      _herdr_setup_workspace "$repo_root" "$tab_name" "echo 'Ready to work on PR'"
     else
       echo "Opening editor..."
       nvim .
@@ -533,10 +518,10 @@ jira_claude() {
   local cc_prompt="Please fetch the details for JIRA ticket ${ticket} and create a plan to implement it. If you see a devbox.json files, you might want to execute \`devbox shell\` before running any project related commands like using node, installing dependencies, etc"
 
   # Setup workspace
-  if [ -n "$ZELLIJ" ]; then
-    _zellij_setup_workspace "$worktree_path" "$tab_name" "cc '$cc_prompt'"
+  if [ -n "$HERDR_ENV" ]; then
+    _herdr_setup_workspace "$worktree_path" "$tab_name" "cc '$cc_prompt'"
   else
-    echo "Not in a zellij session."
+    echo "Not in a Herdr session."
     _worktree_init "$worktree_path" || return 1
 
     echo "Starting Claude Code to plan work for $ticket..."

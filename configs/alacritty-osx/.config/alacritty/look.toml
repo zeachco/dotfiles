@@ -2,6 +2,10 @@
 padding = { x = 10, y = 10 }
 startup_mode = "Maximized"
 decorations = "Buttonless"
+# macOS sends Option as a compose key (opt+e -> é), so Ctrl+Opt chords never
+# reach herdr or tmux. "Both" turns either Option into Alt inside Alacritty
+# only; switch to "OnlyLeft" to keep accent composition on the right Option.
+option_as_alt = "Both"
 
 [font]
 size = 18.0

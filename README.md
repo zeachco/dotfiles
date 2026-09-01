@@ -64,7 +64,7 @@ Optional environment overrides can be added to the system unit for `MAX_TEMPERAT
 
 # Ubuntu special case
 
-For ubuntu, it also installs [omakub](https://omakub.org/) it's just too good to ignore, other OS manually installs the good parts of omakub that I want there like zellij, nvim, sh utils configs
+For ubuntu, it also installs [omakub](https://omakub.org/) it's just too good to ignore, other OS manually installs the good parts of omakub that I want there like tmux, nvim, sh utils configs
 
 # Supports
 
@@ -98,7 +98,6 @@ Uses [mise](https://mise.jdx.dev/) and [devbox](https://www.jetify.com/devbox) t
 - neovim (text editor)
 - ligature nerd fonts
 - fzf (fast file searching)
-- zellij (terminal multiplexer with session and workspace management)
 - tmux (terminal multiplexer, Omarchy keybindings shared across Linux and macOS)
 - g++ compiler
 

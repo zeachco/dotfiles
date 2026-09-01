@@ -14,7 +14,6 @@ install wget
 install tree
 script_install rg "pkg install -y ripgrep"
 install fzf
-install zellij
 install zsh
 install fish
 install neovim

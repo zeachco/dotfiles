@@ -65,7 +65,15 @@ stow_link sketchybar
 stow_link aerospace
 stow_link alacritty
 stow_link alacritty-osx
+stow_link herdr
 stow_link nvim
+
+# The shared profile already ran herdr-config, but that was before the Stow
+# link existed; re-apply so the keymap and theme land in the linked file.
+if command -v herdr &>/dev/null; then
+  "$DOT_DIR/bin/herdr-config" ensure-keys
+  "$DOT_DIR/bin/herdr-config" sync-theme
+fi
 
 # Generate alacritty os.toml with the absolute herdr path
 # Alacritty uses execve(2) which doesn't search PATH, so we need absolute paths

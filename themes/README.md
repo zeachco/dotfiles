@@ -7,7 +7,7 @@ Cross-platform theme switching for terminal applications, based on [Omakub's the
 This system provides a unified way to switch themes across multiple applications:
 - **Neovim** - Text editor
 - **Alacritty** - Terminal emulator
-- **Zellij** - Terminal multiplexer
+- **Herdr** - Terminal workspace manager
 - **btop** - System monitor
 - **Claude** - Light/dark appearance
 - **Codex** - Matching Catppuccin light/dark syntax theme
@@ -50,7 +50,7 @@ themes/
 └── tokyo-night/
     ├── neovim.lua         # Neovim/LazyVim theme plugin
     ├── alacritty.toml     # Alacritty terminal colors
-    ├── zellij.kdl         # Zellij theme
+    ├── herdr-theme        # Name of the matching Herdr built-in theme
     ├── btop.theme         # btop system monitor theme
     └── vscode.sh          # VS Code theme installer script
 ```
@@ -92,57 +92,21 @@ background = "#1a1b26"
 foreground = "#a9b1d6"
 ```
 
-#### `zellij.kdl`
-Zellij theme in KDL format using component-based structure.
+#### `herdr-theme`
+A single line naming the Herdr built-in theme that best matches this theme.
 
-**Applied to:** `~/.config/zellij/themes/<theme-name>.kdl`
+**Applied to:** the `theme.name` key of `~/.config/herdr/config.toml`, patched
+in place by `bin/herdr-config`. On macOS that file is Stow-linked from
+`configs/herdr`, so a theme switch leaves a one-line diff in the repo.
 
-**Format:**
-```kdl
-themes {
-  theme-name {
-    text_unselected {
-      base 169 177 214      # RGB format
-      background 26 27 38
-      emphasis_0 247 118 142
-      emphasis_1 158 206 106
-      emphasis_2 68 157 171
-      emphasis_3 255 158 100
-    }
+**Valid values:** `catppuccin`, `catppuccin-latte`, `terminal`, `tokyo-night`,
+`tokyo-night-day`, `dracula`, `nord`, `gruvbox`, `gruvbox-light`, `one-dark`,
+`one-light`, `solarized`, `solarized-light`, `kanagawa`, `kanagawa-lotus`,
+`rose-pine`, `rose-pine-dawn`, `vesper`.
 
-    text_selected {
-      base 50 52 74
-      background 122 162 247
-      emphasis_0 247 118 142
-      emphasis_1 248 248 248
-      emphasis_2 122 162 247
-      emphasis_3 173 142 230
-    }
-
-    # Additional components:
-    # - ribbon_unselected / ribbon_selected
-    # - table_title / table_cell_unselected / table_cell_selected
-    # - list_unselected / list_selected
-    # - frame_unselected / frame_selected / frame_highlight
-    # - exit_code_success / exit_code_error
-  }
-}
-```
-
-**UI Components:**
-- `text_unselected` / `text_selected` - Base text parts of UI
-- `ribbon_unselected` / `ribbon_selected` - Tabs and keybinding modes
-- `table_title` / `table_cell_*` - Table components
-- `list_unselected` / `list_selected` - List items
-- `frame_unselected` / `frame_selected` / `frame_highlight` - Pane frames
-- `exit_code_success` / `exit_code_error` - Command exit status
-
-Each component requires these attributes in RGB format:
-- `base` - Base color of the component
-- `background` - Background color
-- `emphasis_0` through `emphasis_3` - Text emphasis colors for differentiation
-
-For more details, see the [Zellij Theme Documentation](https://zellij.dev/documentation/themes.html)
+Use `terminal` when nothing matches: Herdr then adopts the host terminal's
+palette, which `alacritty.toml` already themes. Verify a change with
+`herdr config check`.
 
 #### `btop.theme`
 btop system monitor theme with color definitions for CPU, memory, network graphs.
@@ -182,7 +146,7 @@ fi
 2. **Add theme files** (at minimum, create files for the applications you use):
    - `neovim.lua`
    - `alacritty.toml`
-   - `zellij.kdl`
+   - `herdr-theme`
    - `btop.theme` (optional)
    - `vscode.sh` (optional)
 
@@ -216,13 +180,11 @@ Make sure your `~/.config/alacritty/alacritty.toml` imports the theme:
 import = ["~/dotfiles/themes/current/alacritty.toml"]
 ```
 
-### Zellij Integration
+### Herdr Integration
 
-Make sure your `~/.config/zellij/config.kdl` references the theme:
-
-```kdl
-theme "current"
-```
+Nothing to wire up: `bin/theme-switch` calls `bin/herdr-config sync-theme`,
+which writes `theme.name` into `~/.config/herdr/config.toml` and asks the
+running server to reload with `herdr server reload-config`.
 
 ### btop Integration
 
@@ -255,7 +217,7 @@ Note: GNOME desktop themes and desktop backgrounds are intentionally excluded fo
 The theme switcher automatically reloads configurations where possible:
 - **Neovim**: Requires restart or `:Lazy reload`
 - **Alacritty**: Reloads automatically
-- **Zellij**: Switches immediately in running sessions
+- **Herdr**: Reloads immediately in running sessions
 - **btop**: Reloads automatically
 - **VS Code**: Requires restart
 

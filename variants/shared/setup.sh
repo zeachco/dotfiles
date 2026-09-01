@@ -55,7 +55,6 @@ install jq                    # json parser
 install eza                   # list tree for ls
 install lazygit
 install fzf
-install zellij
 install tmux
 install ngrep
 
@@ -74,8 +73,15 @@ fi
 script_install claude "curl -fsSL https://claude.ai/install.sh | bash && echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc"
 
 stow_link alacritty
-stow_link zellij
 stow_link tmux
+
+# Herdr's config is Stow-linked on macOS (configs/herdr) but not on other
+# platforms, and its server writes to the file either way, so the keymap and
+# theme are patched in place rather than templated.
+if command -v herdr &>/dev/null; then
+  "$DOT_DIR/bin/herdr-config" ensure-keys
+  "$DOT_DIR/bin/herdr-config" sync-theme
+fi
 
 # # not using OMZSH
 # if [ -d "$HOME/.oh-my-zsh" ] && [ -f "$HOME/.zshrc" ]; then

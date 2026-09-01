@@ -204,7 +204,7 @@ _set gt "git_test"
 # Source AI utilities (summarize, etc.)
 [[ -f "$DOT_DIR/variants/shared/_ai_tools.sh" ]] && source "$DOT_DIR/variants/shared/_ai_tools.sh"
 
-# Source worktree and zellij utilities
+# Source worktree and Herdr utilities
 [[ -f "$DOT_DIR/variants/shared/_worktrees.sh" ]] && source "$DOT_DIR/variants/shared/_worktrees.sh"
 
 # Source media streaming utilities

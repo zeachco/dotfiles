@@ -18,19 +18,19 @@ Darwin → osx
 
 | Variant   | PM         | Stow Configs                        | Notes                                        |
 | --------- | ---------- | ----------------------------------- | -------------------------------------------- |
-| shared    | agnostic   | alacritty                           | Base: git, rg, fd, gh, fzf, zellij           |
+| shared    | agnostic   | alacritty, tmux                     | Base: git, rg, fd, gh, fzf, tmux             |
 | debian    | apt        | claude, alacritty-debian, nvim      | Core tools                                   |
 | ubuntu    | apt        | Same as debian                      | + devbox, shortcuts.sh (GNOME keys)          |
-| osx       | brew       | 7 pkgs (aerospace, sketchybar, etc) | Generates zellij os.toml                     |
+| osx       | brew       | 6 pkgs (aerospace, sketchybar, herdr) | Generates herdr os.toml, option_as_alt     |
 | archlinux | pacman+yay | wireplumber                         | AUR helper, 20+ pac*/yay* functions          |
 | termux    | pkg        | None                                | Android-specific, redefined killport/network |
-| omarchy   | pacman     | hypr, zellij-omarchy                | Setup-only, modifies Hypr bindings           |
+| omarchy   | pacman     | hypr, foot, alacritty-omarchy       | Setup-only, modifies Hypr bindings           |
 
 ## Stow System (configs/ → ~/)
 
 16 packages mirror home structure: `configs/nvim/.config/nvim/`, `configs/alacritty/.config/alacritty/`  
 **stow_link()** (utils.sh:124-148): auto-removes conflicts, uses --restow fallback  
-**Override pattern**: base (alacritty, zellij) + OS variants (alacritty-osx, zellij-omarchy)
+**Override pattern**: base (alacritty, tmux) + OS variants (alacritty-osx, alacritty-omarchy)
 
 ## install_profile() (utils.sh:29-44)
 
@@ -43,8 +43,13 @@ Darwin → osx
 ## Key Functions (variants/shared/profile.sh)
 
 **clone [repo]**: GitHub shorthand | **killport [port]**: kill process | **check_for_devbox()**: auto-enters devbox shell  
-**Git**: gco, gs, gd, gci, gp (via `_set` - prints before exec) | **\_worktrees.sh**: jira_claude, zellij integration  
+**Git**: gco, gs, gd, gci, gp (via `_set` - prints before exec) | **\_worktrees.sh**: jira_claude, Herdr integration  
 **OS-specific**: archlinux (pacup, yayin), osx (docker wrapper, dark mode), termux (battery, notify)
+
+## Keybindings
+
+`configs/tmux/.config/tmux/tmux.conf` is a copy of Omarchy's tmux config; `bin/herdr-config ensure-keys` mirrors that keymap into `~/.config/herdr/config.toml` (Stow-linked from `configs/herdr` on macOS only; patched key-by-key in place because Herdr's server writes to the same file).
+Alt chords need `option_as_alt` on macOS (configs/alacritty-osx) and CSI-u Enter bindings (configs/alacritty, configs/foot). Validate with `herdr config check`.
 
 ## Testing
 

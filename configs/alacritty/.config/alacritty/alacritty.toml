@@ -6,7 +6,17 @@ import = [
     "~/.config/alacritty/os.toml",
 ]
 
+# Send Shift+Return and Alt+Shift+Return as CSI-u, mirroring the [text-bindings]
+# in configs/foot. ESC+CR (what `claude /terminal-setup` writes for Shift+Enter)
+# is byte-identical to Alt+Return, so tmux and Herdr would swallow Shift+Enter
+# as their M-Enter "split pane" chord. CSI-u keeps the three chords distinct,
+# which is also the only way M-S-Enter reaches the multiplexer at all.
 [[keyboard.bindings]]
 key = "Return"
 mods = "Shift"
-chars = "\u001B\r"
+chars = "\u001b[13;2u"
+
+[[keyboard.bindings]]
+key = "Return"
+mods = "Alt|Shift"
+chars = "\u001b[13;4u"

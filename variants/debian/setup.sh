@@ -10,7 +10,6 @@ fi
 install unzip
 # install gdebi
 # install zsh
-install zellij
 install ifconfig net-tools
 install dig dnsutils
 install curl

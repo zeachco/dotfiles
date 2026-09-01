@@ -1,3 +1,4 @@
 [terminal.shell]
 program = "/usr/bin/env"
-args = ["zellij"]
+# -A attaches to the "main" session when it exists, creates it otherwise.
+args = ["tmux", "new-session", "-A", "-s", "main"]

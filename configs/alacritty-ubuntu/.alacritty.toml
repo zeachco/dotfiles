@@ -1,4 +1,4 @@
-# Ubuntu-specific Alacritty config with Zellij
+# Ubuntu-specific Alacritty config with tmux
 
 [general]
 import = [
@@ -7,8 +7,9 @@ import = [
 ]
 
 [terminal.shell]
-program = "/bin/bash"
-args = ["-c", "if zellij list-sessions 2>/dev/null | grep -q '^1 '; then exec zellij attach 1; else exec zellij; fi"]
+program = "/usr/bin/env"
+# -A attaches to the "main" session when it exists, creates it otherwise.
+args = ["tmux", "new-session", "-A", "-s", "main"]
 
 [font]
 size = 11.0

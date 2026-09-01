@@ -8,7 +8,6 @@ install unzip
 install curl
 install gcc
 install make
-install zellij
 install zsh
 install s-tui # cli tool for CPU benchmarks
 install nvtop # per-process GPU/VRAM usage (supports AMDGPU)

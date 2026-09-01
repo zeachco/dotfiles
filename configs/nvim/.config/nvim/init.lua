@@ -95,30 +95,31 @@ if is_mac then
   })
 end
 
--- Mapping from Neovim colorschemes to Zellij themes
-local nvim_to_zellij_theme_map = {
+-- Mapping from Neovim colorschemes to Herdr's built-in themes. Anything not
+-- listed falls back to "terminal", which makes Herdr follow the terminal palette.
+local nvim_to_herdr_theme_map = {
   ["kanagawa"] = "kanagawa",
   ["kanagawa-wave"] = "kanagawa",
   ["kanagawa-dragon"] = "kanagawa",
+  ["kanagawa-lotus"] = "kanagawa-lotus",
   ["catppuccin"] = "catppuccin",
   ["catppuccin-mocha"] = "catppuccin",
   ["macchiato"] = "catppuccin",
   ["catppuccin-frappe"] = "catppuccin",
-  ["catppuccin-latte"] = "catppuccin",
+  ["catppuccin-latte"] = "catppuccin-latte",
   ["dracula"] = "dracula",
-  ["monokai"] = "monokai",
   ["gruvbox"] = "gruvbox",
   ["nord"] = "nord",
   ["tokyonight"] = "tokyo-night",
   ["tokyonight-night"] = "tokyo-night",
   ["tokyonight-storm"] = "tokyo-night",
   ["tokyonight-moon"] = "tokyo-night",
+  ["tokyonight-day"] = "tokyo-night-day",
   ["rose-pine"] = "rose-pine",
   ["rose-pine-main"] = "rose-pine",
   ["rose-pine-moon"] = "rose-pine",
-  ["rose-pine-dawn"] = "rose-pine",
-  ["everforest"] = "everforest",
-  ["noctis-bordo"] = "noctis-bordo",
+  ["rose-pine-dawn"] = "rose-pine-dawn",
+  ["noctis-bordo"] = "vesper",
 }
 
 -- Apply transparency if enabled
@@ -141,17 +142,14 @@ vim.api.nvim_create_autocmd("ColorScheme", {
       vim.api.nvim_set_hl(0, "NormalNC", { bg = "NONE" })
     end
 
-    -- Sync Zellij theme if running inside Zellij
-    if os.getenv("ZELLIJ") then
+    -- Sync Herdr's theme when running inside a Herdr session
+    if os.getenv("HERDR_ENV") then
       local current_colorscheme = vim.g.colors_name
-      local zellij_theme = nvim_to_zellij_theme_map[current_colorscheme]
+      local herdr_theme = nvim_to_herdr_theme_map[current_colorscheme] or "terminal"
+      local herdr_config = vim.fn.expand("~/dotfiles/bin/herdr-config")
 
-      if zellij_theme then
-        -- Use zellij action to switch theme
-        vim.fn.jobstart(
-          string.format("zellij action switch-mode normal && zellij action switch-theme %s", zellij_theme),
-          { detach = true }
-        )
+      if vim.fn.executable(herdr_config) == 1 then
+        vim.fn.jobstart({ herdr_config, "set-theme", herdr_theme }, { detach = true })
       end
     end
   end,

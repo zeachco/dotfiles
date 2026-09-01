@@ -27,14 +27,11 @@ get_theme_mode() {
   fi
 }
 
-update_zellij_theme() {
-  if [ -f "$CURRENT_THEME_PATH/zellij.kdl" ]; then
-    mkdir -p "$HOME/.config/zellij/themes"
-    sed 's/themes {$/themes {\n  current {/; /^  [a-z-]* {$/d' "$CURRENT_THEME_PATH/zellij.kdl" >"$HOME/.config/zellij/themes/current.kdl"
-
-    # Prompt a running Zellij instance to reload without rewriting its config.
-    [ -f "$HOME/.config/zellij/config.kdl" ] && touch "$HOME/.config/zellij/config.kdl"
-  fi
+update_herdr_theme() {
+  command -v herdr &>/dev/null || return 0
+  # herdr-config maps themes/current/herdr-theme onto Herdr's built-in theme
+  # names and asks the running server to reload.
+  "$DOTFILES_PATH/bin/herdr-config" sync-theme
 }
 
 update_alacritty_theme() {
@@ -105,7 +102,7 @@ fi
 
 # Update terminal and multiplexer themes
 update_alacritty_theme
-update_zellij_theme
+update_herdr_theme
 
 # Update btop
 if command -v btop &>/dev/null && [ -f "$CURRENT_THEME_PATH/btop.theme" ]; then

@@ -1,13 +1,13 @@
 -- Keep personal keybinding overrides here. Omarchy defaults remain active.
 -- See current bindings with: omarchy menu keybindings --print
 
--- Open Zellij on demand in Foot at the current terminal-aware directory.
+-- Open tmux on demand in Foot at the current terminal-aware directory.
 -- SUPER + SHIFT + RETURN is Omarchy's default Browser shortcut.
 hl.unbind("SUPER + SHIFT + RETURN")
 o.bind(
   "SUPER + SHIFT + RETURN",
-  "Zellij",
-  'uwsm-app -- foot --working-directory="$(omarchy-cmd-terminal-cwd)" zellij'
+  "Tmux",
+  'uwsm-app -- foot --working-directory="$(omarchy-cmd-terminal-cwd)" tmux new-session -A -s main'
 )
 
 -- Keep the Tmux terminal shortcut even though preinstalled app bindings are disabled.

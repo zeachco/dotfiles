@@ -1,0 +1,44 @@
+# Herdr configuration -- stowed from dotfiles on macOS (variants/osx/setup.sh).
+#
+# Two other things write to this file, so expect it to change under you:
+#   - Herdr itself (onboarding state, `herdr channel set`, `herdr config
+#     reset-keys`)
+#   - bin/herdr-config, which patches `theme.name` on every `theme` switch and
+#     re-applies the Omarchy keymap on every setup run
+# Both patch keys in place rather than rewriting the file, so these comments
+# survive. A theme switch shows up as a one-line diff here; commit or discard.
+#
+# Keymap mirrors configs/tmux/.config/tmux/tmux.conf (Omarchy's). Validate any
+# edit with `herdr config check`.
+
+onboarding = false
+
+[theme]
+name = "dracula"
+auto_switch = false
+
+[keys]
+focus_pane_left = "ctrl+alt+left"
+focus_pane_down = "ctrl+alt+down"
+focus_pane_up = "ctrl+alt+up"
+focus_pane_right = "ctrl+alt+right"
+resize_pane_left = "ctrl+shift+alt+left"
+resize_pane_down = "ctrl+shift+alt+down"
+resize_pane_up = "ctrl+shift+alt+up"
+resize_pane_right = "ctrl+shift+alt+right"
+split_horizontal = ["prefix+minus", "prefix+h", "alt+enter"]
+split_vertical = ["prefix+v", "alt+shift+enter"]
+close_pane = ["prefix+x", "alt+escape"]
+switch_tab = ["prefix+1..9", "alt+1..9"]
+previous_tab = ["prefix+p", "alt+left"]
+next_tab = ["prefix+n", "alt+right"]
+move_tab_previous = "alt+shift+left"
+move_tab_next = "alt+shift+right"
+close_tab = ["prefix+shift+x", "prefix+k"]
+previous_workspace = "alt+up"
+next_workspace = "alt+down"
+new_workspace = ["prefix+shift+n", "prefix+shift+c"]
+close_workspace = ["prefix+shift+d", "prefix+shift+k"]
+prefix = "ctrl+space"
+resize_mode = "prefix+ctrl+r"
+rename_tab = ["prefix+shift+t", "prefix+r"]
