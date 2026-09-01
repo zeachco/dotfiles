@@ -67,18 +67,15 @@ stow_link alacritty
 stow_link alacritty-osx
 stow_link nvim
 
-# Generate alacritty os.toml with architecture-specific zellij path
+# Generate alacritty os.toml with the absolute herdr path
 # Alacritty uses execve(2) which doesn't search PATH, so we need absolute paths
-# Intel Macs: /usr/local/bin/zellij
-# Apple Silicon: /opt/homebrew/bin/zellij
-ZELLIJ_PATH=$(which zellij 2>/dev/null || echo "${HOMEBREW_PREFIX:-/usr/local}/bin/zellij")
+# herdr with no args launches or attaches to the persistent session
+HERDR_PATH=$(which herdr 2>/dev/null || echo "$HOME/.local/bin/herdr")
 
-# Use bash wrapper to handle conditional session attach logic
 rm -f ~/.config/alacritty/os.toml
 cat >~/.config/alacritty/os.toml <<EOF
 [terminal.shell]
-program = "/bin/bash"
-args = ["-c", "if $ZELLIJ_PATH list-sessions 2>/dev/null | grep -q '^1 '; then exec $ZELLIJ_PATH attach 1; else exec $ZELLIJ_PATH; fi"]
+program = "$HERDR_PATH"
 EOF
 
 # call `defaults delete <property>` to reset to default
