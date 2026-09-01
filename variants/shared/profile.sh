@@ -100,7 +100,8 @@ _set prs "gh pr list  --author \"@me\""
 
 alias e="nvim"
 alias v="nvim"
-alias sniff_llms='cargo run --release --manifest-path "$HOME/dotfiles/sniff_llms/Cargo.toml" --'
+# sniff_llms lives in its own repo (github.com/zeachco/sniff_llms), cloned at ~/dev/sniff_llms
+alias sniff_llms='cargo run --release --manifest-path "$HOME/dev/sniff_llms/Cargo.toml" --'
 
 killport() {
   lsof -i ":$1" | grep LISTEN | awk '{print $2}' | xargs kill -9
