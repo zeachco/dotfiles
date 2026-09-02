@@ -14,7 +14,7 @@
 onboarding = false
 
 [theme]
-name = "dracula"
+name = "terminal"
 auto_switch = false
 
 [keys]
@@ -26,12 +26,12 @@ resize_pane_left = "ctrl+shift+alt+left"
 resize_pane_down = "ctrl+shift+alt+down"
 resize_pane_up = "ctrl+shift+alt+up"
 resize_pane_right = "ctrl+shift+alt+right"
-split_horizontal = ["prefix+minus", "prefix+h", "alt+enter"]
+split_horizontal = ["prefix+minus", "prefix+h", "prefix+n", "alt+enter"]
 split_vertical = ["prefix+v", "alt+shift+enter"]
 close_pane = ["prefix+x", "alt+escape"]
 switch_tab = ["prefix+1..9", "alt+1..9"]
 previous_tab = ["prefix+p", "alt+left"]
-next_tab = ["prefix+n", "alt+right"]
+next_tab = ["alt+right"]
 move_tab_previous = "alt+shift+left"
 move_tab_next = "alt+shift+right"
 close_tab = ["prefix+shift+x", "prefix+k"]

@@ -25,7 +25,7 @@ Usage: herdr-config <command>
   set <section> <key> <toml-value>  Set one key, creating the section if needed
   set-theme <name>                  Set one of Herdr's built-in theme names
   sync-theme                        Apply themes/current/herdr-theme to Herdr
-  ensure-keys                       Bind Ctrl+Alt pane focus/resize like tmux
+  ensure-keys                       Apply the Omarchy tmux keymap to Herdr
 EOF
 }
 
@@ -112,13 +112,13 @@ ensure_keys() {
   # second one is ever added.
   toml_set keys prefix '"ctrl+space"'
 
-  # Panes: Omarchy's prefix letters (h splits below, v splits right, x kills)
-  # plus its direct chords. Herdr's own prefix+hjkl pane focus is dropped on
-  # purpose -- those letters are splits in Omarchy, and focus lives on the
-  # ctrl+alt arrows. Direction note: Herdr's split_vertical splits to the
-  # right and split_horizontal splits downward, the opposite of tmux's -v/-h
-  # flags, so tmux `bind h split-window -v` maps to split_horizontal.
-  toml_set keys split_horizontal '["prefix+minus", "prefix+h", "alt+enter"]'
+  # Panes: Omarchy's prefix letters (h and n split below, v splits right, x
+  # kills) plus its direct chords. Herdr's own prefix+hjkl pane focus is
+  # dropped on purpose -- those letters are splits in Omarchy, and focus lives
+  # on the ctrl+alt arrows. Direction note: Herdr's split_vertical splits to
+  # the right and split_horizontal splits downward, the opposite of tmux's
+  # -v/-h flags, so tmux `bind h split-window -v` maps to split_horizontal.
+  toml_set keys split_horizontal '["prefix+minus", "prefix+h", "prefix+n", "alt+enter"]'
   toml_set keys split_vertical '["prefix+v", "alt+shift+enter"]'
   toml_set keys close_pane '["prefix+x", "alt+escape"]'
   toml_set keys focus_pane_left '"ctrl+alt+left"'
@@ -138,7 +138,8 @@ ensure_keys() {
   toml_set keys close_tab '["prefix+shift+x", "prefix+k"]'
   toml_set keys switch_tab '["prefix+1..9", "alt+1..9"]'
   toml_set keys previous_tab '["prefix+p", "alt+left"]'
-  toml_set keys next_tab '["prefix+n", "alt+right"]'
+  # prefix+n is a split (above), so next tab keeps only alt+right.
+  toml_set keys next_tab '["alt+right"]'
   toml_set keys move_tab_previous '"alt+shift+left"'
   toml_set keys move_tab_next '"alt+shift+right"'
 
