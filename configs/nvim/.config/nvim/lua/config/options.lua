@@ -2,10 +2,9 @@
 -- Default options that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/options.lua
 -- Add any additional options here
 
-vim.diagnostic.config({
-  virtual_text = false,
-  virtual_lines = { current_line = true, wrap = true },
-})
+-- Diagnostics are configured in lua/plugins/diagnostics.lua: LazyVim's
+-- nvim-lspconfig spec calls vim.diagnostic.config() after this file runs, so
+-- setting it here has no effect.
 
 -- Disable LazyVim's automatic root detection
 -- This makes nvim stay in the directory where it was started
