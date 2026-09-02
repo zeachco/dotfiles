@@ -42,3 +42,32 @@ close_workspace = ["prefix+shift+d", "prefix+shift+k"]
 prefix = "ctrl+space"
 resize_mode = "prefix+ctrl+r"
 rename_tab = ["prefix+shift+t", "prefix+r"]
+
+# PR Tracker (jakekroon/herdr-pr-tracker, `herdr plugin list`). A plugin cannot
+# ship keybindings and Herdr has no action palette, so the three actions are
+# bound here. Avoiding p/n/h/k/x/r/v/1-9 (taken by the Omarchy keymap above)
+# and o/g/e/b/s/w/c/q/z (Herdr's own prefix defaults): m and i are free.
+[[keys.command]]
+key = "prefix+m"
+type = "plugin_action"
+command = "herdr-pr-tracker.toggle"
+description = "toggle the PR pane"
+
+[[keys.command]]
+key = "prefix+i"
+type = "plugin_action"
+command = "herdr-pr-tracker.view-toggle"
+description = "toggle PR view (mine / awaiting my review)"
+
+[[keys.command]]
+key = "prefix+shift+i"
+type = "plugin_action"
+command = "herdr-pr-tracker.refresh"
+description = "refresh PR status now"
+
+# $pr is fed by the same plugin's pane.focused hook: the focused pane's branch's
+# PR, as `#21288 ✓`, or `◌#21288 ✓` for a draft. Everything else on these two
+# rows is Herdr's own default -- repeated here because setting `rows` replaces
+# the default outright rather than adding to it.
+[ui.sidebar.agents]
+rows = [["state_icon", "workspace", "tab", "$pr"], ["agent"]]

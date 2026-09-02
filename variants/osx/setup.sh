@@ -80,10 +80,21 @@ fi
 # herdr with no args launches or attaches to the persistent session
 HERDR_PATH=$(which herdr 2>/dev/null || echo "$HOME/.local/bin/herdr")
 
+# Launch through a login shell so the herdr *server* inherits a real PATH.
+# Alacritty starts from launchd with PATH=/usr/bin:/bin:/usr/sbin:/sbin, the
+# client spawns the server as a child, and the server hands its own environment
+# to every plugin command and [[keys.command]] entry. Without this, anything
+# outside those four directories -- bun, gh, every brew binary -- fails to spawn
+# with "No such file or directory (os error 2)" (visible in `herdr plugin log`).
+# Pane shells were never affected: terminal.shell_mode = "auto" already makes
+# them login shells on macOS, which is why $PATH looks fine inside a pane.
+LOGIN_SHELL="${SHELL:-/bin/zsh}"
+
 rm -f ~/.config/alacritty/os.toml
 cat >~/.config/alacritty/os.toml <<EOF
 [terminal.shell]
-program = "$HERDR_PATH"
+program = "$LOGIN_SHELL"
+args = ["-l", "-c", "exec '$HERDR_PATH'"]
 EOF
 
 # call `defaults delete <property>` to reset to default

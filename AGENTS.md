@@ -51,6 +51,12 @@ Darwin → osx
 `configs/tmux/.config/tmux/tmux.conf` is a copy of Omarchy's tmux config; `bin/herdr-config ensure-keys` mirrors that keymap into `~/.config/herdr/config.toml` (Stow-linked from `configs/herdr` on macOS only; patched key-by-key in place because Herdr's server writes to the same file).
 Alt chords need `option_as_alt` on macOS (configs/alacritty-osx) and CSI-u Enter bindings (configs/alacritty, configs/foot). Validate with `herdr config check`.
 
+## Herdr plugins
+
+`herdr plugin install <owner/repo>`; installed globally under `~/.config/herdr/plugins`, so nothing to Stow. Installed: `jakekroon/herdr-pr-tracker` (open-PR widget, `prefix+m`/`prefix+i`/`prefix+shift+i` and the `$pr` sidebar token, both in configs/herdr).
+
+Plugin commands and `[[keys.command]]` entries are spawned by the Herdr **server**, which inherits its environment from whatever launched it -- Alacritty from launchd, i.e. `PATH=/usr/bin:/bin:/usr/sbin:/sbin`. variants/osx/setup.sh therefore launches Herdr through `$SHELL -l -c`; without that, anything outside those four directories (bun, gh, all of brew) fails to spawn and only `herdr plugin log` says why (`No such file or directory (os error 2)`). Pane shells never saw this -- they are login shells already. A PATH change reaches the server only on server restart.
+
 ## Testing
 
 `bash ~/dotfiles/setup.sh` (full) | `dotfiles_update` (remote pull) | `source ~/.zshrc` (reload)
