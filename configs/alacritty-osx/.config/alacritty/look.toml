@@ -8,7 +8,7 @@ decorations = "Buttonless"
 option_as_alt = "Both"
 
 [font]
-size = 18.0
+size = 12.0
 
 [font.normal]
 family = "JetBrainsMono Nerd Font"
