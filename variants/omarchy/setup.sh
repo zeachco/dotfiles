@@ -18,6 +18,9 @@ if ! pacman -Qq ttf-jetbrains-mono-nerd &>/dev/null; then
   sudo pacman -S ttf-jetbrains-mono-nerd --needed --noconfirm
 fi
 
+# Offline text-to-speech (speak to the default output via espeak-ng "text")
+install espeak-ng
+
 # Keep automatic locking enabled while disabling the optional screensaver.
 omarchy-toggle screensaver-off on
 
