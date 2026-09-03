@@ -35,7 +35,8 @@
           "id": "omarchy.tray",
           "pinned": [
             "Slack_status_icon_1",
-            "steam"
+            "steam",
+            "1Password_status_icon_1"
           ],
           "hidden": []
         },
