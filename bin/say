@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Speak text locally with Kokoro TTS. Install the runtime once with:
+#   python3.11 -m venv ~/.local/share/kokoro-tts && \
+#     ~/.local/share/kokoro-tts/bin/pip install 'torch==2.5.1+cpu' --index-url https://download.pytorch.org/whl/cpu && \
+#     ~/.local/share/kokoro-tts/bin/pip install kokoro soundfile
+
+set -euo pipefail
+
+KOKORO_PYTHON="${KOKORO_PYTHON:-$HOME/.local/share/kokoro-tts/bin/python}"
+VOICE="${KOKORO_VOICE:-af_heart}"
+
+if [[ ! -x "$KOKORO_PYTHON" ]]; then
+  echo "Kokoro is not installed. Run:" >&2
+  echo "  python3.11 -m venv ~/.local/share/kokoro-tts && ~/.local/share/kokoro-tts/bin/pip install 'torch==2.5.1+cpu' --index-url https://download.pytorch.org/whl/cpu && ~/.local/share/kokoro-tts/bin/pip install kokoro soundfile" >&2
+  exit 1
+fi
+
+if ! command -v pw-play >/dev/null 2>&1; then
+  echo "pw-play is required to play speech." >&2
+  exit 1
+fi
+
+if [[ $# -gt 0 ]]; then
+  export KOKORO_TEXT="$*"
+fi
+export KOKORO_VOICE="$VOICE"
+# The model was downloaded during setup; keep normal speech fully local and quiet.
+export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
+
+"$KOKORO_PYTHON" -c '
+import os
+import sys
+import warnings
+
+import numpy as np
+from kokoro import KPipeline
+
+warnings.filterwarnings(
+    "ignore",
+    message="dropout option adds dropout after all but last recurrent layer.*",
+    category=UserWarning,
+)
+warnings.filterwarnings(
+    "ignore",
+    message="`torch.nn.utils.weight_norm` is deprecated.*",
+    category=FutureWarning,
+)
+
+pipeline = KPipeline(lang_code="a", repo_id="hexgrad/Kokoro-82M")
+
+def speak(text):
+    for _, _, audio in pipeline(text, voice=os.environ["KOKORO_VOICE"]):
+        sys.stdout.buffer.write(np.asarray(audio, dtype=np.float32).tobytes())
+        sys.stdout.buffer.flush()
+
+if "KOKORO_TEXT" in os.environ:
+    text = os.environ["KOKORO_TEXT"].strip()
+    if not text:
+        raise SystemExit("Usage: say TEXT  or  printf \"TEXT\" | say")
+    speak(text)
+else:
+    received_text = False
+    for line in sys.stdin:
+        if text := line.strip():
+            received_text = True
+            speak(text)
+    if not received_text:
+        raise SystemExit("Usage: say TEXT  or  printf \"TEXT\" | say")
+' | pw-play --raw --rate 24000 --channels 1 --format f32 -

@@ -100,6 +100,8 @@ _set prs "gh pr list  --author \"@me\""
 
 alias e="nvim"
 alias v="nvim"
+alias say="$DOT_DIR/bin/say"
+alias speak="$DOT_DIR/bin/say"
 # sniff_llms lives in its own repo (github.com/zeachco/sniff_llms), cloned at ~/dev/sniff_llms
 alias sniff_llms='cargo run --release --manifest-path "$HOME/dev/sniff_llms/Cargo.toml" --'
 
