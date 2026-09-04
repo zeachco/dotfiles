@@ -1,0 +1,232 @@
+#!/usr/bin/env bash
+# Stream speech-to-text to stdout, utterance by utterance, as it is spoken, so you can:
+#   listen                  # print to screen
+#   listen | say            # repeat what is heard
+#   listen | cat >> notes   # append the stream to a file as it goes
+#
+# Install the runtime once with:
+#   python3.11 -m venv ~/.local/share/listen-stt && \
+#     ~/.local/share/listen-stt/bin/pip install faster-whisper numpy
+#
+# Providers: LISTEN_PROVIDER=whisper (default) | mock (lorem ipsum, no mic)
+# Whisper knobs:
+#   LISTEN_MODEL    small (default) | base | tiny | medium
+#   LISTEN_LANGUAGE en (default), or empty for auto-detect
+#   LISTEN_SOURCE   mic (default) | file | stdin (raw 16k s16le mono)
+#   LISTEN_FILE     input file when LISTEN_SOURCE=file
+#   LISTEN_SOURCE_DEVICE  pulse device name (default: pactl get-default-source, then "default")
+#   LISTEN_MIC_CMD  override capture command (must emit raw 16k s16le mono)
+#   LISTEN_SILENCE_MS   pause that ends an utterance (default 700)
+#   LISTEN_MAX_UTTERANCE_S  long-speech cut (default 25)
+# Mock knobs: LISTEN_MAX_WORDS (default 100), LISTEN_CHUNK (words per flush, default 4),
+#             LISTEN_DELAY (seconds between words, default 0.08)
+
+set -euo pipefail
+
+LISTEN_PROVIDER="${LISTEN_PROVIDER:-whisper}"
+
+case "$LISTEN_PROVIDER" in
+  whisper)
+    LISTEN_PYTHON="${LISTEN_PYTHON:-$HOME/.local/share/listen-stt/bin/python}"
+    if [[ ! -x "$LISTEN_PYTHON" ]]; then
+      echo "listen: the whisper runtime is not installed. Run:" >&2
+      echo "  python3.11 -m venv ~/.local/share/listen-stt && ~/.local/share/listen-stt/bin/pip install faster-whisper numpy" >&2
+      exit 1
+    fi
+    "$LISTEN_PYTHON" -c '
+import os
+import select
+import subprocess
+import sys
+
+import numpy as np
+from faster_whisper import WhisperModel
+from faster_whisper.vad import VadOptions, get_speech_timestamps
+
+SR = 16000
+model_name = os.environ.get("LISTEN_MODEL", "small")
+language = os.environ.get("LISTEN_LANGUAGE", "en") or None
+source = os.environ.get("LISTEN_SOURCE", "mic")
+silence_s = float(os.environ.get("LISTEN_SILENCE_MS", "700")) / 1000
+max_utt_s = float(os.environ.get("LISTEN_MAX_UTTERANCE_S", "25"))
+
+err = sys.stderr
+print(f"listen: loading whisper model {model_name!r} ...", file=err)
+model = WhisperModel(model_name, device="cpu", compute_type="int8")
+print("listen: listening (Ctrl+C to stop)", file=err)
+
+def mic_candidates():
+    cands = []
+    explicit = os.environ.get("LISTEN_SOURCE_DEVICE")
+    if explicit:
+        cands.append(explicit)
+    try:
+        pactl = subprocess.run(["pactl", "get-default-source"],
+                              capture_output=True, text=True, timeout=3)
+        if pactl.returncode == 0 and pactl.stdout.strip():
+            cands.append(pactl.stdout.strip())
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    cands.append("default")
+    return [c for i, c in enumerate(cands) if c not in cands[:i]]
+
+def try_mic(device):
+    proc = subprocess.Popen(
+        ["ffmpeg", "-hide_banner", "-loglevel", "error",
+         "-f", "pulse", "-i", device,
+         "-ar", str(SR), "-ac", "1", "-f", "s16le", "pipe:1"],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    r, _, _ = select.select([proc.stdout], [], [], 2.0)
+    if not r:
+        proc.kill()
+        proc.wait()
+        return None
+    first = proc.stdout.read(4096)
+    if not first:
+        proc.kill()
+        proc.wait()
+        return None
+    return proc, first
+
+def audio_stream():
+    if source == "stdin":
+        while chunk := sys.stdin.buffer.read(65536):
+            yield chunk
+        return
+    if source == "file":
+        path = os.environ.get("LISTEN_FILE")
+        if not path:
+            raise SystemExit("listen: LISTEN_SOURCE=file needs LISTEN_FILE")
+        proc = subprocess.Popen(
+            ["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", path,
+             "-ar", str(SR), "-ac", "1", "-f", "s16le", "pipe:1"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        while chunk := proc.stdout.read(65536):
+            yield chunk
+        return
+    cmd = os.environ.get("LISTEN_MIC_CMD")
+    if cmd:
+        proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        while chunk := proc.stdout.read(65536):
+            yield chunk
+        return
+    for device in mic_candidates():
+        opened = try_mic(device)
+        if opened is None:
+            print(f"listen: input {device!r} unavailable, trying next", file=err)
+            continue
+        proc, first = opened
+        yield first
+        while chunk := proc.stdout.read(65536):
+            yield chunk
+        return
+    raise SystemExit("listen: no working audio input device found")
+
+def to_float32(raw):
+    return np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+
+def transcribe(audio):
+    if len(audio) < SR * 0.3:
+        return ""
+    segments, _ = model.transcribe(audio, language=language, beam_size=1, vad_filter=False)
+    return " ".join(seg.text.strip() for seg in segments).strip()
+
+def emit(text):
+    sys.stdout.write(text + "\n")
+    sys.stdout.flush()
+
+vad_opts = VadOptions(
+    threshold=0.5,
+    min_speech_duration_ms=150,
+    max_speech_duration_s=max_utt_s,
+    min_silence_duration_ms=int(silence_s * 1000),
+    speech_pad_ms=200,
+)
+
+buffer = np.array([], dtype=np.float32)
+tail_samples = int(SR * silence_s)
+
+try:
+    for raw in audio_stream():
+        buffer = np.concatenate([buffer, to_float32(raw)])
+        stamps = get_speech_timestamps(buffer, vad_opts, sampling_rate=SR)
+        cut = None
+        for seg in stamps:
+            if len(buffer) - seg["end"] >= tail_samples:
+                text = transcribe(buffer[seg["start"]:seg["end"]])
+                if text:
+                    emit(text)
+                cut = min(seg["end"] + SR // 10, len(buffer))
+                break
+        if cut is not None:
+            buffer = buffer[cut:]
+        elif buffer.size > SR * (max_utt_s + 5):
+            mid = buffer.size // 2
+            text = transcribe(buffer[:mid])
+            if text:
+                emit(text)
+            buffer = buffer[mid:]
+    for seg in get_speech_timestamps(buffer, vad_opts, sampling_rate=SR):
+        text = transcribe(buffer[seg["start"]:seg["end"]])
+        if text:
+            emit(text)
+except KeyboardInterrupt:
+    print("listen: stopped", file=err)
+    raise SystemExit(130)
+except BrokenPipeError:
+    # Downstream reader exited early (e.g. `say` finished); stop quietly.
+    os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+    raise SystemExit(0)
+'
+    ;;
+  mock)
+    python3 -c '
+import os
+import random
+import sys
+import time
+
+WORDS = (
+    "lorem ipsum dolor sit amet consectetur adipiscing elit sed do "
+    "eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim "
+    "ad minim veniam quis nostrud exercitation ullamco laboris nisi ut "
+    "aliquip ex ea commodo consequat duis aute irure dolor in "
+    "reprehenderit in voluptate velit esse cillum dolore eu fugiat "
+    "nulla pariatur excepteur sint occaecat cupidatat non proident "
+    "sunt in culpa qui officia deserunt mollit anim id est laborum"
+).split()
+
+max_words = int(os.environ.get("LISTEN_MAX_WORDS", "100"))
+chunk = int(os.environ.get("LISTEN_CHUNK", "4"))
+delay = float(os.environ.get("LISTEN_DELAY", "0.08"))
+
+out = sys.stdout
+emitted = 0
+try:
+    while emitted < max_words:
+        take = min(chunk, max_words - emitted)
+        for word in random.sample(WORDS, take):
+            if emitted > 0:
+                out.write(" ")
+            out.write(word)
+            out.flush()
+            emitted += 1
+            time.sleep(delay)
+            if emitted >= max_words:
+                break
+        out.write("\n")
+        out.flush()
+except KeyboardInterrupt:
+    out.write("\n")
+    out.flush()
+    raise SystemExit(130)
+except BrokenPipeError:
+    os.dup2(os.open(os.devnow, os.O_WRONLY), sys.stdout.fileno())
+    raise SystemExit(0)
+'
+    ;;
+  *)
+    echo "listen: unknown LISTEN_PROVIDER: $LISTEN_PROVIDER (available: whisper, mock)" >&2
+    exit 1
+    ;;
+esac
