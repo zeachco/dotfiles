@@ -12,13 +12,12 @@ use std::time::{Duration, Instant};
 
 type AnyError = Box<dyn Error + Send + Sync>;
 
-const WHITE: u32 = 0xFF_FF_FF;
 const RED: u32 = 0xFF_00_00;
 const OFF: u32 = 0x00_00_00;
-const TOP_LEFT: usize = 0;
-const TOP_RIGHT: usize = 3;
-const BOTTOM_LEFT: usize = 4;
-const BOTTOM_RIGHT: usize = 7;
+const RING: usize = 8;
+const RODS: usize = 4;
+const GAP_CAP: f64 = 0.35;
+const TOGGLE: Duration = Duration::from_millis(500);
 
 #[derive(Debug)]
 struct Config {
@@ -30,7 +29,6 @@ struct Config {
     health: Duration,
     http_timeout: Duration,
     max_temperature_c: f64,
-    max_power_watts: f64,
     max_disk_mbps: f64,
     max_network_mbps: f64,
     led_count: usize,
@@ -47,7 +45,6 @@ impl Config {
             health: Duration::from_secs_f64(env_number("HEALTH_SECONDS", 8.0)?),
             http_timeout: Duration::from_secs_f64(env_number("HTTP_TIMEOUT", 1.5)?),
             max_temperature_c: env_number("MAX_TEMPERATURE_C", 90.0)?,
-            max_power_watts: env_number("MAX_POWER_WATTS", 120.0)?,
             max_disk_mbps: env_number("MAX_DISK_MBPS", 1000.0)?,
             max_network_mbps: env_number("MAX_NETWORK_MBPS", 1000.0)?,
             led_count: env_number("LED_COUNT", 8)?,
@@ -282,20 +279,6 @@ fn cpu_percent(previous: CpuTimes, current: CpuTimes) -> f64 {
     }
 }
 
-fn memory_used_fraction() -> Result<f64, AnyError> {
-    let meminfo = fs::read_to_string("/proc/meminfo")?;
-    let read_kib = |key: &str| {
-        meminfo.lines().find_map(|line| {
-            line.strip_prefix(key)
-                .and_then(|value| value.split_whitespace().next())
-                .and_then(|value| value.parse::<u64>().ok())
-        })
-    };
-    let total = read_kib("MemTotal:").ok_or("MemTotal not found")?;
-    let available = read_kib("MemAvailable:").ok_or("MemAvailable not found")?;
-    Ok(1.0 - available.min(total) as f64 / total as f64)
-}
-
 fn gpu_usage_fraction() -> Option<f64> {
     fs::read_dir("/sys/class/drm")
         .ok()?
@@ -312,19 +295,22 @@ fn gpu_usage_fraction() -> Option<f64> {
         .reduce(f64::max)
 }
 
-fn power_watts() -> Option<f64> {
-    fs::read_dir("/sys/class/hwmon")
-        .ok()?
-        .flatten()
-        .filter_map(|entry| {
-            let path = entry.path();
-            ["power1_average", "power1_input"]
-                .into_iter()
-                .find_map(|name| fs::read_to_string(path.join(name)).ok())
+fn chip_utilization(cpu: f64, gpu: Option<f64>) -> f64 {
+    cpu.max(gpu.map(|fraction| fraction * 100.0).unwrap_or(0.0))
+}
+
+fn memory_used_fraction() -> Result<f64, AnyError> {
+    let meminfo = fs::read_to_string("/proc/meminfo")?;
+    let read_kib = |key: &str| {
+        meminfo.lines().find_map(|line| {
+            line.strip_prefix(key)
+                .and_then(|value| value.split_whitespace().next())
+                .and_then(|value| value.parse::<u64>().ok())
         })
-        .filter_map(|value| value.trim().parse::<f64>().ok())
-        .map(|microwatts| microwatts / 1_000_000.0)
-        .reduce(f64::max)
+    };
+    let total = read_kib("MemTotal:").ok_or("MemTotal not found")?;
+    let available = read_kib("MemAvailable:").ok_or("MemAvailable not found")?;
+    Ok(1.0 - available.min(total) as f64 / total as f64)
 }
 
 fn is_whole_disk(name: &str) -> bool {
@@ -417,13 +403,72 @@ fn resource_color(fraction: f64) -> u32 {
     )
 }
 
-fn utilization_color(busy: usize, total: usize) -> u32 {
-    if busy == 0 || total == 0 {
-        return WHITE;
+fn rotation_revs_per_second(cpu_percent: f64) -> Option<f64> {
+    const IDLE_MAX: f64 = 5.0;
+    const LOW: f64 = 1.0 / 6.0;
+    const MID: f64 = 1.0 / 3.0;
+    const HIGH: f64 = 1.0;
+    if cpu_percent < IDLE_MAX {
+        return None;
     }
-    let fraction = (busy as f64 / total as f64).min(1.0);
-    let green_blue = (255.0 * (1.0 - fraction)).round() as u32;
-    (0xFF << 16) | (green_blue << 8) | green_blue
+    Some(if cpu_percent <= 50.0 {
+        LOW + (MID - LOW) * ((cpu_percent - IDLE_MAX) / 45.0)
+    } else if cpu_percent < 90.0 {
+        MID + (HIGH - MID) * ((cpu_percent - 50.0) / 40.0)
+    } else {
+        HIGH
+    })
+}
+
+fn scale_color(color: u32, fraction: f64) -> u32 {
+    let fraction = fraction.clamp(0.0, 1.0);
+    let channel = |shift: u32| (((color >> shift) & 0xFF) as f64 * fraction).round() as u32;
+    (channel(16) << 16) | (channel(8) << 8) | channel(0)
+}
+
+fn gap_color(ram: f64, disk: f64, network: f64) -> u32 {
+    let channel = |fraction: f64| (fraction.clamp(0.0, 1.0) * 255.0 * GAP_CAP).round() as u32;
+    let red = channel(ram);
+    let green = channel(network);
+    let blue = channel(disk);
+    (red << 16) | (green << 8) | blue
+}
+
+fn rod_brightness(rod: usize, bright_rods: usize, saturated: bool, saturated_phase: bool) -> f64 {
+    if saturated {
+        return if saturated_phase { 1.0 } else { 0.5 };
+    }
+    if rod < bright_rods { 1.0 } else { 0.5 }
+}
+
+fn build_pattern(
+    temperature_fraction: f64,
+    bright_rods: usize,
+    saturated: bool,
+    saturated_phase: bool,
+    gap: u32,
+) -> [u32; 8] {
+    let rod_color = resource_color(temperature_fraction);
+    let mut pattern = [0_u32; 8];
+    for rod in 0..RODS {
+        pattern[rod * 2] = scale_color(
+            rod_color,
+            rod_brightness(rod, bright_rods, saturated, saturated_phase),
+        );
+    }
+    for gap_index in 0..RODS {
+        pattern[gap_index * 2 + 1] = gap;
+    }
+    pattern
+}
+
+fn rotate(base: &[u32; 8], offset: u32) -> [u32; 8] {
+    let offset = (offset % 8) as usize;
+    let mut out = [0_u32; 8];
+    for index in 0..8 {
+        out[index] = base[(index + 8 - offset) % 8];
+    }
+    out
 }
 
 fn router_running(user: &str, service: &str) -> bool {
@@ -458,29 +503,41 @@ fn set_leds(config: &Config, colors: &[u32]) -> Result<(), AnyError> {
     }
 }
 
+enum Llama {
+    Slots { busy: usize, total: usize },
+    Blink,
+    Down,
+}
+
 fn run() -> Result<(), AnyError> {
     let config = Config::from_env()?;
-    if config.led_count <= BOTTOM_RIGHT {
-        return Err("LED_COUNT must be at least 8 for four-corner mode".into());
+    if config.led_count < RING {
+        return Err("LED_COUNT must be at least 8 for ring mode".into());
     }
     let mut previous_state = String::new();
     let mut previous_cpu = read_cpu_times()?;
     let mut previous_disk_bytes = disk_bytes()?;
     let mut previous_network_bytes = network_bytes()?;
     let mut previous_sample = Instant::now();
-    let mut next_health = Instant::now() + config.health;
+    let mut next_metrics = Instant::now() + config.health;
+    let mut next_slots = Instant::now();
     let mut cpu_usage = 0.0;
-    let mut gpu_usage = gpu_usage_fraction().unwrap_or(0.0);
-    let mut power = power_watts().unwrap_or(0.0);
     let mut ram_usage = memory_used_fraction()?;
     let mut disk_usage = 0.0;
     let mut network_usage = 0.0;
     let mut temperature = max_temperature().unwrap_or(0.0);
-    let mut unavailable_phase = false;
+    let mut rotation = 0_u32;
+    let mut step_phase = 0.0_f64;
+    let mut last_tick = Instant::now();
+    let mut toggle_phase = false;
+    let mut next_toggle = Instant::now() + TOGGLE;
+    let mut llama = Llama::Down;
 
     loop {
-        if Instant::now() >= next_health {
-            next_health = Instant::now() + config.health;
+        let now = Instant::now();
+
+        if now >= next_metrics {
+            next_metrics = now + config.health;
             match (
                 read_cpu_times(),
                 memory_used_fraction(),
@@ -489,9 +546,10 @@ fn run() -> Result<(), AnyError> {
             ) {
                 (Ok(current_cpu), Ok(ram), Ok(current_disk), Ok(current_network)) => {
                     let elapsed = previous_sample.elapsed().as_secs_f64().max(0.001);
-                    cpu_usage = cpu_percent(previous_cpu, current_cpu);
-                    gpu_usage = gpu_usage_fraction().unwrap_or(gpu_usage);
-                    power = power_watts().unwrap_or(power);
+                    cpu_usage = chip_utilization(
+                        cpu_percent(previous_cpu, current_cpu),
+                        gpu_usage_fraction(),
+                    );
                     ram_usage = ram;
                     disk_usage = current_disk.saturating_sub(previous_disk_bytes) as f64
                         / elapsed
@@ -504,7 +562,7 @@ fn run() -> Result<(), AnyError> {
                     previous_cpu = current_cpu;
                     previous_disk_bytes = current_disk;
                     previous_network_bytes = current_network;
-                    previous_sample = Instant::now();
+                    previous_sample = now;
                 }
                 (cpu, ram, disk, network) => eprintln!(
                     "system metrics failed: CPU={}, RAM={}, disk={}, network={}",
@@ -521,50 +579,86 @@ fn run() -> Result<(), AnyError> {
             }
         }
 
-        let (llama_color, llama_state) = match slot_usage(&config) {
-            Ok((busy, total)) => {
-                unavailable_phase = false;
-                (
-                    utilization_color(busy, total),
-                    format!("llama.cpp {busy}/{total} slots"),
-                )
+        if now >= next_slots {
+            next_slots = now + config.poll;
+            llama = match slot_usage(&config) {
+                Ok((busy, total)) => Llama::Slots { busy, total },
+                Err(error) if router_running(&config.router_user, &config.router_service) => {
+                    eprintln!("llama.cpp check failed: {error}");
+                    Llama::Blink
+                }
+                Err(error) => {
+                    eprintln!("llama.cpp check failed: {error}");
+                    Llama::Down
+                }
+            };
+        }
+
+        let elapsed = now.duration_since(last_tick).as_secs_f64();
+        last_tick = now;
+        match rotation_revs_per_second(cpu_usage) {
+            Some(speed) => {
+                step_phase += elapsed * speed * 8.0;
+                let steps = step_phase as u32;
+                if steps > 0 {
+                    rotation = (rotation + steps) % 8;
+                    step_phase -= steps as f64;
+                }
             }
-            Err(error) if router_running(&config.router_user, &config.router_service) => {
-                unavailable_phase = !unavailable_phase;
-                eprintln!("llama.cpp check failed: {error}");
-                (
-                    if unavailable_phase { RED } else { OFF },
-                    "llama-router active, endpoint unavailable".to_owned(),
-                )
-            }
-            Err(error) => {
-                unavailable_phase = false;
-                eprintln!("llama.cpp check failed: {error}");
-                (OFF, "llama.cpp stopped".to_owned())
-            }
+            None => step_phase = 0.0,
+        }
+
+        let (saturated, bright_rods) = match &llama {
+            Llama::Slots { busy, total } => (*total > 0 && *busy == *total, *busy / 2),
+            _ => (false, 0),
         };
+        let toggling = matches!(llama, Llama::Blink) || saturated;
+        if toggling {
+            if now >= next_toggle {
+                toggle_phase = !toggle_phase;
+                next_toggle = now + TOGGLE;
+            }
+        } else {
+            toggle_phase = false;
+            next_toggle = now + TOGGLE;
+        }
 
         let temperature_fraction =
             ((temperature - 30.0) / (config.max_temperature_c - 30.0)).clamp(0.0, 1.0);
+        let gap = gap_color(ram_usage, disk_usage, network_usage);
+        let base = match &llama {
+            Llama::Blink => [if toggle_phase { RED } else { OFF }; 8],
+            _ => build_pattern(
+                temperature_fraction,
+                bright_rods,
+                saturated,
+                toggle_phase,
+                gap,
+            ),
+        };
+        let ring = rotate(&base, rotation);
         let mut colors = vec![OFF; config.led_count];
-        colors[TOP_LEFT] = resource_color(temperature_fraction);
-        colors[1] = resource_color(gpu_usage);
-        colors[2] = resource_color(cpu_usage / 100.0);
-        colors[TOP_RIGHT] = resource_color(power / config.max_power_watts);
-        colors[BOTTOM_LEFT] = resource_color(ram_usage);
-        colors[5] = resource_color(disk_usage);
-        colors[6] = resource_color(network_usage);
-        colors[BOTTOM_RIGHT] = llama_color;
+        colors[..RING].copy_from_slice(&ring);
+        let llama_state = match &llama {
+            Llama::Slots { busy, total } => {
+                if *total > 0 && *busy == *total {
+                    format!("llama.cpp {busy}/{total} saturated")
+                } else {
+                    format!("llama.cpp {busy}/{total} slots")
+                }
+            }
+            Llama::Blink => "llama-router active, endpoint unavailable".to_owned(),
+            Llama::Down => "llama.cpp stopped".to_owned(),
+        };
         let state = format!(
-            "temp:{temperature:.1}:gpu:{gpu_usage:.3}:cpu:{cpu_usage:.1}:power:{power:.1}:ram:{ram_usage:.3}:disk:{disk_usage:.3}:network:{network_usage:.3}:{llama_state}"
+            "temp:{temperature:.1}:cpu:{cpu_usage:.1}:ram:{ram_usage:.3}:disk:{disk_usage:.3}:network:{network_usage:.3}:rotation:{rotation}:{llama_state}"
         );
 
         match set_leds(&config, &colors) {
             Ok(()) => {
                 if state != previous_state {
                     eprintln!(
-                        "temperature {temperature:.1}C, GPU {:.1}%, CPU {cpu_usage:.1}%, power {power:.1}W, RAM {:.1}%, disk {:.1}%, network {:.1}%, {llama_state}",
-                        gpu_usage * 100.0,
+                        "temperature {temperature:.1}C, CPU {cpu_usage:.1}%, RAM {:.1}%, disk {:.1}%, network {:.1}%, {llama_state}",
                         ram_usage * 100.0,
                         disk_usage.clamp(0.0, 1.0) * 100.0,
                         network_usage.clamp(0.0, 1.0) * 100.0,
@@ -574,7 +668,15 @@ fn run() -> Result<(), AnyError> {
             }
             Err(error) => eprintln!("could not set Framework RGB LEDs: {error}"),
         }
-        thread::sleep(config.poll);
+
+        let mut wake = now + config.poll;
+        if let Some(speed) = rotation_revs_per_second(cpu_usage) {
+            wake = wake.min(now + Duration::from_secs_f64(1.0 / (speed * 8.0)));
+        }
+        if toggling {
+            wake = wake.min(next_toggle);
+        }
+        thread::sleep((wake - now).max(Duration::from_millis(20)));
     }
 }
 
@@ -590,10 +692,69 @@ mod tests {
     use super::*;
 
     #[test]
-    fn maps_capacity_to_white_pink_and_red() {
-        assert_eq!(utilization_color(0, 4), WHITE);
-        assert_eq!(utilization_color(2, 4), 0xFF_80_80);
-        assert_eq!(utilization_color(4, 4), RED);
+    fn rods_dim_by_busy_slots() {
+        assert_eq!(rod_brightness(0, 0, false, false), 0.5);
+        assert_eq!(rod_brightness(0, 1, false, false), 1.0);
+        assert_eq!(rod_brightness(1, 1, false, false), 0.5);
+        assert_eq!(rod_brightness(2, 3, false, false), 1.0);
+        assert_eq!(rod_brightness(3, 3, false, false), 0.5);
+        assert_eq!(rod_brightness(0, 0, true, true), 1.0);
+        assert_eq!(rod_brightness(3, 4, true, false), 0.5);
+    }
+
+    #[test]
+    fn rotation_speed_follows_cpu() {
+        assert!(rotation_revs_per_second(4.9).is_none());
+        assert!((rotation_revs_per_second(5.0).unwrap() - 1.0 / 6.0).abs() < 1e-9);
+        assert!((rotation_revs_per_second(50.0).unwrap() - 1.0 / 3.0).abs() < 1e-9);
+        assert!((rotation_revs_per_second(90.0).unwrap() - 1.0).abs() < 1e-9);
+        assert!((rotation_revs_per_second(100.0).unwrap() - 1.0).abs() < 1e-9);
+        let mid = rotation_revs_per_second(27.5).unwrap();
+        assert!(mid > 1.0 / 6.0 && mid < 1.0 / 3.0);
+    }
+
+    #[test]
+    fn gap_channels_are_capped_and_mapped() {
+        assert_eq!(gap_color(1.0, 1.0, 1.0), 0x59_59_59);
+        assert_eq!(gap_color(1.0, 0.0, 0.0), 0x59_00_00);
+        assert_eq!(gap_color(0.0, 0.0, 1.0), 0x00_59_00);
+        assert_eq!(gap_color(0.0, 1.0, 0.0), 0x00_00_59);
+    }
+
+    #[test]
+    fn rotation_shifts_clockwise() {
+        let base = [1, 2, 3, 4, 5, 6, 7, 8];
+        assert_eq!(rotate(&base, 1), [8, 1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(rotate(&base, 7), [2, 3, 4, 5, 6, 7, 8, 1]);
+        assert_eq!(rotate(&base, 8), [1, 2, 3, 4, 5, 6, 7, 8]);
+    }
+
+    #[test]
+    fn scales_color_channels() {
+        assert_eq!(scale_color(0xFF_80_00, 0.5), 0x80_40_00);
+        assert_eq!(scale_color(0x59_59_59, 1.0), 0x59_59_59);
+    }
+
+    #[test]
+    fn pattern_alternates_rods_and_gaps() {
+        let rod = resource_color(0.0);
+        let dim = scale_color(rod, 0.5);
+        let pattern = build_pattern(0.0, 2, false, false, 0x59_59_59);
+        assert_eq!(pattern[0], rod);
+        assert_eq!(pattern[2], rod);
+        assert_eq!(pattern[4], dim);
+        assert_eq!(pattern[6], dim);
+        assert_eq!(pattern[1], 0x59_59_59);
+        assert_eq!(pattern[3], 0x59_59_59);
+        assert_eq!(pattern[5], 0x59_59_59);
+        assert_eq!(pattern[7], 0x59_59_59);
+    }
+
+    #[test]
+    fn merges_cpu_and_gpu_utilization() {
+        assert_eq!(chip_utilization(20.0, Some(0.6)), 60.0);
+        assert_eq!(chip_utilization(80.0, Some(0.3)), 80.0);
+        assert_eq!(chip_utilization(40.0, None), 40.0);
     }
 
     #[test]
