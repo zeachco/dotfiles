@@ -4,6 +4,13 @@
   "plugin": [
     "file:///home/olivier/dotfiles/configs/opencode/.config/opencode/plugins/llamacpp-model-sync.ts"
   ],
+  "mcp": {
+    "blender": {
+      "type": "local",
+      "command": ["/home/olivier/.local/bin/blender-mcp"],
+      "enabled": true
+    }
+  },
   "default_agent": "build",
   "agent": {
     "build": {
