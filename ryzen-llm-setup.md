@@ -61,16 +61,50 @@ DeepSeek tier.
 
 ## Phase 0 — Unlock GTT (reboot; blocks everything)
 
-Cmdline lives in `/etc/kernel/cmdline` (Limine + UKI, not GRUB).
+Cmdline is assembled by **limine-entry-tool**, not read from `/etc/kernel/cmdline`.
+
+`/etc/default/limine` sets the base with the `+=` operator:
+
+```
+KERNEL_CMDLINE[default]+="cryptdevice=... rw rootfstype=btrfs"
+```
+
+and per `limine-entry-tool.conf`, using `+=` there makes the tool **ignore
+`/etc/kernel/cmdline` and `/proc/cmdline` outright**. Editing `/etc/kernel/cmdline` on this box
+is a silent no-op no matter how many times `limine-update` runs. (Cost weeks here: the args sat
+in `/etc/kernel/cmdline` from ~2026-08 until 2026-09-04 while GTT stayed at the 62.5 GiB default.)
+
+Add a drop-in instead, matching the existing `resume.conf` / `rtc-alarm.conf` pattern:
 
 ```bash
-# append to the existing crypt/root/btrfs args:
-#   amdgpu.gttsize=131072 ttm.pages_limit=31457280
-sudo $EDITOR /etc/kernel/cmdline
-sudo limine-update
-# reboot, then:
+pkexec tee /etc/limine-entry-tool.d/amdgpu-gtt.conf >/dev/null <<'EOF'
+KERNEL_CMDLINE[default]+=" amdgpu.gttsize=131072 ttm.pages_limit=31457280"
+EOF
+pkexec limine-update
+```
+
+Use `pkexec`, not `sudo` -- there is no tty on this box for a `sudo` password prompt, so
+`sudo limine-update` fails silently in a non-interactive context. hyprpolkitagent answers pkexec.
+
+**Verify the UKI before rebooting** -- `limine-update` reporting success only means it built an
+image, not that it picked up your parameters:
+
+```bash
+pkexec objcopy -O binary --only-section=.cmdline \
+  /boot/EFI/Linux/omarchy_linux.efi /dev/stdout | tr -d '\0'
+```
+
+Then after the reboot, verify both -- the first catches a cmdline that never made it in, the
+second catches a param the running kernel rejected:
+
+```bash
+grep -o 'ttm.pages_limit=[0-9]*' /proc/cmdline
 cat /sys/class/drm/card1/device/mem_info_gtt_total   # expect ~128 GiB, not 67152236544
 ```
+
+`/sys/module/amdgpu/parameters/` has no `gttsize` entry even when the param took effect -- it is
+declared with perm 0, so sysfs never exposes it. Use `modinfo amdgpu | grep gttsize` to confirm the
+param still exists on a new kernel; check GTT via `mem_info_gtt_total`, never via sysfs params.
 
 128 GiB GTT cap / 120 GiB TTM page cap. These are _caps_, not reservations — nothing is taken from
 the OS.
