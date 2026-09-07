@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# Cap or release the integrated GPU's shader clock.
+#
+#   gpu-cap              # show current state
+#   gpu-cap low          # pin sclk to its lowest DPM level
+#   gpu-cap auto         # hand control back to the driver
+#   gpu-cap level 1      # pin sclk to a specific DPM level index
+#
+# Only sclk is masked. mclk/fclk/socclk stay on auto, so memory bandwidth --
+# the resource llama.cpp is actually short of -- is left alone.
+#
+# This is GLOBAL to the GPU: it throttles llama.cpp, games and the compositor
+# alike. There is no per-process or per-request GPU quota on amdgpu; this
+# kernel exposes no DRM scheduling cgroup (only `dmem`, which accounts device
+# memory), and llama-server has no utilization flag. See ryzen-llm-setup.md.
+#
+# Writes need root and this box has no tty for a sudo prompt, so it goes
+# through pkexec (hyprpolkitagent answers it) -- one prompt per invocation.
+#
+# GPU_CAP_DEV overrides the sysfs device directory (used by the tests).
+
+set -uo pipefail
+
+RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; DIM=$'\033[2m'; BOLD=$'\033[1m'; OFF=$'\033[0m'
+[[ -t 1 ]] || { RED=; GREEN=; YELLOW=; DIM=; BOLD=; OFF=; }
+
+die() { printf '%sgpu-cap: %s%s\n' "$RED" "$*" "$OFF" >&2; exit 1; }
+
+# The amdgpu card, rather than a hardcoded index: card numbering moves when
+# other DRM devices appear.
+find_device() {
+  if [[ -n "${GPU_CAP_DEV:-}" ]]; then
+    printf '%s' "$GPU_CAP_DEV"
+    return
+  fi
+  local dev
+  for dev in /sys/class/drm/card*/device; do
+    [[ -e "$dev/driver" ]] || continue
+    [[ "$(basename "$(readlink -f "$dev/driver")")" == amdgpu ]] || continue
+    [[ -r "$dev/pp_dpm_sclk" ]] || continue
+    printf '%s' "$dev"
+    return
+  done
+  return 1
+}
+
+DEV=$(find_device) || die "no amdgpu card with a pp_dpm_sclk control found."
+LEVEL_FILE="$DEV/pp_dpm_sclk"
+FORCE_FILE="$DEV/power_dpm_force_performance_level"
+[[ -r "$LEVEL_FILE" && -r "$FORCE_FILE" ]] || die "$DEV does not expose the expected controls."
+
+# "0: 600Mhz" -> 0.  The lowest index is read rather than assumed to be 0.
+lowest_level() { awk -F: 'NR == 1 { gsub(/ /, "", $1); print $1; exit }' "$LEVEL_FILE"; }
+level_count()  { grep -c ':' "$LEVEL_FILE"; }
+
+show_status() {
+  local mode
+  mode=$(<"$FORCE_FILE")
+  local colour="$GREEN"
+  [[ "$mode" == manual ]] && colour="$YELLOW"
+
+  printf '%sgpu-cap%s  %s%s%s\n' "$BOLD" "$OFF" "$DIM" "$DEV" "$OFF"
+  printf '  mode        %s%s%s\n' "$colour" "$mode" "$OFF"
+  printf '  sclk levels %s\n' "$(tr -s ' \n' ' ' <"$LEVEL_FILE" | sed 's/ $//')"
+
+  local hwmon watts
+  for hwmon in "$DEV"/hwmon/hwmon*/power1_average; do
+    [[ -r "$hwmon" ]] || continue
+    watts=$(awk '{ printf "%.1f", $1 / 1000000 }' "$hwmon")
+    printf '  power       %s W%s\n' "$watts" "$([[ "$mode" == manual ]] && echo " (capped)")"
+    break
+  done
+
+  # `*` marks the level the driver is currently running at.
+  printf '%s  (* marks the active level; "gpu-cap auto" releases the cap)%s\n' "$DIM" "$OFF"
+}
+
+# Both writes happen in one privileged shell so there is a single auth prompt.
+# The order matters: masking pp_dpm_sclk only takes effect in `manual` mode.
+apply() {
+  local mode="$1" level="${2:-}"
+  local runner=(pkexec)
+  [[ $EUID -eq 0 || -n "${GPU_CAP_DEV:-}" ]] && runner=()
+
+  "${runner[@]}" /usr/bin/env bash -c '
+    set -eu
+    force_file="$1"; level_file="$2"; mode="$3"; level="${4:-}"
+    if [[ "$mode" == manual ]]; then
+      printf "%s\n" manual > "$force_file"
+      printf "%s\n" "$level" > "$level_file"
+    else
+      printf "%s\n" auto > "$force_file"
+    fi
+  ' _ "$FORCE_FILE" "$LEVEL_FILE" "$mode" "$level"
+}
+
+case "${1:-status}" in
+  status|'')
+    show_status
+    ;;
+  low)
+    level=$(lowest_level)
+    apply manual "$level" || die "could not apply the cap (auth declined?)."
+    printf '%scapped%s sclk to level %s\n\n' "$YELLOW" "$OFF" "$level"
+    show_status
+    ;;
+  level)
+    [[ $# -ge 2 ]] || die "usage: gpu-cap level <index>  (0..$(( $(level_count) - 1 )))"
+    [[ "$2" =~ ^[0-9]+$ ]] || die "level must be a number, got: $2"
+    (( $2 < $(level_count) )) || die "level $2 is out of range (0..$(( $(level_count) - 1 )))"
+    apply manual "$2" || die "could not apply the cap (auth declined?)."
+    printf '%scapped%s sclk to level %s\n\n' "$YELLOW" "$OFF" "$2"
+    show_status
+    ;;
+  auto|release|off)
+    apply auto || die "could not release the cap (auth declined?)."
+    printf '%sreleased%s sclk back to driver control\n\n' "$GREEN" "$OFF"
+    show_status
+    ;;
+  -h|--help|help)
+    sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    ;;
+  *)
+    die "unknown command: $1  (try: status, low, auto, level <n>)"
+    ;;
+esac
