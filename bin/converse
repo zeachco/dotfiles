@@ -1,0 +1,261 @@
+#!/usr/bin/env bash
+# Push-to-talk voice loop: you talk, opencode does the work, Kokoro talks back.
+#
+#   converse                 # in the project directory you want the agent to act on
+#
+# SPACE (or Enter) opens the mic, SPACE again closes it and sends the utterance.
+# The mic is closed at every other moment, so the agent can never hear itself.
+# Ctrl+C during a reply skips the rest of it; q quits.
+#
+# Requires bin/say and bin/listen to be installed (see their headers), plus
+# ffmpeg, jq and opencode.
+#
+# Knobs:
+#   CONVERSE_MODEL     provider/model passed to opencode (default: opencode's own)
+#   CONVERSE_AGENT     opencode agent to use
+#   CONVERSE_ATTACH    URL of a running `opencode serve` (skips per-turn startup)
+#   CONVERSE_STYLE     the spoken-answer directive prefixed to every message
+#   CONVERSE_TIMEOUT   seconds to wait for a transcript (default 60)
+#   CONVERSE_MIC_CMD   override the capture command (must emit raw 16k s16le mono)
+#   CONVERSE_AUTO=1    pass --auto to opencode (auto-approve tool permissions)
+#   plus every LISTEN_* knob from bin/listen (LISTEN_MODEL, LISTEN_SOURCE_DEVICE, ...)
+
+set -uo pipefail
+
+SELF_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+LISTEN_BIN="$SELF_DIR/listen"
+SAY_BIN="$SELF_DIR/say"
+
+CONVERSE_TIMEOUT="${CONVERSE_TIMEOUT:-60}"
+CONVERSE_STYLE="${CONVERSE_STYLE:-Voice mode: your reply is read aloud. Answer in at most two short spoken sentences of plain prose. No markdown, no code blocks, no file paths, no lists. Do the work first, then say what you did.}"
+
+# 128 KiB of silence (~4s at 16 kHz mono s16le). Fed after each recording so the
+# voice-activity detector in `listen` sees a clear end-of-utterance pause and
+# flushes, and so its 64 KiB blocking reads always cross past the speech.
+SILENCE_BYTES=131072
+
+RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; DIM=$'\033[2m'; BOLD=$'\033[1m'; OFF=$'\033[0m'
+CLEAR_LINE=$'\r\033[K'
+[[ -t 1 ]] || { RED=; GREEN=; YELLOW=; DIM=; BOLD=; OFF=; CLEAR_LINE=$'\n'; }
+
+# Transient one-line status that the next status overwrites (on a terminal).
+status() { printf '%s%s' "$CLEAR_LINE" "$*"; }
+
+die() { printf '%sconverse: %s%s\n' "$RED" "$*" "$OFF" >&2; exit 1; }
+
+for tool in ffmpeg jq opencode setsid; do
+  command -v "$tool" >/dev/null 2>&1 || die "$tool is required but not installed."
+done
+[[ -x "$LISTEN_BIN" ]] || die "cannot find $LISTEN_BIN"
+[[ -x "$SAY_BIN" ]] || die "cannot find $SAY_BIN"
+
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/converse.XXXXXX")
+LISTEN_PID=""
+RECORD_PID=""
+INTERRUPTED=0
+
+cleanup() {
+  [[ -n "$RECORD_PID" ]] && kill "$RECORD_PID" 2>/dev/null
+  exec 3>&- 2>/dev/null || true
+  exec 4<&- 2>/dev/null || true
+  # setsid made `listen` its own process-group leader, so this reaps the
+  # python child as well as the wrapper.
+  [[ -n "$LISTEN_PID" ]] && kill -- "-$LISTEN_PID" 2>/dev/null
+  rm -rf "$WORK_DIR"
+}
+trap cleanup EXIT
+trap 'INTERRUPTED=1' INT
+# Exit rather than die outright, so the EXIT trap still cleans up.
+trap 'exit 143' TERM HUP
+
+# The microphone, chosen the same way bin/listen chooses it.
+mic_device() {
+  if [[ -n "${LISTEN_SOURCE_DEVICE:-}" ]]; then
+    printf '%s' "$LISTEN_SOURCE_DEVICE"
+    return
+  fi
+  local default
+  default=$(pactl get-default-source 2>/dev/null)
+  printf '%s' "${default:-default}"
+}
+MIC=$(mic_device)
+
+# --- speech recognition, kept warm for the whole session ------------------
+# `listen` reads raw audio from a fifo that only gets written between the two
+# SPACE presses, so the model stays loaded but never hears the speakers.
+
+mkfifo "$WORK_DIR/audio" "$WORK_DIR/text" || die "could not create fifos in $WORK_DIR"
+
+printf '%swarming up speech recognition...%s\n' "$DIM" "$OFF"
+LISTEN_SOURCE=stdin setsid "$LISTEN_BIN" \
+  <"$WORK_DIR/audio" >"$WORK_DIR/text" 2>"$WORK_DIR/listen.log" &
+LISTEN_PID=$!
+exec 3>"$WORK_DIR/audio"
+exec 4<"$WORK_DIR/text"
+
+for _ in $(seq 1 600); do
+  grep -q 'listening' "$WORK_DIR/listen.log" 2>/dev/null && break
+  kill -0 "$LISTEN_PID" 2>/dev/null || { cat "$WORK_DIR/listen.log" >&2; die "listen exited during startup."; }
+  sleep 0.2
+done
+grep -q 'listening' "$WORK_DIR/listen.log" 2>/dev/null || die "listen did not become ready in time."
+
+# --- turn helpers ---------------------------------------------------------
+
+record_start() {
+  if [[ -n "${CONVERSE_MIC_CMD:-}" ]]; then
+    bash -c "$CONVERSE_MIC_CMD" >&3 2>"$WORK_DIR/ffmpeg.log" </dev/null &
+  else
+    ffmpeg -hide_banner -loglevel error -f pulse -i "$MIC" \
+      -ar 16000 -ac 1 -f s16le pipe:1 >&3 2>"$WORK_DIR/ffmpeg.log" </dev/null &
+  fi
+  RECORD_PID=$!
+}
+
+record_stop() {
+  [[ -n "$RECORD_PID" ]] || return 0
+  kill "$RECORD_PID" 2>/dev/null
+  wait "$RECORD_PID" 2>/dev/null
+  RECORD_PID=""
+  # Bounded, so a dead `listen` cannot wedge the loop on a full pipe.
+  timeout 30 head -c "$SILENCE_BYTES" /dev/zero >&3
+}
+
+# Read one keypress into $key. 0 = got a key, 1 = stdin closed, 2 = interrupted.
+read_key() {
+  local rc
+  key=""
+  IFS= read -rsn1 key
+  rc=$?
+  (( rc == 0 )) && return 0
+  (( rc > 128 )) && return 2
+  return 1
+}
+
+# Drop anything `listen` emitted for an earlier, abandoned recording.
+drain_transcript() {
+  local discard
+  while IFS= read -r -t 0.05 discard <&4; do :; done
+}
+
+# Collect everything `listen` transcribes for the recording just fed to it.
+read_transcript() {
+  local line utterance=""
+  if IFS= read -r -t "$CONVERSE_TIMEOUT" line <&4; then
+    utterance="$line"
+    while IFS= read -r -t 1 line <&4; do
+      [[ -n "$line" ]] && utterance="$utterance $line"
+    done
+  fi
+  printf '%s' "$utterance"
+}
+
+# Markdown and tool chatter are unlistenable; flatten to speakable prose.
+speakable() {
+  awk '
+    /^[[:space:]]*```/ { fenced = !fenced; next }
+    fenced { next }
+    {
+      gsub(/\033\[[0-9;]*[A-Za-z]/, "")
+      gsub(/`/, "")
+      gsub(/\*\*|__|~~/, "")
+      gsub(/\]\([^)]*\)/, "]")
+      gsub(/[][]/, "")
+      gsub(/^[[:space:]]*#+[[:space:]]*/, "")
+      gsub(/^[[:space:]]*[-*+][[:space:]]+/, "")
+      gsub(/^[[:space:]]+/, "")
+      if ($0 ~ /[[:alnum:]]/) { print; fflush() }
+    }
+  '
+}
+
+SESSION_ID=""
+
+# --- main loop ------------------------------------------------------------
+
+printf '%sconverse%s  %s%s%s\n' "$BOLD" "$OFF" "$DIM" "$(pwd)" "$OFF"
+printf '%sSPACE talk / send  ·  Ctrl+C skip a reply  ·  q quit%s\n\n' "$DIM" "$OFF"
+
+while true; do
+  INTERRUPTED=0
+  printf '%s[SPACE] talk%s ' "$GREEN" "$OFF"
+  read_key
+  case $? in
+    1) printf '\n'; break ;;
+    2) status ""; continue ;;
+  esac
+  case "$key" in
+    q|Q) printf '\n'; break ;;
+    ''|' ') ;;
+    *) status ""; continue ;;
+  esac
+
+  status "$RED● recording — [SPACE] send$OFF "
+  drain_transcript
+  record_started_at=$EPOCHREALTIME
+  record_start
+  read_key
+  key_rc=$?
+  record_stop
+  recorded_ms=$(awk -v a="$record_started_at" -v b="$EPOCHREALTIME" 'BEGIN { printf "%d", (b - a) * 1000 }')
+  status "${DIM}transcribing...$OFF"
+
+  if (( key_rc == 1 )); then status ""; printf '\n'; break; fi
+  if [[ "$key" == q || "$key" == Q ]]; then status ""; printf '\n'; break; fi
+  if (( INTERRUPTED )); then status "${DIM}discarded$OFF"; printf '\n'; continue; fi
+  # A double-tap records nothing; don't sit out the transcript timeout for it.
+  if (( recorded_ms < 600 )); then status "${DIM}too short$OFF"; printf '\n'; continue; fi
+
+  utterance=$(read_transcript)
+  utterance="${utterance#"${utterance%%[![:space:]]*}"}"
+  status ""
+  if [[ -z "$utterance" ]]; then
+    printf '%snothing heard%s\n' "$DIM" "$OFF"
+    continue
+  fi
+  printf '%syou:%s %s\n' "$BOLD" "$OFF" "$utterance"
+
+  # Leading dashes would be parsed as opencode flags.
+  message="$CONVERSE_STYLE
+
+${utterance#"${utterance%%[!-]*}"}"
+
+  args=(run --format json)
+  [[ -n "$SESSION_ID" ]] && args+=(-s "$SESSION_ID")
+  [[ -n "${CONVERSE_MODEL:-}" ]] && args+=(-m "$CONVERSE_MODEL")
+  [[ -n "${CONVERSE_AGENT:-}" ]] && args+=(--agent "$CONVERSE_AGENT")
+  [[ -n "${CONVERSE_ATTACH:-}" ]] && args+=(--attach "$CONVERSE_ATTACH")
+  [[ -n "${CONVERSE_AUTO:-}" ]] && args+=(--auto)
+
+  status "${DIM}thinking...$OFF"
+  : >"$WORK_DIR/events.ndjson"
+  # Version managers (mise) print a banner on stdout, so keep only JSON lines.
+  opencode "${args[@]}" "$message" 2>"$WORK_DIR/opencode.log" \
+    | grep --line-buffered '^{' \
+    | tee "$WORK_DIR/events.ndjson" \
+    | jq -r --unbuffered 'select(.type == "text") | .part.text' \
+    | speakable \
+    | tee "$WORK_DIR/spoken.txt" \
+    | "$SAY_BIN"
+  status ""
+
+  if [[ -s "$WORK_DIR/events.ndjson" && -z "$SESSION_ID" ]]; then
+    SESSION_ID=$(head -n 1 "$WORK_DIR/events.ndjson" | jq -r '.sessionID // empty')
+  fi
+
+  if (( INTERRUPTED )); then
+    printf '%sskipped%s\n\n' "$YELLOW" "$OFF"
+  elif [[ -s "$WORK_DIR/events.ndjson" ]]; then
+    if [[ -s "$WORK_DIR/spoken.txt" ]]; then
+      printf '%sagent:%s %s\n\n' "$BOLD" "$OFF" "$(cat "$WORK_DIR/spoken.txt")"
+    else
+      printf '%sagent replied without speakable text%s\n\n' "$DIM" "$OFF"
+    fi
+  else
+    printf '%sopencode failed:%s\n' "$RED" "$OFF"
+    tail -n 5 "$WORK_DIR/opencode.log" >&2
+    printf '\n'
+  fi
+done
+
+printf '%sbye%s\n' "$DIM" "$OFF"
