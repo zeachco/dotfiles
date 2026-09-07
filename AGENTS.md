@@ -18,7 +18,7 @@ Darwin → osx
 
 | Variant   | PM         | Stow Configs                        | Notes                                        |
 | --------- | ---------- | ----------------------------------- | -------------------------------------------- |
-| shared    | agnostic   | alacritty, tmux                     | Base: git, rg, fd, gh, fzf, tmux             |
+| shared    | agnostic   | alacritty, tmux, pi                 | Base: git, rg, fd, gh, fzf, tmux, pi         |
 | debian    | apt        | claude, alacritty-debian, nvim      | Core tools                                   |
 | ubuntu    | apt        | Same as debian                      | + devbox, shortcuts.sh (GNOME keys)          |
 | osx       | brew       | 6 pkgs (aerospace, sketchybar, herdr) | Generates herdr os.toml, option_as_alt     |
