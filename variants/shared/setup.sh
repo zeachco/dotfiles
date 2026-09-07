@@ -75,6 +75,12 @@ script_install claude "curl -fsSL https://claude.ai/install.sh | bash && echo 'e
 stow_link alacritty
 stow_link tmux
 
+# pi (coding agent) — cross-platform config. Stow the config, then ensure the
+# packages declared in its settings.json (configs/pi/.pi/agent/settings.json) are
+# downloaded, since pi does not fetch user-level packages from that list on its own.
+stow_link pi
+"$DOT_DIR/configs/pi/setup.sh"
+
 # Herdr's config is Stow-linked on macOS (configs/herdr) but not on other
 # platforms, and its server writes to the file either way, so the keymap and
 # theme are patched in place rather than templated.

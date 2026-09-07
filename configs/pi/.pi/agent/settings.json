@@ -3,7 +3,8 @@
   "defaultProvider": "llamacpp",
   "defaultThinkingLevel": "high",
   "packages": [
-    "npm:@ollama/pi-web-search"
+    "npm:@ollama/pi-web-search",
+    "npm:@openlines/openpi-memory"
   ],
   "theme": "omarchy-system",
   "lastChangelogVersion": "0.85.1"
