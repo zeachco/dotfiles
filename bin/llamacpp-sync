@@ -1,0 +1,200 @@
+#!/usr/bin/env python3
+"""llamacpp-sync -- rebuild pi's llama.cpp model definitions from the live routers.
+
+For each `llamacpp*` provider in pi's models.json (~/.pi/agent/models.json):
+
+  * queries GET {baseUrl}/models (llama.cpp router OpenAI-compat API)
+  * rebuilds the provider's models[] list to match what the router serves now
+  * per-model tuning already in models.json (name, reasoning, thinkingLevelMap,
+    maxTokens, compat, cost, samplingParams) is preserved for models that
+    survive
+  * new models get defaults derived from router metadata:
+      contextWindow  <- launch args (--ctx-size)
+      input          <- architecture.input_modalities (text / text+image)
+      reasoning      <- heuristic (qwen3/deepseek/glm-4/gpt-oss/ministral/mistral)
+  * models the router no longer serves are dropped
+  * unreachable servers, empty model lists, or non-llama.cpp responses are
+    skipped with a warning -- existing defs are kept
+
+Providers whose name does not start with `llamacpp` are left untouched.
+The file is rewritten through its real path so the dotfiles symlink in
+~/.pi/agent/ is never replaced.
+
+Usage:
+  llamacpp-sync [--dry-run] [--provider NAME]... [--timeout SEC] [--models-json PATH]
+"""
+
+import argparse
+import json
+import os
+import re
+import sys
+import tempfile
+import urllib.error
+import urllib.request
+
+DEFAULT_MODELS_JSON = os.path.expanduser("~/.pi/agent/models.json")
+PREFIX = "llamacpp"
+REASONING_HINT = re.compile(
+    r"(qwen3|deepseek|glm-4|gpt-oss|ministral|mistral|kimi)", re.I
+)
+
+
+def warn(msg):
+    print(f"llamacpp-sync: {msg}", file=sys.stderr)
+
+
+def fetch_models(base_url, timeout):
+    url = base_url.rstrip("/")
+    if not url.endswith("/models"):
+        url += "/models"
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        payload = json.load(resp)
+    data = payload.get("data")
+    if not isinstance(data, list):
+        raise ValueError("response has no data[] array")
+    return data
+
+
+def is_llamacpp(entry):
+    return isinstance(entry.get("status"), dict) and "architecture" in entry
+
+
+def arg_value(args, flag):
+    if isinstance(args, list) and flag in args:
+        i = args.index(flag)
+        if i + 1 < len(args):
+            return args[i + 1]
+    return None
+
+
+def build_model(live, existing):
+    ex = existing or {}
+    args = (live.get("status") or {}).get("args") or []
+    modalities = (live.get("architecture") or {}).get("input_modalities") or []
+
+    ctx = arg_value(args, "--ctx-size")
+    ctx = int(ctx) if isinstance(ctx, str) and ctx.isdigit() else None
+
+    model = {
+        "id": live["id"],
+        "name": ex.get("name") or live["id"],
+        "contextWindow": ctx or ex.get("contextWindow") or 131072,
+        "maxTokens": ex.get("maxTokens") or 16384,
+        "input": ["text"] + (["image"] if "image" in modalities else []),
+    }
+    model["reasoning"] = (
+        ex["reasoning"] if "reasoning" in ex else bool(REASONING_HINT.search(live["id"]))
+    )
+    for key in ("thinkingLevelMap", "compat", "cost", "samplingParams"):
+        if ex.get(key) is not None:
+            model[key] = ex[key]
+    model.setdefault(
+        "cost", {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}
+    )
+    return model
+
+
+def sync(models_path, provider_filter, timeout, dry_run):
+    real = os.path.realpath(models_path)
+    with open(real) as f:
+        doc = json.load(f)
+    providers = doc.get("providers") or {}
+
+    wanted = provider_filter or [k for k in providers if k.startswith(PREFIX)]
+    if not wanted:
+        warn(f"no {PREFIX}* providers found in {models_path}")
+        return 1
+
+    for name in wanted:
+        cfg = providers.get(name)
+        if cfg is None:
+            warn(f"provider '{name}' not in {models_path}; skipped")
+            continue
+        base_url = cfg.get("baseUrl")
+        if not base_url:
+            warn(f"provider '{name}' has no baseUrl; skipped")
+            continue
+
+        try:
+            live = fetch_models(base_url, timeout)
+        except Exception as e:  # noqa: BLE001 - report and keep moving
+            warn(f"{name}: {base_url} unreachable ({e}); keeping existing models")
+            continue
+        live = [m for m in live if isinstance(m, dict) and m.get("id")]
+        if not live:
+            warn(f"{name}: {base_url} returned no models; keeping existing defs")
+            continue
+        if not all(is_llamacpp(m) for m in live):
+            warn(f"{name}: {base_url} is not a llama.cpp router; skipped")
+            continue
+
+        old = {m["id"]: m for m in cfg.get("models") or [] if isinstance(m, dict)}
+        new = [build_model(m, old.get(m["id"])) for m in live]
+        new_ids = {m["id"] for m in new}
+        added = [m["id"] for m in new if m["id"] not in old]
+        removed = [i for i in old if i not in new_ids]
+
+        cfg["models"] = new
+        print(f"{name} ({base_url}): {len(new)} models")
+        for m in new:
+            flags = []
+            if m["id"] in added:
+                flags.append("added")
+            print(
+                f"  {m['id']}  ctx={m['contextWindow']} "
+                f"in={'+'.join(m['input'])} reasoning={'on' if m['reasoning'] else 'off'} "
+                f"{' '.join(flags)}"
+            )
+        if removed:
+            print(f"  removed: {', '.join(removed)}")
+
+    if dry_run:
+        print("dry-run: no changes written")
+        return 0
+
+    fd, tmp = tempfile.mkstemp(
+        dir=os.path.dirname(real) or ".", prefix=".models.json.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(doc, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        os.replace(tmp, real)
+    except BaseException:
+        os.unlink(tmp)
+        raise
+    print(f"updated {real}")
+    print("pi picks this up on the next /model open -- no restart needed")
+    return 0
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    ap.add_argument(
+        "--models-json",
+        default=DEFAULT_MODELS_JSON,
+        help=f"path to pi models.json (default: {DEFAULT_MODELS_JSON})",
+    )
+    ap.add_argument(
+        "--provider",
+        action="append",
+        metavar="NAME",
+        help="provider to sync; repeatable (default: all llamacpp* providers)",
+    )
+    ap.add_argument("--timeout", type=float, default=5.0, help="HTTP timeout seconds")
+    ap.add_argument("--dry-run", action="store_true", help="show what would change")
+    args = ap.parse_args()
+
+    if not os.path.exists(args.models_json):
+        warn(f"no models.json at {args.models_json}")
+        return 1
+    return sync(args.models_json, args.provider, args.timeout, args.dry_run)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
