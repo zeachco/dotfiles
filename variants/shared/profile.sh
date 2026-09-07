@@ -104,6 +104,7 @@ alias say="$DOT_DIR/bin/say"
 alias speak="$DOT_DIR/bin/say"
 alias listen="$DOT_DIR/bin/listen"
 alias converse="$DOT_DIR/bin/converse"
+alias gpu-cap="$DOT_DIR/bin/gpu-cap"
 # sniff_llms lives in its own repo (github.com/zeachco/sniff_llms), cloned at ~/dev/sniff_llms
 alias sniff_llms='cargo run --release --manifest-path "$HOME/dev/sniff_llms/Cargo.toml" --'
 
@@ -155,6 +156,29 @@ node_admin() {
 }
 
 alias clone="bun ~/dotfiles/advanced/clone.ts"
+
+# List my github repos in fzf, cd into ~/dev/<repo> or clone it there first
+repos() {
+  local dev_dir="$HOME/dev"
+  local repo
+  repo=$(gh repo list --limit 500 | awk '{print $1}' | fzf)
+  [ -z "$repo" ] && return 1
+
+  local name
+  name=$(basename "$repo")
+  mkdir -p "$dev_dir"
+
+  if [ -d "$dev_dir/$name" ]; then
+    cd "$dev_dir/$name" || return 1
+  else
+    cd "$dev_dir" || return 1
+    gh repo clone "$repo" || return 1
+    cd "$dev_dir/$name" || return 1
+  fi
+
+  # auto-enter devbox shell if the repo has one
+  check_for_devbox
+}
 
 bwload() {
   # Declare array of supported env file templates
