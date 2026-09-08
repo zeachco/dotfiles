@@ -54,22 +54,6 @@
           }
         },
         {
-          "id": "Qwen3-Coder-Next-UD-IQ4_XS",
-          "name": "Qwen3 Coder Next 80B-A3B (light tier)",
-          "contextWindow": 131072,
-          "maxTokens": 32768,
-          "input": [
-            "text"
-          ],
-          "reasoning": true,
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cacheRead": 0,
-            "cacheWrite": 0
-          }
-        },
-        {
           "id": "Qwen3.8-Flash-Next",
           "name": "Qwen3.8-Flash-Next",
           "contextWindow": 131072,
@@ -177,46 +161,6 @@
             "cacheRead": 0,
             "cacheWrite": 0
           }
-        }
-      ]
-    },
-    "llamacpp-olim3": {
-      "api": "openai-completions",
-      "apiKey": "llamacpp",
-      "baseUrl": "http://olim3.local:8080/v1",
-      "models": [
-        {
-          "id": "Qwen3.8-27B",
-          "name": "Qwen3.8 27B (olim3)",
-          "contextWindow": 131072,
-          "maxTokens": 32768,
-          "input": [
-            "text",
-            "image"
-          ],
-          "reasoning": true
-        },
-        {
-          "id": "gemma-4-E4B-it",
-          "name": "Gemma 4 E4B (olim3)",
-          "contextWindow": 65536,
-          "maxTokens": 16384,
-          "input": [
-            "text",
-            "image"
-          ],
-          "reasoning": false
-        },
-        {
-          "id": "gemma-4-E2B-it",
-          "name": "Gemma 4 E2B (olim3, fan-out)",
-          "contextWindow": 65536,
-          "maxTokens": 16384,
-          "input": [
-            "text",
-            "image"
-          ],
-          "reasoning": false
         }
       ]
     }
