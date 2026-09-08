@@ -251,22 +251,6 @@ denode() {
   deno run -A --unstable "npm:$1"
 }
 
-codeai() {
-  file=$1
-  prompt=$2
-  echo "starting AI analysis for $file..."
-  fullprompt="file: '$file':\n \`\`\`\n$(cat "$file")\n\n\`\`\`\n\nplease rewrite its content to satisfy the following: $prompt\n\n"
-  echo "$fullprompt" | ollama run codellama:13b >"$file" &
-  printf "to stop: \n kill %s" "$!"
-}
-
-speakai() {
-  prompt=$1
-  echo "starting AI..."
-  echo "$prompt" | ollama run mistral | espeak -s150 -g4 -p55 -a 200 &
-  printf "to stop: \n kill %s" "$!"
-}
-
 if [ "${SHELL##*/}" = "zsh" ]; then
   bindkey '[C' forward-word
   bindkey '[D' backward-word
@@ -279,10 +263,6 @@ ai() {
 # gemini() {
 #   deno run -A --no-lock npm:@google/gemini-cli "$@"
 # }
-
-pie_score() {
-  echo "Generate a PIE score by listing 3 score for Physical, Intellectual and Emotional, each line starts with the name of the score followed by 'is <score>, because <make up a casual reason matching the category>'" | ollama run mistral
-}
 
 # replace normal to call hook after the command
 # cd() {

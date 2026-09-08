@@ -11,11 +11,6 @@ dark() {
   osascript -e "tell application \"System Events\" to tell appearance preferences to set dark mode to $enabled"
 }
 
-# Ollama defaults to a 4096-token context, which truncates long prompts and
-# cuts off replies mid-sentence. launchctl setenv doesn't persist across
-# reboots, so re-apply it here for the brew-managed ollama service.
-launchctl setenv OLLAMA_CONTEXT_LENGTH 16384
-
 # In conjunction with the shared install that uses brew on osx
 source $(brew --prefix)/opt/zsh-vi-mode/share/zsh-vi-mode/zsh-vi-mode.plugin.zsh
 
@@ -40,15 +35,12 @@ docker() {
 }
 
 # --- llama.cpp router (launchd agent com.zeachco.llama-router) --------------------
-# Contrast with the `launchctl setenv OLLAMA_CONTEXT_LENGTH` line above: the router's
-# environment lives in its plist's EnvironmentVariables, so it needs no
-# re-application here. `launchctl setenv` leaks a variable into every GUI process and
-# does not survive a reboot, which is the only reason the ollama line exists.
+# The router's environment lives in its plist's EnvironmentVariables, so nothing needs
+# re-applying here on each shell start.
 #
-# These are los-PREFIXED functions, not a redefinition of `los`:
-# llamacpp/shared/_llama.sh defines `alias los='llama-ollama-server'`, and a shell
-# alias shadows a same-named function defined later -- a bare `los()` here would
-# silently do nothing without an `unalias los` first.
+# These are los-PREFIXED helpers, deliberately not a redefinition of `los` --
+# llamacpp/shared/_llama.sh owns `los`/`los-heavy`/`los-cheap` as the foreground
+# launchers, and these wrap the launchd agent instead.
 LOS_LABEL="com.zeachco.llama-router"
 LOS_URL="http://127.0.0.1:8080"
 LOS_LOG="$HOME/Library/Logs/llama-router/router.log"
@@ -99,19 +91,10 @@ los-unload() {
     -H 'content-type: application/json' -d "{\"model\":\"$1\"}"
 }
 
-# Free memory the router wants. ollama's agent is KeepAlive'd and holds a runner for
-# minutes after a request; ~35 GiB of llama plus an ollama runner on 48 GB swaps.
-# Mirrors _los_free_memory in ryzen-llm-setup.md.
-los-free() {
-  ollama ps 2>/dev/null | tail -n +2 | awk '{print $1}' | while read -r m; do
-    [ -n "$m" ] && ollama stop "$m"
-  done
-}
-
 # The Metal wired limit is the binding constraint on how many models fit. It resets to
 # 0 on every reboot, which is why com.zeachco.iogpu-limit exists to re-apply it.
 los-mem() {
   echo "iogpu.wired_limit_mb = $(sysctl -n iogpu.wired_limit_mb)  (0 = default, ~36 GiB of 48)"
   sysctl vm.swapusage
-  ps -Ao pid,ppid,rss,%cpu,comm | grep -E 'llama|ollama' | grep -v grep
+  ps -Ao pid,ppid,rss,%cpu,comm | grep -E 'llama' | grep -v grep
 }

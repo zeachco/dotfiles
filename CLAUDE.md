@@ -66,7 +66,7 @@ Defined in variants/shared/profile.sh:
 - **ipp**: Print public IP address
 - **ipl**: Print local IP address
 - **killport [port]**: Kill process listening on specified port
-- **ai [model]**: Start local AI model with ollama (default: tinyllama)
+- **ai**: Thin wrapper for `opencode` (the local-model agent CLI). Takes opencode's own args.
 - **check_for_devbox**: Auto-enters devbox shell when devbox.json present
 
 Git shortcuts (print actual command before executing):

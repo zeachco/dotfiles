@@ -11,29 +11,34 @@ or die), then speed.
 
 - `~/dev/llama.cpp` @ `b10524-22-g0e1d9185c`, built in `build/` with **`GGML_VULKAN=ON`,
   `GGML_HIP=OFF`** — Vulkan only.
-- `llamacpp/shared/_llama.sh` defines `llama-ollama-server` (`los`): fzf-picks an `ollama list`
-  entry, resolves its blob via `ollama show --modelfile`, exports `$GGUF`, starts `llama-server` on
-  :8080 with `-ngl 999 -fa on --jinja -c ${LOS_CTX:-131072} --parallel ${LOS_PARALLEL:-2}`.
+- `llamacpp/shared/_llama.sh` defines the three tier launchers over one `_los_router` helper:
+  `los` (light, :8080), `los-cheap` (:8081), `los-heavy` (one model at a time). The original
+  fzf-over-`ollama list` launcher was deleted along with ollama itself — see "Retiring ollama".
 - `~/models/DeepSeek-V4-Flash-chat-v2/…-chat-v2-imatrix-fixed.gguf` — **90.9 GiB** hand-tuned mixed
   quant (layers 37–42 experts Q4_K, other expert layers IQ2_XXS gate/up, Q2_K down,
   attn-proj/shared-experts/output Q8). `general.architecture = deepseek4`.
-- `ollama` 0.32.14 (`/usr/local/bin`, hand-installed), 91 GB of models, running the **ROCm** backend
-  and refusing Vulkan: `dropping integrated GPU; to enable, set OLLAMA_IGPU_ENABLE=1`.
+- ~~`ollama` 0.32.14 (`/usr/local/bin`, hand-installed), 91 GB of models~~ — **retired**. It was
+  running the ROCm backend and refusing Vulkan (`dropping integrated GPU; to enable, set
+  OLLAMA_IGPU_ENABLE=1`), and its ~95 GB of weights duplicated `~/models`. Nothing served
+  through it. See "Retiring ollama" below.
 - `~/.config/opencode/opencode.json` points a `llamacpp` provider at `http://127.0.0.1:8080/v1` but
   declares `"context": 32768` — a quarter of what `los` actually serves.
 
 ## The four findings that drive this runbook
 
-1. **The GPU can only address 62.5 GiB, so the 90.9 GiB DeepSeek cannot load at all.** Ollama logs
-   it: `library=ROCm compute=gfx1151 type=iGPU total="62.5 GiB"`, and `mem_info_gtt_total` = 67152236544. That's the default GTT cap, not a memory shortage. BIOS UMA is already at the ideal
-   512 MB (`mem_info_vram_total` = 536870912), so it's a one-line kernel-cmdline fix. **Nothing else
-   here matters until Phase 0 is done.**
+1. **The GPU can only address 62.5 GiB, so the 90.9 GiB DeepSeek cannot load at all.**
+   `mem_info_gtt_total` = 67152236544, and `ttm.pages_limit` = 16394586 pages — both the default
+   "half of RAM" cap, not a memory shortage. BIOS UMA is already at the ideal 512 MB
+   (`mem_info_vram_total` = 536870912), so it's a one-line kernel-cmdline fix. **Nothing else here
+   matters until Phase 0 is done.** This also bites the light tier, not just DeepSeek: with five
+   children resident, `mem_info_gtt_used` sits near 50 GiB of the 62.5 GiB cap and the box swaps.
 2. **`llama-server` has a built-in router mode, already present in this build**
    (`tools/server/server-models.cpp`). It serves many models from one port, autoloads on demand,
    isolates each model in a child process, and supports resumable SSE streams. This replaces both the
    fzf-relaunch flow and any need for llama-swap — see Phase 1.
-3. **`los` can't see the DeepSeek model anyway** — it enumerates `ollama list` only, and a 90.9 GiB
-   hand-quant will never be in ollama's registry.
+3. **`los` couldn't see the DeepSeek model anyway** — the original launcher enumerated
+   `ollama list` only, and a 90.9 GiB hand-quant will never be in ollama's registry. Router mode
+   (finding 2) removed that constraint, and ollama has since been retired outright.
 4. **Mainline llama.cpp already supports the model and ships speculative decoding for it.**
    `LLM_ARCH_DEEPSEEK4` and `llama_model_deepseek4` are in `src/` at b10524, so the "you need the
    nisparks fork" advice is obsolete. And `common/arg.cpp` carries
@@ -59,7 +64,44 @@ DeepSeek tier.
 
 ---
 
+## Retiring ollama
+
+Nothing served through it once router mode landed: `ollama serve` sat resident doing nothing while
+its store held ~95 GB duplicating `~/models`. It also lagged upstream llama.cpp by weeks on new
+architectures, which is the opposite of what this box is for.
+
+It was **not** a managed package — `pacman -Qq | grep ollama` was empty, the binary came from
+upstream's install script in `/usr/local/bin`, and `ollama.service` was a **system** unit, not a
+`--user` one:
+
+```bash
+sudo systemctl disable --now ollama.service
+sudo rm -f /etc/systemd/system/ollama.service /usr/local/bin/ollama
+sudo rm -rf /usr/local/lib/ollama          # bundled libs, incl. its private rocm_v7_2
+sudo systemctl daemon-reload
+sudo userdel ollama 2>/dev/null            # service user the installer creates
+rm -rf ~/.ollama                           # the ~95 GB of weights
+```
+
+Repo-side, this removed `llama-ollama-server`/`los-pick`, `_los_free_memory` **and its call site
+in `_los_router`** (deleting the function alone would have broken `los` and `los-heavy`),
+`codeai`/`speakai`/`pie_score`, the macOS `OLLAMA_CONTEXT_LENGTH` `launchctl setenv` and
+`los-free`, and the unused `variants/debian/Modelfile`. Nothing in any `setup.sh` installed
+ollama, so there is no risk of `setup.sh` reinstating it — the only `ollama` strings left in
+`framework-ryzen/setup.sh` *remove* a legacy `ollama-framework-rgb.service`.
+
+Two false positives to leave alone: `configs/pi/.pi/agent/settings.json` matches a grep for
+"ollama" only because of the pi package `npm:@ollama/pi-web-search` (an npm scope, unrelated to
+the daemon), and the `com.zeachco.llama-router.plist` hit is an explanatory comment.
+
+---
+
 ## Phase 0 — Unlock GTT (reboot; blocks everything)
+
+> **Status: STAGED, PENDING REBOOT.** `/etc/limine-entry-tool.d/amdgpu-gtt.conf` is in place and
+> the UKI has been verified to carry `amdgpu.gttsize=131072 ttm.pages_limit=31457280`. The running
+> kernel does **not** — `/proc/cmdline` has neither param and `mem_info_gtt_total` is still
+> 62.5 GiB. Nothing further is needed but a reboot.
 
 Cmdline is assembled by **limine-entry-tool**, not read from `/etc/kernel/cmdline`.
 
@@ -159,24 +201,17 @@ existing `DeepSeek-V4-Flash-chat-v2/` already has the right shape — just `mv` 
 
 ### The two launchers
 
-**Implemented** in `llamacpp/shared/_llama.sh`. The existing fzf function was renamed to `los-pick`,
-kept as a one-off flag-experiment tool, since `los` is now the router.
+**Implemented** in `llamacpp/shared/_llama.sh`. There are now **three** launchers, not two — the
+cheap tier was split out onto :8081 (see "The cheap tier" below). The original fzf-over-`ollama
+list` function and the `_los_free_memory` helper that stopped resident ollama runners were both
+deleted when ollama was retired.
 
 ```bash
 LOS_CONF_DIR="${LOS_CONF_DIR:-$HOME/dotfiles/llamacpp/archlinux}"
 
-# A 90.9 GiB load cannot share memory with a resident ollama runner, and the unit
-# keeps models for 30m (OLLAMA_KEEP_ALIVE) across 3 slots (OLLAMA_MAX_LOADED_MODELS).
-_los_free_memory() {
-  ollama ps 2>/dev/null | tail -n +2 | awk '{print $1}' | while read -r m; do
-    [[ -n "$m" ]] && ollama stop "$m"
-  done
-}
-
 _los_router() {
   local tier="$1" max="$2"; shift 2
   ensure_llama_cpp || return 1
-  _los_free_memory
   LLAMA_CACHE="$HOME/.cache/llama.cpp-$tier" \
     "$LLAMA_CPP_BUILD/bin/llama-server" \
       --models-dir "$HOME/models/$tier" \
@@ -187,16 +222,21 @@ _los_router() {
       "$@"
 }
 
-# Small/medium models, up to 4 resident. DeepSeek-class is excluded by directory.
-los() { _los_router light 4 "$@"; }
+# Small/medium models, up to 5 resident -- matches llama-router.service's --models-max.
+# DeepSeek-class is excluded by directory.
+los() { _los_router light 5 "$@"; }
 
 # One model at a time, the big ones.
 los-heavy() { _los_router heavy 1 "$@"; }
+
+# High-frequency shell traffic only, on its own port. See "The cheap tier".
+los-cheap() { LOS_PORT="${LOS_PORT:-8081}" _los_router cheap 1 "$@"; }
 ```
 
-Both bind :8080 so client config stays fixed — they are mutually exclusive. `killport 8080` (already
-in `profile.sh`) before switching tiers, or pass `LOS_PORT` to run one alongside the other. Extra
-args pass straight through, and children inherit the router's argv _and_ environment, so
+`los` and `los-heavy` both bind :8080 so client config stays fixed — they are mutually exclusive.
+`killport 8080` (already in `profile.sh`) before switching tiers, or pass `LOS_PORT` to run one
+alongside the other. `los-cheap` defaults to :8081 and is meant to run *concurrently* with `los`.
+Extra args pass straight through, and children inherit the router's argv _and_ environment, so
 `GGML_VK_FORCE_MAX_ALLOCATION_SIZE=… los-heavy` works as expected.
 
 Separate `LLAMA_CACHE` per tier is what stops an `-hf` pull in one tier from showing up in the other.
@@ -306,7 +346,9 @@ Set these as preset keys so they apply per model rather than per launch.
 ## Phase 4 — Second build: HIP + rocWMMA
 
 Keep `build/` (Vulkan) and add `build-hip/` so backends can be A/B'd without rebuilding. ROCm is
-**not** installed system-wide (ollama ships its own bundled `rocm_v7_2`), so this pulls a large SDK:
+**not** installed system-wide — it used to be reachable only via ollama's bundled `rocm_v7_2`, and
+with ollama retired there is no ROCm on the box at all — so this pulls a large SDK (Arch `extra`
+currently carries 7.2.4, including `rocwmma`):
 
 ```bash
 sudo pacman -S rocm-hip-sdk hipblas rocblas hipblaslt

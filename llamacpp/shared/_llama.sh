@@ -18,78 +18,21 @@ ensure_llama_cpp() {
 
 LOS_CONF_DIR="${LOS_CONF_DIR:-$HOME/dotfiles/llamacpp/archlinux}"
 
-llama-ollama-server() {
-  local model
-  local from
-
-  ensure_llama_cpp || return 1
-
-  model="$(ollama list | tail -n +2 | awk '{print $1}' | fzf --prompt='Ollama model: ')" || return
-  from="$(ollama show "$model" --modelfile | awk '$1 == "FROM" { sub(/^FROM[[:space:]]+/, ""); print; exit }')"
-
-  if [[ -z "$from" ]]; then
-    echo "Could not find the model blob for: $model" >&2
-    return 1
-  fi
-
-  if [[ "$from" == /* ]]; then
-    GGUF="$from"
-  else
-    GGUF="${OLLAMA_MODELS:-$HOME/.ollama/models}/blobs/${from/:/-}"
-  fi
-
-  if [[ ! -f "$GGUF" ]]; then
-    echo "Model blob does not exist: $GGUF" >&2
-    return 1
-  fi
-
-  export GGUF
-  echo "Starting $model from $GGUF"
-
-  # An explicit --parallel is deliberate: left unset, llama-server picks 4 slots with a
-  # unified KV cache, where every slot advertises the full -c but they all share it.
-  # Concurrent agent requests then starve the cache and get a 500
-  # "Context size has been exceeded." that also wipes every active slot's prompt cache.
-  #
-  # --parallel divides -c between slots, so the two move together: 131072/2 = 65536 per
-  # slot. Measured ~23.6 GiB GTT for Qwen3.8 27B, whose hybrid attention costs only
-  # ~64 KiB/token. Raise both for more concurrency (262144/4 is also 65536 per slot).
-  "$LLAMA_CPP_BUILD/bin/llama-server" \
-    -m "$GGUF" \
-    -ngl 999 \
-    -fa on \
-    --jinja \
-    -c "${LOS_CTX:-131072}" \
-    --parallel "${LOS_PARALLEL:-2}" \
-    --port 8080
-}
-
-alias los-pick='llama-ollama-server'
-
-# A 90.9 GiB load cannot share memory with a resident ollama runner, and the unit
-# keeps models for 30m (OLLAMA_KEEP_ALIVE) across 3 slots (OLLAMA_MAX_LOADED_MODELS).
-_los_free_memory() {
-  ollama ps 2>/dev/null | tail -n +2 | awk '{print $1}' | while read -r m; do
-    [[ -n "$m" ]] && ollama stop "$m"
-  done
-}
-
 # Router mode: no -m, so llama-server loads nothing itself and forks one child
 # process per model, routed on the JSON body's "model" field. See
 # ryzen-llm-setup.md Phase 1 for the directory-split rationale (--models-max counts
 # models, not bytes, so the big DeepSeek-class weights live in a separate "heavy"
 # tier directory/preset that is never enumerated alongside the light tier).
 #
-# The persistent systemd --user service (llamacpp/archlinux) already
-# runs this same "light" invocation with a CPUQuota; this manual launcher is for the
-# "heavy" tier (never a service, one model at a time) and for ad-hoc light-tier runs
-# outside the unit, e.g. with a different LOS_PORT.
+# Two of the three tiers are persistent systemd --user services with a CPUQuota
+# (llamacpp/archlinux): light on :8080 and cheap on :8081. This manual launcher is for
+# the "heavy" tier (never a service, one model at a time) and for ad-hoc runs of the
+# other two outside their units, e.g. on a different LOS_PORT.
 _los_router() {
   local tier="$1" max="$2"; shift 2
   local half_cores=$(( $(nproc) / 2 ))
   ((half_cores < 1)) && half_cores=1
   ensure_llama_cpp || return 1
-  _los_free_memory
   LLAMA_CACHE="$HOME/.cache/llama.cpp-$tier" \
     "$LLAMA_CPP_BUILD/bin/llama-server" \
       --models-dir "$HOME/models/$tier" \
@@ -102,11 +45,20 @@ _los_router() {
       "$@"
 }
 
-# Small/medium models, up to 4 resident. DeepSeek-class is excluded by directory.
-# Duplicates the systemd unit's ExecStart -- use this for a foreground/ad-hoc run
-# (`killport 8080` first if the service already owns :8080).
-los() { _los_router light 4 "$@"; }
+# Small/medium models, up to 5 resident -- matches llama-router.service's --models-max
+# so a foreground run behaves like the unit. DeepSeek-class is excluded by directory.
+# Use this for a foreground/ad-hoc run (`killport 8080` first if the service owns :8080).
+los() { _los_router light 5 "$@"; }
 
 # One model at a time, the big ones. Mutually exclusive with `los` and the systemd
 # service on :8080 -- `killport 8080` before switching tiers, or pass LOS_PORT.
 los-heavy() { _los_router heavy 1 "$@"; }
+
+# The cheap tier on :8081, mirroring llama-router-cheap.service. This exists to keep
+# high-frequency shell traffic (summarize/tab_autoname, see variants/shared/_ai_tools.sh)
+# off the light router: eviction there is pure LRU on last_used with NO pinning -- the
+# `pin` preset key is commented out in llama.cpp's common/arg.cpp -- and every proxied
+# request refreshes the target's timestamp. A tab-title call every few seconds therefore
+# keeps the small model freshest and makes the ~28 GiB qwen3.8 the eviction victim during
+# any idle gap. Separate port, separate LLAMA_CACHE, one model resident.
+los-cheap() { LOS_PORT="${LOS_PORT:-8081}" _los_router cheap 1 "$@"; }
