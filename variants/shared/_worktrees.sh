@@ -82,6 +82,18 @@ herdr_branch_repo() {
     result=$(herdr worktree open --cwd "$repo_root" --path "$worktree_path" --label "$tab_name" --focus)
   else
     mkdir -p "$worktree_base"
+    # Herdr checks out `--branch` only when it is an *existing local* branch;
+    # otherwise it creates a fresh one from --base/HEAD (i.e. main) — so a
+    # branch that only exists on origin would silently start from main. Make
+    # sure a local branch exists first. A name that exists nowhere still falls
+    # through to Herdr, which creates it from main (the intended new-work flow).
+    if ! git show-ref --verify --quiet "refs/heads/$branch_name"; then
+      git fetch --quiet --prune origin 2>/dev/null
+      if git show-ref --verify --quiet "refs/remotes/origin/$branch_name"; then
+        echo "Tracking origin/$branch_name as a local branch..."
+        git branch --track "$branch_name" "origin/$branch_name" || return 1
+      fi
+    fi
     echo "Creating worktree for $branch_name..."
     result=$(herdr worktree create --cwd "$repo_root" --branch "$branch_name" --path "$worktree_path" --label "$tab_name" --focus)
   fi
