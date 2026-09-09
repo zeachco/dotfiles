@@ -131,8 +131,10 @@ and GLM — every other live session then pays a multi-minute reload the moment 
 
 What a separate router does **not** buy is memory. The routers do not coordinate: with qwen3.8 +
 GLM resident on :7070 (~60 GiB) a Flash-Next load on :7072 simply fails on the GPU. So a heavy
-session is explicit: `los-drain` (unloads every model on :7070, keeps the router up), then load
-the heavy model. The light models reload on demand afterwards. That trade — an explicit step
+session is explicit: `los-drain` (unloads every model on :7070, keeps the router up), then
+`los-load <model>` — or, inside pi, `/llama` after a one-time `/login llama.cpp` pointed at
+`http://127.0.0.1:7072` (pi's built-in router UI; it lists, loads and unloads). Selecting an
+unloaded heavy model in pi gives `400 model is not loaded`; that is the tier refusing, not a bug. The light models reload on demand afterwards. That trade — an explicit step
 instead of a surprise eviction — is the whole point of the tier.
 
 pi sees it as a second provider, `llamacpp-heavy`; `llamacpp-sync` refreshes both.

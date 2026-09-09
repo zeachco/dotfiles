@@ -56,6 +56,45 @@ los() { _los_router light 5 "$@"; }
 # the GPU. `los-drain` first. See ryzen-llm-setup.md "The heavy tier".
 los-heavy() { LOS_PORT="${LOS_PORT:-7072}" _los_router heavy 1 --no-models-autoload "$@"; }
 
+# Load a heavy-tier model explicitly (the heavy router runs --no-models-autoload, so a
+# request for an unloaded model is refused with 400 "model is not loaded" instead of
+# pulling ~90 GiB under someone's feet). Pair with los-drain. Inside pi the same thing is
+# `/login llama.cpp` once with http://127.0.0.1:7072, then `/llama`.
+#   los-load                      # list what :7072 has and what is loaded
+#   los-load Qwen3.8-Flash-Next   # load it, wait until ready
+los-load() {
+  local url="${LOS_HEAVY_URL:-http://127.0.0.1:7072}" model="${1:-}"
+  if [[ -z "$model" ]]; then
+    curl -sf -m 5 "$url/v1/models" | python3 -c 'import sys,json
+for m in json.load(sys.stdin).get("data",[]):
+    st=m.get("status"); print(f"  {m["id"]:40s} {st.get("value") if isinstance(st,dict) else st}")'
+    return
+  fi
+  local i st
+  _los_status() {
+    curl -sf -m 5 "$url/v1/models" | python3 -c 'import sys,json
+for m in json.load(sys.stdin).get("data",[]):
+    if m["id"]==sys.argv[1]:
+        s=m.get("status"); print(s.get("value") if isinstance(s,dict) else s)' "$1" 2>/dev/null
+  }
+  st=$(_los_status "$model")
+  [[ -z "$st" ]] && { echo "los-load: no model '$model' on $url (los-load with no args lists them)" >&2; return 1; }
+  [[ "$st" == "loaded" ]] && { echo "los-load: $model already loaded"; return 0; }
+  # The router answers a load for an already-loading/loaded model with a non-2xx, so do
+  # not treat the POST status as the verdict -- the poll below is.
+  curl -s -m 30 -X POST "$url/models/load" -H 'content-type: application/json' \
+    -d "{\"model\":\"$model\"}" >/dev/null
+  for i in $(seq 1 120); do
+    st=$(_los_status "$model")
+    case "$st" in
+      loaded) echo "los-load: $model loaded"; return 0 ;;
+      failed|unloaded) [[ $i -gt 3 ]] && { echo "los-load: $model status '$st' -- see: journalctl --user -u llama-router-heavy.service -n 50" >&2; return 1; } ;;
+    esac
+    sleep 5
+  done
+  echo "los-load: timed out waiting for $model" >&2; return 1
+}
+
 # Unload every model on the light router (default :7070) without stopping it, so a heavy
 # model has the GPU. Light models reload on demand afterwards -- the cost is the reload,
 # paid once and on purpose, instead of an LRU eviction paid by whoever comes back first.
