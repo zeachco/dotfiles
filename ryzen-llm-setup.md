@@ -139,6 +139,27 @@ instead of a surprise eviction — is the whole point of the tier.
 
 pi sees it as a second provider, `llamacpp-heavy`; `llamacpp-sync` refreshes both.
 
+### Which heavy model for what
+
+Measured on this box (2026-09-09, llama.cpp `e2d2c0d6`, Vulkan). "Fits beside" = what the
+light tier can still hold at the same time; the routers do not coordinate memory, so this is
+the number that decides whether a heavy "brain" can drive light-tier workers.
+
+| model | GPU (GTT) | host RSS | gen tok/s | prompt tok/s | fits beside |
+|---|---|---|---|---|---|
+| gpt-oss-120b MXFP4 + EAGLE3 | ~63 + small KV | — | *unmeasured; ~55 expected* | — | **GLM (27)** |
+| Qwen3.8-Flash-Next IQ4_XS | 67 | 28 (PLE table, mmapped) | 27 | 58 (cold) | a 4B-class model only |
+| DeepSeek-V4-Flash chat-v2 | 91 | — | 16–17, flat | 107–144 | a 4B-class model only |
+
+Reading: for *agentic* work — an orchestrator that emits plans/briefs/tool calls and fans out
+to workers — generation speed and room for GLM dominate, which points at gpt-oss. Flash-Next
+is the capable solo model. DeepSeek (two-bit experts on most layers, `np = 1`, 32k) is a
+one-shot deep reviewer, not a loop; it is the largest-capability model here, just the slowest
+to talk. Parallel small agents are cheap on this APU because decode is bandwidth-bound and
+continuous batching shares the weight stream — fan out onto ONE small model with `np` ≥ the
+agent count, never onto several small models.
+
+
 ## The four findings that drive this runbook
 
 1. **The GPU can only address 62.5 GiB, so the 90.9 GiB DeepSeek cannot load at all.**
