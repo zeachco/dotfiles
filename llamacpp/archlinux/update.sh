@@ -140,6 +140,23 @@ fi
 
 say "rebuilding: $REASON"
 
+# ---- build-dependency preflight ------------------------------------------------------
+# The Vulkan backend needs the SDK headers and glslc at BUILD time, not just the driver
+# at run time -- and they can disappear without anything else breaking: on 2026-08-25
+# `pacman -Rns vulkan-headers` was run by hand, the Aug 27 rebuild died on
+#   fatal error: vulkan/vulkan_core.h: No such file or directory
+# inside a -j16 stream nobody read, and the router kept serving the Aug 19 binary for
+# two weeks. Fail here, loudly, with the fix, before spending any CPU.
+MISSING=()
+[[ -f /usr/include/vulkan/vulkan_core.h ]] || MISSING+=(vulkan-headers)
+command -v glslc >/dev/null 2>&1 || MISSING+=(shaderc)
+if ((${#MISSING[@]} > 0)); then
+  bad "cannot build: missing ${MISSING[*]}"
+  bad "  sudo pacman -S --needed ${MISSING[*]}"
+  bad "  (variants/archlinux/setup.sh installs these; re-run dotfiles_update after)"
+  exit 1
+fi
+
 # ---- configure ----------------------------------------------------------------------
 # Vulkan only, matching ryzen-llm-setup.md; GGML_HIP stays OFF (Phase 4 uses a separate
 # build-hip/ tree). ccache is installed on this box but was never wired into the build
@@ -168,8 +185,17 @@ JOBS="${LLAMACPP_BUILD_JOBS:-$(( $(nproc) / 2 ))}"
 ((JOBS < 1)) && JOBS=1
 say "building with -j$JOBS (this takes a while)..."
 
-if ! cmake --build "$BUILD_DIR" -j"$JOBS"; then
+# Full output goes to a log; the terminal gets progress plus, on failure, the lines
+# that matter. With -j16 the one `fatal error:` scrolls past inside hundreds of
+# progress lines and interleaved jobs -- both earlier failures here were reported as
+# "build FAILED" with no visible cause.
+BUILD_LOG="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles-llamacpp-build.log"
+mkdir -p "$(dirname "$BUILD_LOG")"
+cmake --build "$BUILD_DIR" -j"$JOBS" 2>&1 | tee "$BUILD_LOG" | grep -E '^\[ *[0-9]+%\]|error|Error|\*\*\*'
+if [[ "${PIPESTATUS[0]}" != 0 ]]; then
   bad "build FAILED -- stamp left at '$BUILT_SHA', next run will retry"
+  bad "  full log: $BUILD_LOG -- first errors:"
+  grep -n -E 'error:|Error [0-9]|undefined reference' "$BUILD_LOG" | head -8 | sed 's/^/    /'
   bad "  the routers keep running the previous binary, which is the safe outcome"
   exit 1
 fi

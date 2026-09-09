@@ -11,6 +11,11 @@ install make
 install zsh
 install s-tui # cli tool for CPU benchmarks
 install nvtop # per-process GPU/VRAM usage (supports AMDGPU)
+# llama.cpp Vulkan backend BUILD deps (the driver alone is not enough). Declared here
+# so they cannot silently drift: vulkan-headers was removed by hand on 2026-08-25 and
+# every llama.cpp rebuild failed for two weeks without anyone seeing why.
+install vulkan-headers
+install shaderc # glslc
 
 # Check neovim version and install/update if needed
 neovimVersion=$(nvim --version 2>/dev/null | head -n 1 | awk '{print $2}' || echo "0.0.0")

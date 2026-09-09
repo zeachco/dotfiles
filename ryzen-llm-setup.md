@@ -46,6 +46,13 @@ added the arch. Nothing surfaced it. `git log` looked current, the router starte
 normally, and every already-supported model kept working; only a model needing a *new*
 architecture failed, and it failed as if the model were at fault.
 
+Root cause, found 2026-09-08 after two more silent failures: `pacman -Rns vulkan-headers`
+had been run by hand on 2026-08-25. Every rebuild since died on
+`fatal error: vulkan/vulkan_core.h: No such file or directory`, invisible inside `-j16`
+output. `variants/archlinux/setup.sh` now installs `vulkan-headers` and `shaderc`, and
+`update.sh` refuses to build without them and tees the build to
+`~/.cache/dotfiles-llamacpp-build.log`, printing the first errors on failure.
+
 Design consequences, each one paid for by that:
 
 - **Staleness is a stamp file** (`build/.dotfiles-build-commit`), written only after a
