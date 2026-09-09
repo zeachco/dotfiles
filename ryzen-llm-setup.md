@@ -76,6 +76,20 @@ state rollback) that the PR branch never had. Get back onto `master` once a PR l
 `update.sh` will tell you it is skipping the pull for as long as you are parked
 somewhere else.
 
+## Routing work between models (pi)
+
+`configs/pi/.pi/agent/` carries the client-side half of this setup, stowed to `~/.pi/agent/`:
+agent definitions with a pinned `model:` (`worker`, `scout` on GLM-4.7-Flash; `planner`,
+`reviewer` on qwen3.8), `/preset think|build` for switching the main session, `/implement`,
+`/build`, `/review` workflows, and a global `AGENTS.md` telling the slow model when to delegate.
+Two hot models on purpose — the LRU eviction described below has no pinning.
+
+One llama.cpp-specific detail lives in `models.json`: GLM's `thinkingLevelMap` maps `off` to
+`reasoning_effort: "none"`, the only value llama-server treats as "disable reasoning"
+(`tools/server/server-common.cpp`, `reasoning_effort == "none"`). Without it a `:off` subagent
+still thinks. Measured 2026-09-08: default → 40 tokens of `reasoning_content` and an empty
+answer; `"none"` → the answer in 2 tokens.
+
 ## The four findings that drive this runbook
 
 1. **The GPU can only address 62.5 GiB, so the 90.9 GiB DeepSeek cannot load at all.**
