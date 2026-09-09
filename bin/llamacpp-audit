@@ -285,7 +285,7 @@ def check_runtime():
                                f"never finish loading, and pick_victim() skips models that "
                                f"are not ready, so it holds a --models-max slot forever. "
                                f"Restart the router to clear it.")
-    for port in (8080, 8081):
+    for port in (7070, 7071, 7072):
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/v1/models", timeout=5) as r:
                 data = json.load(r)

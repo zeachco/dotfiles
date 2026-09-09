@@ -46,7 +46,7 @@ fetch() {
   # file mapped, its weights change underneath it. Fully GPU-offloaded models (-ngl
   # 999) release the mapping after load and are unaffected, but a CPU-resident or
   # partially-offloaded one is not. Unload the model first if this line appears:
-  #   curl -s -X POST localhost:8080/models/unload -H 'content-type: application/json' \
+  #   curl -s -X POST localhost:7070/models/unload -H 'content-type: application/json' \
   #     -d '{"model":"<id>"}'
   if [ -f "$out" ]; then
     echo "==> $repo :: ${file##*/} (OVERWRITING in place: local $local_size != remote $remote)"

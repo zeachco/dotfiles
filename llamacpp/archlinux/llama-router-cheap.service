@@ -11,7 +11,7 @@
 #   @CHEAP_THREADS@     -t/--threads-batch value, default 4 (see LOS_CHEAP_THREADS)
 
 [Unit]
-Description=llama.cpp router (cheap tier) on :8081
+Description=llama.cpp router (cheap tier) on :7071
 Documentation=file:///home/olivier/dotfiles/ryzen-llm-setup.md
 After=graphical-session.target
 
@@ -29,7 +29,7 @@ ExecStart=%h/dev/llama.cpp/build/bin/llama-server \
   --models-preset %h/dotfiles/llamacpp/archlinux/cheap.ini \
   --models-max 1 \
   --host 127.0.0.1 \
-  --port 8081 \
+  --port 7071 \
   -to 3600 \
   --threads @CHEAP_THREADS@ \
   --threads-batch @CHEAP_THREADS@
@@ -40,7 +40,7 @@ Restart=on-failure
 RestartSec=5
 
 # Much tighter than the light router's 90%. A tab-title summary must never compete
-# with interactive generation on :8080 -- and unlike the light tier, nothing here is
+# with interactive generation on :7070 -- and unlike the light tier, nothing here is
 # latency-critical: _ai_tools.sh already bounds every call with curl --max-time
 # (SUMMARIZE_TIMEOUT, default 60s) and falls back gracefully on a miss. Override with
 # `systemctl --user edit llama-router-cheap.service`, or reinstall with

@@ -158,7 +158,7 @@ install -m 644 "$RENDERED" "$INSTALLED"
 launchctl bootstrap "$DOMAIN" "$INSTALLED"
 launchctl kickstart -k "$DOMAIN/$LABEL"
 
-echo "llama router: bootstrapped $LABEL -> http://0.0.0.0:8080 (LAN: http://$(scutil --get LocalHostName).local:8080)"
+echo "llama router: bootstrapped $LABEL -> http://0.0.0.0:7070 (LAN: http://$(scutil --get LocalHostName).local:7070)"
 echo "llama router: logs at ~/Library/Logs/llama-router/router.log -- launchd does NOT"
 echo "              rotate these; add /etc/newsyslog.d/llama-router.conf if it grows"
 

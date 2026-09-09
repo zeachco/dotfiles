@@ -42,7 +42,7 @@
     <string>4</string>
     <!-- Explicit even though it is the default: load a model on first request. -->
     <string>--models-autoload</string>
-    <!-- LAN-reachable as olim3.local:8080, per todos/network-exposure.md.
+    <!-- LAN-reachable as olim3.local:7070, per todos/network-exposure.md.
          NOTE: no --api-key, and the macOS Application Firewall is disabled, so any
          device on the network can drive this GPU and read every prompt. Add
          --api-key here plus a matching Authorization header in every client if that
@@ -50,7 +50,7 @@
     <string>--host</string>
     <string>0.0.0.0</string>
     <string>--port</string>
-    <string>8080</string>
+    <string>7070</string>
     <!-- Long agent turns: do not let the HTTP layer cut a generation short. -->
     <string>-to</string>
     <string>3600</string>
@@ -92,7 +92,7 @@
   <!-- Aqua ONLY, on purpose:
        * Metal wants a GUI login session. Adding <string>Background</string> (as
          ai.hermes.gateway.plist does) would let launchd also start this job in a
-         non-GUI ssh session: a second instance fighting for :8080, and in that
+         non-GUI ssh session: a second instance fighting for :7070, and in that
          session a Metal device that may fail to create -> silent CPU inference.
        * Consequence accepted: the router starts at LOGIN, not boot, and is torn
          down at logout. Screen lock is not logout, so it survives that. On a
@@ -109,7 +109,7 @@
 
   <!-- Unconditional restart. Model children dying is already isolated by router
        mode; this covers the router process itself. launchd throttles respawns to one
-       per ThrottleInterval, so a permanent failure (:8080 taken, say) shows up as a
+       per ThrottleInterval, so a permanent failure (:7070 taken, say) shows up as a
        10 s crash loop in the log rather than a busy spin. -->
   <key>KeepAlive</key>
   <true/>

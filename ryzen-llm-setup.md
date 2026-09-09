@@ -13,7 +13,7 @@ or die), then speed.
   `GGML_HIP=OFF`** — Vulkan only. `llamacpp/archlinux/update.sh` fast-forwards and
   rebuilds it on every `dotfiles_update`; see "Keeping the build current" below.
 - `llamacpp/shared/_llama.sh` defines the three tier launchers over one `_los_router` helper:
-  `los` (light, :8080), `los-cheap` (:8081), `los-heavy` (one model at a time). The original
+  `los` (light, :7070), `los-cheap` (:7071), `los-heavy` (one model at a time). The original
   fzf-over-`ollama list` launcher was deleted along with ollama itself — see "Retiring ollama".
 - `~/models/DeepSeek-V4-Flash-chat-v2/…-chat-v2-imatrix-fixed.gguf` — **90.9 GiB** hand-tuned mixed
   quant (layers 37–42 experts Q4_K, other expert layers IQ2_XXS gate/up, Q2_K down,
@@ -23,7 +23,7 @@ or die), then speed.
   OLLAMA_IGPU_ENABLE=1`), and its ~95 GB of weights duplicated `~/models`. Nothing served
   through it. See "Retiring ollama" below.
 - `~/.config/opencode/opencode.json` (symlinked into `configs/opencode/`) points a single
-  `llamacpp` provider at `http://oli-llms.local:8080/v1` with per-model `limit.context` matching
+  `llamacpp` provider at `http://oli-llms.local:7070/v1` with per-model `limit.context` matching
   `light.ini`. The `llamacpp-olim3` provider for the M4 was removed — that box is no longer a
   dependency of this one. `headerTimeout` is left at its 300s default rather than disabled, so a
   request queued behind `--models-max` surfaces instead of hanging forever.
@@ -96,6 +96,37 @@ One llama.cpp-specific detail lives in `models.json`: GLM's `thinkingLevelMap` m
 (`tools/server/server-common.cpp`, `reasoning_effort == "none"`). Without it a `:off` subagent
 still thinks. Measured 2026-09-08: default → 40 tokens of `reasoning_content` and an empty
 answer; `"none"` → the answer in 2 tokens.
+
+## Ports
+
+| Port | Tier | Unit | Host | Models |
+|---|---|---|---|---|
+| `:7070` | light | `llama-router.service` | `0.0.0.0` (LAN) | `~/models/light`, `--models-max 5` |
+| `:7071` | cheap | `llama-router-cheap.service` | `127.0.0.1` | `~/models/cheap`, gemma-E2B only |
+| `:7072` | heavy | `llama-router-heavy.service` | `0.0.0.0` (LAN) | `~/models/heavy`, `--models-max 1`, `--no-models-autoload` |
+
+Moved off 8080/8081 on 2026-09-08 because 8080 is a common dev-server port. A port change
+only takes effect when the unit restarts; `install.sh` deliberately does not do that
+(`enable --now` is a no-op for a running unit), so after pulling this: `systemctl --user
+restart llama-router.service llama-router-cheap.service` when idle. Clients (`pi` `models.json`,
+opencode, `AI_LLAMA_URL`) already point at the new ports.
+
+## The heavy tier
+
+`llama-router-heavy.service` on **:7072** serves `~/models/heavy` one model at a time and loads
+nothing until asked (`--no-models-autoload`; load with `/llama` in pi, or
+`curl -X POST localhost:7072/models/load -d '{"model":"Qwen3.8-Flash-Next"}'`). It exists for
+models that cannot share the GPU with the daily set: Qwen3.8-Flash-Next (~87 GiB) and the
+90.9 GiB DeepSeek. On the light tier such a model would be loaded by LRU *eviction* of qwen3.8
+and GLM — every other live session then pays a multi-minute reload the moment it comes back.
+
+What a separate router does **not** buy is memory. The routers do not coordinate: with qwen3.8 +
+GLM resident on :7070 (~60 GiB) a Flash-Next load on :7072 simply fails on the GPU. So a heavy
+session is explicit: `los-drain` (unloads every model on :7070, keeps the router up), then load
+the heavy model. The light models reload on demand afterwards. That trade — an explicit step
+instead of a surprise eviction — is the whole point of the tier.
+
+pi sees it as a second provider, `llamacpp-heavy`; `llamacpp-sync` refreshes both.
 
 ## The four findings that drive this runbook
 
@@ -275,7 +306,7 @@ existing `DeepSeek-V4-Flash-chat-v2/` already has the right shape — just `mv` 
 ### The two launchers
 
 **Implemented** in `llamacpp/shared/_llama.sh`. There are now **three** launchers, not two — the
-cheap tier was split out onto :8081 (see "The cheap tier" below). The original fzf-over-`ollama
+cheap tier was split out onto :7071 (see "The cheap tier" below). The original fzf-over-`ollama
 list` function and the `_los_free_memory` helper that stopped resident ollama runners were both
 deleted when ollama was retired.
 
@@ -290,7 +321,7 @@ _los_router() {
       --models-dir "$HOME/models/$tier" \
       --models-preset "$LOS_CONF_DIR/$tier.ini" \
       --models-max "$max" \
-      --host 127.0.0.1 --port "${LOS_PORT:-8080}" \
+      --host 127.0.0.1 --port "${LOS_PORT:-7070}" \
       -to 3600 \
       "$@"
 }
@@ -303,12 +334,12 @@ los() { _los_router light 5 "$@"; }
 los-heavy() { _los_router heavy 1 "$@"; }
 
 # High-frequency shell traffic only, on its own port. See "The cheap tier".
-los-cheap() { LOS_PORT="${LOS_PORT:-8081}" _los_router cheap 1 "$@"; }
+los-cheap() { LOS_PORT="${LOS_PORT:-7071}" _los_router cheap 1 "$@"; }
 ```
 
-`los` and `los-heavy` both bind :8080 so client config stays fixed — they are mutually exclusive.
-`killport 8080` (already in `profile.sh`) before switching tiers, or pass `LOS_PORT` to run one
-alongside the other. `los-cheap` defaults to :8081 and is meant to run *concurrently* with `los`.
+`los` binds :7070, `los-cheap` :7071 and `los-heavy` :7072 — the same ports as the three
+systemd units, so a foreground run of any tier behaves like its service. Run `los-drain` before a
+heavy session: the routers do not coordinate memory (see "The heavy tier" below).
 Extra args pass straight through, and children inherit the router's argv _and_ environment, so
 `GGML_VK_FORCE_MAX_ALLOCATION_SIZE=… los-heavy` works as expected.
 
@@ -316,7 +347,7 @@ Separate `LLAMA_CACHE` per tier is what stops an `-hf` pull in one tier from sho
 
 ### The cheap tier
 
-`llama-router-cheap.service` on **:8081**, one model, loopback only. It is an *isolation*
+`llama-router-cheap.service` on **:7071**, one model, loopback only. It is an *isolation*
 boundary, not a performance tier, and the reason is a specific property of the router's
 eviction:
 
@@ -353,10 +384,10 @@ The directory name **is** the model id, and `gemma-4-E2B-it` is exactly
 `SUMMARIZE_MODEL`'s default, so `_ai_resolve_model()` takes its exact-match branch instead of
 the case-insensitive substring fallback that exists to paper over the Linux/macOS naming split.
 
-`variants/archlinux/profile.sh` exports `AI_LLAMA_URL=http://127.0.0.1:8081`; `_ai_url()`
+`variants/archlinux/profile.sh` exports `AI_LLAMA_URL=http://127.0.0.1:7071`; `_ai_url()`
 resolves it at call time, so no shell helper needed a code change. It is set in the archlinux
 profile rather than the shared one on purpose — the macOS box runs a single router and no cheap
-tier, so there `AI_LLAMA_URL` stays unset and `_ai_url()` falls back to `LOS_URL` on :8080.
+tier, so there `AI_LLAMA_URL` stays unset and `_ai_url()` falls back to `LOS_URL` on :7070.
 
 Two rules to keep this working:
 
@@ -424,7 +455,7 @@ llamacpp/archlinux/install.sh` to re-render, or `systemctl --user edit
 llama-router.service` to override `CPUQuota=` directly without touching the tracked template. The
 same `LOS_THREADS` default applies to the manual `los`/`los-heavy` launchers in `_llama.sh`. The
 heavy tier stays a manual `los-heavy` invocation, never a service, since it is mutually exclusive
-with the light tier on :8080.
+with the light tier on :7070.
 
 ## Phase 2 — Size the context for a 90.9 GiB model
 
@@ -493,7 +524,7 @@ cmake --build ~/dev/llama.cpp/build-hip -j
 - Watch for **llama.cpp #17917**, a ROCm 7.x prompt-processing regression on Strix Halo (you'd be on
   7.2.4). If measured pp at depth doesn't beat Vulkan, that's why — stay on Vulkan and revisit.
 - A router runs **one binary**, so per-model backend choice isn't a preset key. Mixing backends means
-  two routers on two ports (`LLAMA_CPP_BUILD=~/dev/llama.cpp/build-hip LOS_PORT=8081 los-heavy`), not
+  two routers on two ports (`LLAMA_CPP_BUILD=~/dev/llama.cpp/build-hip LOS_PORT=7072 los-heavy`), not
   two presets.
 
 ## Phase 5 — Model set
@@ -561,7 +592,7 @@ The router's model id is the only handle you need. Get the exact ids first — e
 them verbatim:
 
 ```bash
-curl -s localhost:8080/v1/models | jq -r '.data[].id'
+curl -s localhost:7070/v1/models | jq -r '.data[].id'
 ```
 
 Ids come from the directory/preset entry name, not the filename, so check rather than guess.
@@ -571,7 +602,7 @@ Ids come from the directory/preset entry name, not the filename, so check rather
 The model is a normal request field — no restart, no reconfiguration:
 
 ```bash
-curl -s localhost:8080/v1/chat/completions -H 'Content-Type: application/json' -d '{
+curl -s localhost:7070/v1/chat/completions -H 'Content-Type: application/json' -d '{
   "model": "Qwen3-Coder-Next-UD-Q4_K_XL",
   "messages": [{"role":"user","content":"hello"}],
   "cache_prompt": true
@@ -579,13 +610,13 @@ curl -s localhost:8080/v1/chat/completions -H 'Content-Type: application/json' -
 ```
 
 - **GET endpoints take it as a query param instead**, URL-encoded:
-  `curl -s 'localhost:8080/props?model=DeepSeek-V4-Flash-chat-v2'`. `/metrics` returns 400
+  `curl -s 'localhost:7070/props?model=DeepSeek-V4-Flash-chat-v2'`. `/metrics` returns 400
   `model name is missing from the request` without it.
 - **Autoload per request:** append `?autoload=false` to refuse loading a model that isn't resident
   (useful in a loop that must not stall for a 90 GiB load), or `?autoload=true` to force it when the
   router was started with `--no-models-autoload`.
 - **Pre-load / evict explicitly** instead of waiting for the first request:
-  `curl -X POST localhost:8080/models/load -d '{"model":"..."}'`, and `POST /models/unload` to free
+  `curl -X POST localhost:7070/models/load -d '{"model":"..."}'`, and `POST /models/unload` to free
   memory before switching tiers.
 
 ### opencode
@@ -601,7 +632,7 @@ one entry per router model. Reference them elsewhere as `provider/model`:
       "npm": "@ai-sdk/openai-compatible",
       "name": "llama.cpp",
       "options": {
-        "baseURL": "http://127.0.0.1:8080/v1",
+        "baseURL": "http://127.0.0.1:7070/v1",
         "timeout": false,        // a 90 GiB first load outlasts the default timeout
         "headerTimeout": false
       },
@@ -636,7 +667,7 @@ correct it per model or opencode will truncate far below what the server serves.
 `pi` has first-class support for exactly this setup — its docs call the endpoint "the router URL":
 
 ```
-/login llama.cpp        # prompts for the router URL, default http://127.0.0.1:8080
+/login llama.cpp        # prompts for the router URL, default http://127.0.0.1:7070
 /model                  # pick among the router's models
 /llama                  # load one first, if started with --no-models-autoload
 ```
@@ -644,7 +675,7 @@ correct it per model or opencode will truncate far below what the server serves.
 Or non-interactively:
 
 ```bash
-export LLAMA_BASE_URL=http://127.0.0.1:8080
+export LLAMA_BASE_URL=http://127.0.0.1:7070
 export LLAMA_API_KEY=noop
 pi
 ```
@@ -688,9 +719,9 @@ the whole conversation each turn.
 ## Verification
 
 1. `cat /sys/class/drm/card1/device/mem_info_gtt_total` → ~128 GiB after the Phase 0 reboot.
-2. `los`, then `curl -s localhost:8080/v1/models | jq -r '.data[].id'` → the light tier only, with
+2. `los`, then `curl -s localhost:7070/v1/models | jq -r '.data[].id'` → the light tier only, with
    **no DeepSeek entry**. That absence is the test that the directory + `LLAMA_CACHE` filtering works.
-3. `killport 8080; los-heavy`, then the same call → DeepSeek present. Send it a request and confirm
+3. `killport 7070; los-heavy`, then the same call → DeepSeek present. Send it a request and confirm
    it loads. **Loading at all is the proof Phase 0 worked.** Check the child log for full offload: no
    CPU buffer for weight tensors, `llama_prepare_model_devices` reporting >100 GiB free.
 4. A `/v1/chat/completions` call with a tool definition → well-formed `tool_calls` (validates

@@ -60,11 +60,28 @@
     }
   },
   "provider": {
+    "llamacpp-heavy": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "llama.cpp (heavy tier :7072 -- los-drain first)",
+      "options": {
+        "baseURL": "http://oli-llms.local:7072/v1",
+        "timeout": false
+      },
+      "models": {
+        "Qwen3.8-Flash-Next": {
+          "name": "Qwen3.8 Flash Next 125B-A6B (heavy tier)",
+          "limit": { "context": 131072, "output": 16384 },
+          "tool_call": true,
+          "attachment": false,
+          "reasoning": true
+        }
+      }
+    },
     "llamacpp": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "llama.cpp",
       "options": {
-        "baseURL": "http://oli-llms.local:8080/v1",
+        "baseURL": "http://oli-llms.local:7070/v1",
         "timeout": false
       },
       "models": {
@@ -105,9 +122,6 @@
         },
         "qwen2.5-coder-0.5b-instruct-q4_k_m": {
           "name": "qwen2.5-coder-0.5b-instruct-q4_k_m"
-        },
-        "Qwen3.8-Flash-Next": {
-          "name": "Qwen3.8-Flash-Next"
         }
       }
     }

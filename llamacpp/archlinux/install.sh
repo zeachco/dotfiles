@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #
 # Install the llama.cpp routers as systemd --user services:
-#   llama-router.service        light tier, :8080, LAN-reachable
-#   llama-router-cheap.service  cheap tier, :8081, loopback only
+#   llama-router.service        light tier, :7070, LAN-reachable
+#   llama-router-cheap.service  cheap tier, :7071, loopback only
+#   llama-router-heavy.service  heavy tier, :7072, LAN-reachable, one model, no autoload
 #
 # The cheap tier is an isolation boundary, not a performance tier -- it keeps
 # high-frequency shell traffic off the light router, whose eviction is pure LRU
@@ -63,11 +64,18 @@ THREADS="${LOS_THREADS:-$HALF_CORES}"
 _require_positive LOS_THREADS "$THREADS"
 
 # Cheap tier: deliberately small on both axes. A tab-title summary must never
-# compete with interactive generation on :8080, and nothing here is latency-critical.
+# compete with interactive generation on :7070, and nothing here is latency-critical.
 CHEAP_CPU_QUOTA="${LOS_CHEAP_CPU_QUOTA:-25}"
 _require_percent LOS_CHEAP_CPU_QUOTA "$CHEAP_CPU_QUOTA"
 CHEAP_THREADS="${LOS_CHEAP_THREADS:-4}"
 _require_positive LOS_CHEAP_THREADS "$CHEAP_THREADS"
+
+# Heavy tier: same headroom defaults as the light tier. One model, no autoload -- the
+# quota only matters during a deliberate load and the session that follows.
+HEAVY_CPU_QUOTA="${LOS_HEAVY_CPU_QUOTA:-90}"
+_require_percent LOS_HEAVY_CPU_QUOTA "$HEAVY_CPU_QUOTA"
+HEAVY_THREADS="${LOS_HEAVY_THREADS:-$HALF_CORES}"
+_require_positive LOS_HEAVY_THREADS "$HEAVY_THREADS"
 
 # ---- directories the units depend on -----------------------------------------------
 # Per-tier LLAMA_CACHE is load-bearing, not tidy: cached models are enumerated
@@ -76,8 +84,10 @@ _require_positive LOS_CHEAP_THREADS "$CHEAP_THREADS"
 mkdir -p \
   "$HOME/models/light" \
   "$HOME/models/cheap" \
+  "$HOME/models/heavy" \
   "$HOME/.cache/llama.cpp-light" \
   "$HOME/.cache/llama.cpp-cheap" \
+  "$HOME/.cache/llama.cpp-heavy" \
   "$USER_UNIT_DIR"
 
 # ---- render + install one unit ------------------------------------------------------
@@ -128,6 +138,10 @@ install_unit "llama-router-cheap.service" \
   -e "s|@CHEAP_CPU_QUOTA@|$CHEAP_CPU_QUOTA|g" \
   -e "s|@CHEAP_THREADS@|$CHEAP_THREADS|g"
 
+install_unit "llama-router-heavy.service" \
+  -e "s|@HEAVY_CPU_QUOTA@|$HEAVY_CPU_QUOTA|g" \
+  -e "s|@HEAVY_THREADS@|$HEAVY_THREADS|g"
+
 if ((CHANGED)); then
   systemctl --user daemon-reload
 fi
@@ -136,9 +150,21 @@ fi
 # on a previous run but has since been stopped or disabled.
 systemctl --user enable --now "llama-router.service"
 systemctl --user enable --now "llama-router-cheap.service"
+systemctl --user enable --now "llama-router-heavy.service"
 
-echo "llama router: light tier -> http://localhost:8080 (CPUQuota=${CPU_QUOTA}%, threads=${THREADS})"
-echo "llama router: cheap tier -> http://127.0.0.1:8081 (CPUQuota=${CHEAP_CPU_QUOTA}%, threads=${CHEAP_THREADS})"
+echo "llama router: light tier -> http://localhost:7070 (CPUQuota=${CPU_QUOTA}%, threads=${THREADS})"
+echo "llama router: cheap tier -> http://127.0.0.1:7071 (CPUQuota=${CHEAP_CPU_QUOTA}%, threads=${CHEAP_THREADS})"
+echo "llama router: heavy tier -> http://localhost:7072 (CPUQuota=${HEAVY_CPU_QUOTA}%, threads=${HEAVY_THREADS}, loads on request only)"
+# A changed unit is installed but NOT restarted: enable --now is a no-op for a running
+# unit, and a restart drops in-flight generation. Say so instead of doing it.
+for u in llama-router.service llama-router-cheap.service llama-router-heavy.service; do
+  systemctl --user is-active --quiet "$u" || continue
+  started="$(systemctl --user show -p ExecMainStartTimestamp --value "$u" 2>/dev/null)"
+  [[ -n "$started" ]] || continue
+  if (( $(date -d "$started" +%s 2>/dev/null || echo 0) < $(stat -c %Y "$USER_UNIT_DIR/$u") )); then
+    echo "llama router: $u changed since it started -- restart when idle: systemctl --user restart $u"
+  fi
+done
 echo "llama router: logs with: journalctl --user -u llama-router.service -f"
 
 if [[ -z "$(ls -A "$HOME/models/light" 2>/dev/null || true)" ]]; then

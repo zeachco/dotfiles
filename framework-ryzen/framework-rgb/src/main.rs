@@ -37,7 +37,7 @@ struct Config {
 impl Config {
     fn from_env() -> Result<Self, AnyError> {
         Ok(Self {
-            llamacpp_url: HttpUrl::parse(&env_string("LLAMACPP_URL", "http://127.0.0.1:8080"))?,
+            llamacpp_url: HttpUrl::parse(&env_string("LLAMACPP_URL", "http://127.0.0.1:7070"))?,
             router_service: env_string("ROUTER_SERVICE", "llama-router.service"),
             router_user: env_string("ROUTER_USER", "olivier"),
             framework_tool: env_string("FRAMEWORK_TOOL", "/usr/bin/framework_tool").into(),

@@ -42,7 +42,7 @@ docker() {
 # llamacpp/shared/_llama.sh owns `los`/`los-heavy`/`los-cheap` as the foreground
 # launchers, and these wrap the launchd agent instead.
 LOS_LABEL="com.zeachco.llama-router"
-LOS_URL="http://127.0.0.1:8080"
+LOS_URL="http://127.0.0.1:7070"
 LOS_LOG="$HOME/Library/Logs/llama-router/router.log"
 LOS_INI="$HOME/dotfiles/llamacpp/osx/osx.ini"
 

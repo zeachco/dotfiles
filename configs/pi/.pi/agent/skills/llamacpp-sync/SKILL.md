@@ -13,7 +13,8 @@ description: >
 
 `llamacpp-sync` refreshes pi's `llamacpp*` providers from the live llama.cpp
 routers, so `/model` matches what `llama-server` actually serves right now.
-There is one provider today -- `llamacpp`, the light-tier router on :8080. The
+Two providers today -- `llamacpp` (light tier, :7070) and `llamacpp-heavy` (:7072,
+loads nothing until asked, so it syncs as empty unless a model is loaded). The
 remote `llamacpp-olim3` provider was removed; the script still handles several
 providers, it just finds one.
 
@@ -53,9 +54,9 @@ after a sync.
 ## Related
 
 - Router state per model (loaded/unloaded, launch args) can be inspected
-  with `curl -s http://localhost:8080/v1/models | jq .data`.
+  with `curl -s http://localhost:7070/v1/models | jq .data`.
 - Per-server model pools live in `~/dotfiles/llamacpp/<os>/<tier>.ini`.
-- The cheap tier on :8081 (`llama-router-cheap.service`) is deliberately NOT a
+- The cheap tier on :7071 (`llama-router-cheap.service`) is deliberately NOT a
   pi provider: it exists for high-frequency shell calls, and adding it back as
   an agent-selectable model would reintroduce the LRU eviction problem it was
   split out to solve. See ryzen-llm-setup.md "The cheap tier".

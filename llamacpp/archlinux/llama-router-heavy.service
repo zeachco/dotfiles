@@ -1,0 +1,55 @@
+# TEMPLATE -- installed to ~/.config/systemd/user by install.sh in this directory.
+#
+# The HEAVY tier: ~/models/heavy, ONE model at a time, and nothing loaded until asked.
+# For models that cannot share the GPU with the daily set -- Qwen3.8-Flash-Next (~87 GiB),
+# DeepSeek-V4-Flash (90.9 GiB). On the light router such a load happens by LRU *eviction*
+# of qwen3.8 and GLM, and every other live session then pays a multi-minute reload the
+# moment it comes back. Here it is an explicit step instead: `los-drain`, then load.
+#
+# What this does NOT provide is memory. The routers do not coordinate, so with the light
+# tier's models resident an 87 GiB load here fails on the GPU. See ryzen-llm-setup.md
+# "The heavy tier".
+#
+# %h is systemd's own user-unit specifier for $HOME. Rendered by install.sh:
+#   @HEAVY_CPU_QUOTA@   percentage for CPUQuota=, default 90 (see LOS_HEAVY_CPU_QUOTA)
+#   @HEAVY_THREADS@     -t/--threads-batch value, default half the cores (LOS_HEAVY_THREADS)
+
+[Unit]
+Description=llama.cpp router (heavy tier) on :7072
+Documentation=file:///home/olivier/dotfiles/ryzen-llm-setup.md
+After=graphical-session.target
+
+[Service]
+Type=simple
+# Per-tier cache -- cached models are enumerated unconditionally, ahead of --models-dir,
+# so sharing llama.cpp-light would pull the whole light tier into this router.
+Environment=LLAMA_CACHE=%h/.cache/llama.cpp-heavy
+# --host 0.0.0.0 like the light tier: pi/opencode address this box as oli-llms.local,
+# which resolves to the LAN interface, not loopback. Same exposure as :7070 -- see
+# todos/network-exposure.md.
+#
+# --no-models-autoload is the point of the tier: a request for a model that is not
+# loaded is refused instead of triggering an 87 GiB load under someone's feet. Load
+# deliberately (pi /llama, or POST /models/load) after `los-drain`.
+ExecStart=%h/dev/llama.cpp/build/bin/llama-server \
+  --models-dir %h/models/heavy \
+  --models-preset %h/dotfiles/llamacpp/archlinux/heavy.ini \
+  --models-max 1 \
+  --no-models-autoload \
+  --host 0.0.0.0 \
+  --port 7072 \
+  -to 3600 \
+  --threads @HEAVY_THREADS@ \
+  --threads-batch @HEAVY_THREADS@
+# A cold load of a 90 GiB model must not be mistaken for a failed start.
+TimeoutStartSec=0
+Restart=on-failure
+RestartSec=5
+
+# Same headroom logic as the light unit: caps the router and every child it forks.
+# Override with `systemctl --user edit llama-router-heavy.service`, or reinstall with
+# LOS_HEAVY_CPU_QUOTA=<percent> and/or LOS_HEAVY_THREADS=<n> bash install.sh.
+CPUQuota=@HEAVY_CPU_QUOTA@%
+
+[Install]
+WantedBy=default.target

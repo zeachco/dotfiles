@@ -10,7 +10,7 @@
 #   @THREADS@       -t/--threads-batch value, default nproc/2 (see LOS_THREADS)
 
 [Unit]
-Description=llama.cpp router (light tier) on :8080
+Description=llama.cpp router (light tier) on :7070
 Documentation=file:///home/olivier/dotfiles/ryzen-llm-setup.md
 After=graphical-session.target
 
@@ -24,7 +24,7 @@ ExecStart=%h/dev/llama.cpp/build/bin/llama-server \
   --models-preset %h/dotfiles/llamacpp/archlinux/light.ini \
   --models-max 5 \
   --host 0.0.0.0 \
-  --port 8080 \
+  --port 7070 \
   -to 3600 \
   --threads @THREADS@ \
   --threads-batch @THREADS@

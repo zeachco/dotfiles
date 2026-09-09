@@ -18,18 +18,18 @@ _ai_debug() {
 # source order between the two files.
 #
 # Which router that is differs per host, on purpose:
-#   Linux  -- AI_LLAMA_URL=http://127.0.0.1:8081, the CHEAP tier
+#   Linux  -- AI_LLAMA_URL=http://127.0.0.1:7071, the CHEAP tier
 #             (llama-router-cheap.service), exported by variants/archlinux/profile.sh.
-#   macOS  -- unset, so it falls back to LOS_URL :8080, the single router on that box.
+#   macOS  -- unset, so it falls back to LOS_URL :7070, the single router on that box.
 #
-# The Linux split is not a nicety. The light router on :8080 evicts by pure LRU on
+# The Linux split is not a nicety. The light router on :7070 evicts by pure LRU on
 # last_used with no way to pin a model (the `pin` preset key is commented out in
 # llama.cpp's common/arg.cpp), and every POST refreshes its target's timestamp. These
 # helpers POST on every herdr tab rename, which kept the small model freshest and made
-# the ~28 GiB qwen3.8 the eviction victim. Do not point them back at :8080.
+# the ~28 GiB qwen3.8 the eviction victim. Do not point them back at :7070.
 # See ryzen-llm-setup.md "The cheap tier".
 _ai_url() {
-  printf '%s' "${AI_LLAMA_URL:-${LOS_URL:-http://127.0.0.1:8080}}"
+  printf '%s' "${AI_LLAMA_URL:-${LOS_URL:-http://127.0.0.1:7070}}"
 }
 
 # Map a model name onto an id the router actually serves.

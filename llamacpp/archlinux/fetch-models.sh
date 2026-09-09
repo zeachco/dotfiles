@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fetch the model set into the router's tier directories. Resumable: rerun to continue
 # an interrupted download (curl -C -). New models are picked up on the next router
-# restart, or immediately with `curl -s 'localhost:8080/v1/models?reload=1'`.
+# restart, or immediately with `curl -s 'localhost:7070/v1/models?reload=1'`.
 #
 # Mostly safe to run while the router is up, with one caveat: a local file whose size
 # differs from upstream gets OVERWRITTEN IN PLACE (same inode), and the log says so.
@@ -91,6 +91,7 @@ fetch unsloth/gemma-4-E4B-it-GGUF mmproj-F16.gguf            "$HOME/models/light
 fetch unsloth/gemma-4-26B-A4B-it-GGUF gemma-4-26B-A4B-it-UD-Q4_K_M.gguf "$HOME/models/light/gemma-4-26B-A4B-it-GGUF"
 fetch unsloth/gemma-4-26B-A4B-it-GGUF mmproj-F16.gguf                   "$HOME/models/light/gemma-4-26B-A4B-it-GGUF"
 
+# --- heavy tier ----------------------------------------------------------------
 # 87.3 GiB. Qwen3.8-Flash-Next: 125B + 51B n-gram embedding, 6B active. Three shards
 # MUST share one subdirectory -- the scanner reads a dir as one multi-shard model and
 # the dir name is the id. UD-IQ4_XS over UD-Q4_K_XL (103.7 GiB): the bigger quant does
@@ -102,9 +103,9 @@ fetch unsloth/gemma-4-26B-A4B-it-GGUF mmproj-F16.gguf                   "$HOME/m
 # shard and skip the rest, breaking resume. (It excludes *-of-* for exactly this reason,
 # but per-shard fetch is clearer here.) Shard 1 is only 10.9 MB -- that is correct, it
 # is a metadata-only index shard; shards 2 and 3 carry all 1224 tensors.
-fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf "$HOME/models/light/Qwen3.8-Flash-Next"
-fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00002-of-00003.gguf "$HOME/models/light/Qwen3.8-Flash-Next"
-fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00003-of-00003.gguf "$HOME/models/light/Qwen3.8-Flash-Next"
+fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf "$HOME/models/heavy/Qwen3.8-Flash-Next"
+fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00002-of-00003.gguf "$HOME/models/heavy/Qwen3.8-Flash-Next"
+fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00003-of-00003.gguf "$HOME/models/heavy/Qwen3.8-Flash-Next"
 
 # --- light tier, single-file models (id = filename stem) -----------------------
 # 16.32 GiB. Fan-out: cheap parallel subagents and quick tool calls, and what
@@ -134,7 +135,7 @@ fetch Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF qwen2.5-coder-0.5b-instruct-q4_k_m.g
 
 echo
 echo "Done. Restart the router to pick up new models:"
-echo "  systemctl --user restart llama-router   # or: killport 8080 && los"
+echo "  systemctl --user restart llama-router   # or: killport 7070 && los"
 echo "Then check nothing has drifted:"
 echo "  bash $HOME/dotfiles/bin/llamacpp-audit"
 
