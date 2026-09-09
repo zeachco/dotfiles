@@ -192,7 +192,8 @@ all_my_prs() {
 
     # Match every name a tab for this PR can carry. "#<number>: ..." is given
     # at creation time and preserved by tab_autoname; "<repo>:<branch>" covers
-    # tabs opened before PR-numbered names, or whose autoname never landed.
+    # tabs opened before PR-numbered names, whose autoname never landed, or
+    # whose autoname deliberately fell back to it (no PR, or no summary).
     # Both are deterministic — dedup must not depend on the async rename.
     if printf '%s\n' "$open_tabs" | grep -q "^#${number}\([^0-9]\|$\)"; then
       echo "Skipping: a tab starting with '#${number}' is already open."

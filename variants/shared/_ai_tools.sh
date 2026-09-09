@@ -251,6 +251,11 @@ _git_base_ref() {
 # Rename a Herdr tab to "#<pr-number>: <summary>" from the current branch's
 # PR (title + body through the model), or to "wip: <summary>" from the branch's
 # commit subjects since main/master when no PR exists.
+#
+# Nothing to summarize gets a deterministic name instead of a model call:
+# "<repo>:<branch>" when the tab is bound to no PR and sits on main/master (and
+# as the fallback whenever the model comes up empty on a PR-less branch), and
+# ".../<dir>" when no git repo is linked from the workspace at all.
 # Options:
 #   --tab-id=N  the tab to rename. ALWAYS pass this when running unattended:
 #               the fallback below resolves $HERDR_TAB_ID, the tab the calling
@@ -274,7 +279,6 @@ tab_autoname() {
     echo "Error: Not in a Herdr session"
     return 1
   fi
-  _git_check_repo || return 1
 
   local tab_id="" workspace_id="" known_pr="" hint="" arg
   for arg in "$@"; do
@@ -301,61 +305,93 @@ tab_autoname() {
   fi
   _ai_debug "tab-autoname: renaming tab id $tab_id / workspace id ${workspace_id:-unknown} (pr=${known_pr:-unknown})"
 
-  local branch=$(git branch --show-current)
-  if [ -z "$branch" ]; then
-    echo "Error: not on a branch (detached HEAD?)"
-    return 1
+  # What this pane sits on. Both can come up empty: the workspace may have no
+  # git repo linked at all, or be parked on a detached HEAD with no branch to
+  # name — either way there is nothing branch-shaped for the model to chew on.
+  local repo_root repo_name="" branch=""
+  if repo_root=$(git rev-parse --show-toplevel 2>/dev/null) && [ -n "$repo_root" ]; then
+    repo_name=$(basename "$repo_root")
+    branch=$(git branch --show-current 2>/dev/null)
   fi
 
-  # PR of the current branch first; commit subjects since main/master when
-  # there is none
-  local kind prefix desc fallback="$branch" out
-  out=$(gh pr view --json title,number,body \
-    --jq '(.number|tostring), .title, (.body // "")' 2>/dev/null)
-  if [ -n "$out" ]; then
-    kind="pr"
-    prefix="#$(printf '%s\n' "$out" | head -n 1): "
-    # the fallback is the raw PR title: drop its conventional-commit prefix
-    # and ticket id too, so a model miss still yields "#123: <the work>"
-    fallback=$(printf '%s\n' "$out" | sed -n '2p' |
-      sed -E 's/^[a-zA-Z]+(\([^)]*\))?!?:[[:space:]]*//' |
-      sed -E "s/^${JIRA_PREFIX}[0-9]+:?[[:space:]]*//")
-    desc=$(printf '%s\n' "$out" | tail -n +2)
-    _ai_debug "tab-autoname: using PR title+body for ${prefix%: }"
+  # Set by whichever branch below can name the tab outright; left empty when
+  # the model still has to fill in a summary.
+  local new_name=""
+
+  if [ -z "$repo_name" ] || [ -z "$branch" ]; then
+    # no repo (or no branch) here: the directory the pane is in is all we know
+    local here="${PWD##*/}"
+    new_name=".../${here:-/}"
+    _ai_debug "tab-autoname: no repo/branch here, naming the tab '$new_name'"
   else
-    kind="commits"
-    # a caller that knows the PR number keeps the tab keyed on it, so the dedup
-    # check in all_my_prs still matches when `gh pr view` finds nothing here
-    if [ -n "$known_pr" ]; then
-      prefix="#${known_pr}: "
+    # PR of the current branch first; commit subjects since main/master when
+    # there is none
+    local kind prefix desc fallback="$branch" fallback_name="" out
+    out=$(gh pr view --json title,number,body \
+      --jq '(.number|tostring), .title, (.body // "")' 2>/dev/null)
+    if [ -n "$out" ]; then
+      kind="pr"
+      prefix="#$(printf '%s\n' "$out" | head -n 1): "
+      # the fallback is the raw PR title: drop its conventional-commit prefix
+      # and ticket id too, so a model miss still yields "#123: <the work>"
+      fallback=$(printf '%s\n' "$out" | sed -n '2p' |
+        sed -E 's/^[a-zA-Z]+(\([^)]*\))?!?:[[:space:]]*//' |
+        sed -E "s/^${JIRA_PREFIX}[0-9]+:?[[:space:]]*//")
+      desc=$(printf '%s\n' "$out" | tail -n +2)
+      _ai_debug "tab-autoname: using PR title+body for ${prefix%: }"
+    elif [ -z "$known_pr" ] && { [ "$branch" = "main" ] || [ "$branch" = "master" ]; }; then
+      # trunk, bound to no PR: there is no branch work to summarize, and
+      # "wip: main" would say less than the plain "<repo>:<branch>" wt already
+      # gives these tabs
+      new_name="${repo_name}:${branch}"
+      _ai_debug "tab-autoname: on $branch with no PR, naming the tab '$new_name'"
     else
-      prefix="wip: "
+      kind="commits"
+      # a caller that knows the PR number keeps the tab keyed on it, so the dedup
+      # check in all_my_prs still matches when `gh pr view` finds nothing here
+      if [ -n "$known_pr" ]; then
+        prefix="#${known_pr}: "
+      else
+        prefix="wip: "
+        # nothing ties this tab to a PR, so a model miss falls back to the whole
+        # deterministic name — the one wt creates tabs with and all_my_prs dedups
+        # on. "wip: " in front of it would only eat the 40-char budget twice.
+        fallback_name="${repo_name}:${branch}"
+      fi
+      local base
+      if base=$(_git_base_ref); then
+        # keep the model input small: subjects only, newest first, capped
+        desc=$(git log --format='%s' "${base}..HEAD" 2>/dev/null | head -n 30)
+        [ -n "$desc" ] && _ai_debug "tab-autoname: using commit subjects since $base"
+      fi
+      # no commits of its own: give the model at least the branch name
+      [ -n "$desc" ] || desc="$branch"
     fi
-    local base
-    if base=$(_git_base_ref); then
-      # keep the model input small: subjects only, newest first, capped
-      desc=$(git log --format='%s' "${base}..HEAD" 2>/dev/null | head -n 30)
-      [ -n "$desc" ] && _ai_debug "tab-autoname: using commit subjects since $base"
-    fi
-    # no commits of its own: give the model at least the branch name
-    [ -n "$desc" ] || desc="$branch"
   fi
 
-  # the model fills whatever room the prefix leaves in the 40-char tab name
-  local len=$((40 - ${#prefix})) short
-  if [ "$DEBUG" = "true" ]; then
-    # keep summarize's stderr (retries + its own debug dumps) visible
-    short=$(printf '%s' "$desc" | summarize --len="$len" --kind="$kind" --hint="$hint")
-  else
-    short=$(printf '%s' "$desc" | summarize --len="$len" --kind="$kind" --hint="$hint" 2>/dev/null)
-  fi
-  if [ -z "$short" ]; then
-    # model couldn't fit the cap: hard-truncate the PR title / branch name
-    echo "No usable summary from the model, falling back to '$fallback'"
-    short=$(printf '%s' "$fallback" | cut -c 1-"$len")
+  if [ -z "$new_name" ]; then
+    # the model fills whatever room the prefix leaves in the 40-char tab name
+    local len=$((40 - ${#prefix})) short
+    if [ "$DEBUG" = "true" ]; then
+      # keep summarize's stderr (retries + its own debug dumps) visible
+      short=$(printf '%s' "$desc" | summarize --len="$len" --kind="$kind" --hint="$hint")
+    else
+      short=$(printf '%s' "$desc" | summarize --len="$len" --kind="$kind" --hint="$hint" 2>/dev/null)
+    fi
+    if [ -n "$short" ]; then
+      new_name="${prefix}${short}"
+    else
+      # model couldn't fit the cap: hard-truncate the deterministic name, or
+      # the PR title / branch name behind the prefix when there is one to keep
+      if [ -n "$fallback_name" ]; then
+        new_name=$(printf '%s' "$fallback_name" | cut -c 1-40)
+      else
+        new_name="${prefix}$(printf '%s' "$fallback" | cut -c 1-"$len")"
+      fi
+      echo "No usable summary from the model, falling back to '$new_name'"
+    fi
   fi
 
-  local new_name="${prefix}${short}"
   # rename by stable tab id, never by focus: this runs in a throwaway pane and
   # the focused tab has very likely moved on by now
   if herdr tab rename "$tab_id" "$new_name" >/dev/null 2>&1; then
