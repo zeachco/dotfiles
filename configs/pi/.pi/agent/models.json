@@ -3,7 +3,7 @@
     "llamacpp": {
       "api": "openai-completions",
       "apiKey": "llamacpp",
-      "baseUrl": "http://oli-llms.local:8080/v1",
+      "baseUrl": "http://oli-llms.local:7070/v1",
       "models": [
         {
           "id": "GLM-4.7-Flash-UD-Q4_K_XL",
@@ -14,12 +14,6 @@
             "text"
           ],
           "reasoning": true,
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cacheRead": 0,
-            "cacheWrite": 0
-          },
           "thinkingLevelMap": {
             "off": "none",
             "minimal": "none",
@@ -28,6 +22,12 @@
             "high": "high",
             "xhigh": null,
             "max": null
+          },
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
           }
         },
         {
@@ -163,8 +163,40 @@
       "baseUrl": "http://oli-llms.local:7072/v1",
       "models": [
         {
+          "id": "DeepSeek-V4-Flash-chat-v2",
+          "name": "DeepSeek-V4-Flash-chat-v2",
+          "contextWindow": 32768,
+          "maxTokens": 16384,
+          "input": [
+            "text"
+          ],
+          "reasoning": true,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
           "id": "Qwen3.8-Flash-Next",
           "name": "Qwen3.8 Flash Next 125B-A6B (heavy tier -- los-drain first)",
+          "contextWindow": 131072,
+          "maxTokens": 16384,
+          "input": [
+            "text"
+          ],
+          "reasoning": true,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "gpt-oss-120b-MXFP4",
+          "name": "gpt-oss-120b-MXFP4",
           "contextWindow": 131072,
           "maxTokens": 16384,
           "input": [

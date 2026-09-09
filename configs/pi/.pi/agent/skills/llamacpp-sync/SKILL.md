@@ -20,6 +20,10 @@ providers, it just finds one.
 
 ## Run
 
+Runs automatically at the end of `dotfiles_update` / `setup.sh` on the Strix Halo box
+(llamacpp/archlinux/setup.sh, after the router units are installed). Run it by hand after
+adding or removing models, or after loading a model on the heavy tier for the first time.
+
 ```sh
 ~/dotfiles/bin/llamacpp-sync              # sync all llamacpp* providers
 ~/dotfiles/bin/llamacpp-sync --dry-run    # preview, write nothing
