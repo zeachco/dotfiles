@@ -1,0 +1,411 @@
+#!/usr/bin/env python3
+"""Cross-check the three sources of truth for the local llama.cpp model set.
+
+Read-only. Exists because they drifted apart silently and it took a manual
+investigation to notice:
+
+  * ~/models/light/qwen3.8 -- the default model for every agent -- had no fetch
+    recipe at all. It was a hardlink out of ollama's blob store, so retiring
+    ollama would have left no way to re-obtain it.
+  * GLM-4.7-Flash-UD-Q4_K_XL.gguf sat truncated at 1.10 of 16.32 GiB, failing to
+    parse, while light.ini and pi both advertised it.
+  * Qwen3-Coder-Next was deleted along with its light.ini section, but opencode's
+    generate-code subagent still pointed at it -- and the router kept a child with
+    --alias and no --model stuck in `loading` forever. pick_victim() skips anything
+    not ready, so that child could never be evicted and permanently held one of the
+    five --models-max slots.
+  * raising np without kv-unified silently quartered a model's per-slot context
+    below what the clients advertised, which surfaces as
+    ERROR_TYPE_EXCEED_CONTEXT_SIZE mid-conversation rather than a clean refusal.
+
+Usage:
+  llamacpp-audit                 # local checks only
+  llamacpp-audit --remote        # also parse every GGUF and compare to HF sizes (slow)
+"""
+
+import configparser
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.request
+
+HOME = os.path.expanduser("~")
+DOT = os.path.join(HOME, "dotfiles")
+MODELS = os.path.join(HOME, "models")
+TIERS = ("light", "cheap", "heavy")
+INI = {t: os.path.join(DOT, "llamacpp", "archlinux", f"{t}.ini") for t in TIERS}
+FETCH_SCRIPTS = [
+    os.path.join(DOT, "llamacpp", "archlinux", "fetch-models.sh"),
+    os.path.join(DOT, "llamacpp", "osx", "fetch-models-osx.sh"),
+]
+OPENCODE = os.path.join(DOT, "configs/opencode/.config/opencode/opencode.json")
+PI_MODELS = os.path.join(DOT, "configs/pi/.pi/agent/models.json")
+
+# A hand-tuned mixed imatrix quant, not a published artifact. No recipe can
+# reproduce it; it is the one file here a disk failure would lose permanently.
+NO_RECIPE_POSSIBLE = ("DeepSeek-V4-Flash",)
+
+findings = []
+notes = []
+
+
+def finding(section, msg):
+    findings.append(f"[{section}] {msg}")
+
+
+def note(msg):
+    notes.append(f"  note: {msg}")
+
+
+def read_json_lenient(path):
+    """opencode.json is JSONC -- it carries //-prefixed full-line comments."""
+    with open(path) as fh:
+        body = "".join(l for l in fh if not l.lstrip().startswith("//"))
+    return json.loads(body)
+
+
+def tier_models(tier):
+    """Map model id -> main gguf path, mirroring llama.cpp's --models-dir scan.
+
+    scan_subdir()/load_from_models_dir() in common/preset.cpp: a top-level *.gguf
+    gets the filename stem as its id; a subdirectory is one model whose id is the
+    DIRECTORY name, pairing its main gguf with an mmproj*/shard sidecar.
+    """
+    root = os.path.join(MODELS, tier)
+    out = {}
+    if not os.path.isdir(root):
+        return out
+    for entry in sorted(os.listdir(root)):
+        path = os.path.join(root, entry)
+        if os.path.isdir(path):
+            # First non-mmproj GGUF stands for the model. For a split model any shard
+            # identifies it, and the id is the directory name either way.
+            main = next((os.path.join(path, f) for f in sorted(os.listdir(path))
+                         if f.endswith(".gguf") and not f.startswith("mmproj")), None)
+            if main:
+                out[entry] = main
+        elif entry.endswith(".gguf") and not entry.startswith("mmproj"):
+            out[entry[: -len(".gguf")]] = path
+    return out
+
+
+def all_ggufs():
+    for dirpath, _, files in os.walk(MODELS):
+        for f in files:
+            if f.endswith(".gguf"):
+                yield os.path.join(dirpath, f)
+
+
+# ---------------------------------------------------------------- 1. recipes
+def check_recipes():
+    recipe_text = ""
+    for s in FETCH_SCRIPTS:
+        if os.path.exists(s):
+            recipe_text += open(s).read()
+    for path in sorted(all_ggufs()):
+        name = os.path.basename(path)
+        if os.path.islink(path):
+            note(f"{path.replace(HOME,'~')} is a symlink -> {os.readlink(path)}")
+            continue
+        if any(k in name for k in NO_RECIPE_POSSIBLE):
+            note(f"{name[:48]}…: no recipe possible (hand-tuned quant), back it up separately")
+            continue
+        if name not in recipe_text:
+            # a dir model may be recorded under a different filename than the one
+            # on disk (see fetch_dir_model); accept if the directory is named.
+            parent = os.path.basename(os.path.dirname(path))
+            if parent in recipe_text and parent != "models":
+                note(f"{name}: no exact recipe, but its directory '{parent}' is covered "
+                     f"(differing quant/filename -- see fetch_dir_model)")
+                continue
+            finding("recipe", f"{path.replace(HOME,'~')} has no fetch recipe")
+
+
+# ---------------------------------------------------------- 2. presets/files
+def preset_sections(tier):
+    """Return {section: {key: value}} with [*] cascaded in, as the router does."""
+    path = INI.get(tier)
+    if not path or not os.path.exists(path):
+        return {}
+    cp = configparser.ConfigParser(strict=False)
+    # These files carry a top-level `version = 1` ahead of any section header, which
+    # llama.cpp's own preset parser accepts and configparser does not. Give it a
+    # synthetic header rather than reformatting a git-tracked file to suit the audit.
+    cp.read_string("[__top__]\n" + open(path).read(), source=path)
+    base = dict(cp["*"]) if cp.has_section("*") else {}
+    out = {}
+    for sec in cp.sections():
+        if sec in ("*", "__top__"):
+            continue
+        merged = dict(base)
+        merged.update(dict(cp[sec]))
+        out[sec] = merged
+    return out
+
+
+def base_section(tier):
+    """The [*] block a sectionless, auto-discovered model inherits."""
+    path = INI.get(tier)
+    if not path or not os.path.exists(path):
+        return {}
+    cp = configparser.ConfigParser(strict=False)
+    cp.read_string("[__top__]\n" + open(path).read(), source=path)
+    return dict(cp["*"]) if cp.has_section("*") else {}
+
+
+def check_presets():
+    for tier in TIERS:
+        present = tier_models(tier)
+        for sec, keys in preset_sections(tier).items():
+            explicit = keys.get("model")
+            if explicit:
+                p = os.path.expandvars(explicit.replace("~", HOME))
+                if not os.path.exists(p):
+                    finding("preset", f"{tier}.ini [{sec}] model = {explicit} does not exist")
+            elif sec not in present:
+                # A declared-but-absent model is only a provenance problem if there is
+                # no way to get it back. The heavy tier is deliberately opt-in
+                # (LOS_FETCH_HEAVY=1), so "not downloaded" there is a state, not drift.
+                recipe_text = "".join(open(f).read() for f in FETCH_SCRIPTS
+                                      if os.path.exists(f))
+                if sec in recipe_text:
+                    note(f"{tier}.ini [{sec}] is declared but not downloaded; a recipe "
+                         f"exists (heavy tier is opt-in: LOS_FETCH_HEAVY=1)")
+                else:
+                    finding("preset", f"{tier}.ini [{sec}] has no matching file in "
+                                      f"~/models/{tier} AND no fetch recipe")
+
+
+# --------------------------------------------------------------- 3. clients
+def client_models():
+    """[(client, provider, base_url, model_id, declared_context)]"""
+    rows = []
+    if os.path.exists(OPENCODE):
+        cfg = read_json_lenient(OPENCODE)
+        for pname, prov in (cfg.get("provider") or {}).items():
+            base = (prov.get("options") or {}).get("baseURL", "")
+            for mid, m in (prov.get("models") or {}).items():
+                ctx = ((m.get("limit") or {}).get("context"))
+                rows.append(("opencode", pname, base, mid, ctx))
+        for aname, a in (cfg.get("agent") or {}).items():
+            mref = a.get("model")
+            if mref and "/" in mref:
+                pname, mid = mref.split("/", 1)
+                declared = ((cfg.get("provider") or {}).get(pname, {}).get("models") or {})
+                if mid not in declared:
+                    finding("client", f"opencode agent '{aname}' -> {mref} "
+                                      f"is not declared in provider '{pname}'")
+        for key in ("model", "small_model"):
+            mref = cfg.get(key)
+            if mref and "/" in mref:
+                pname, mid = mref.split("/", 1)
+                declared = ((cfg.get("provider") or {}).get(pname, {}).get("models") or {})
+                if mid not in declared:
+                    finding("client", f"opencode '{key}' -> {mref} is not declared")
+    if os.path.exists(PI_MODELS):
+        cfg = json.load(open(PI_MODELS))
+        for pname, prov in (cfg.get("providers") or {}).items():
+            base = prov.get("baseUrl", "")
+            for m in prov.get("models") or []:
+                rows.append(("pi", pname, base, m.get("id"), m.get("contextWindow")))
+    return rows
+
+
+def check_clients(rows):
+    on_disk = {}
+    for t in TIERS:
+        on_disk.update(tier_models(t))
+    for client, pname, base, mid, _ctx in rows:
+        if mid not in on_disk:
+            finding("client", f"{client}/{pname} advertises '{mid}' but no such model "
+                              f"exists in ~/models")
+
+
+# --------------------------------------------------------------- 4. context
+def check_context(rows):
+    """Effective per-slot ctx is c under unified KV, else c/np.
+
+    light.ini's [qwen3.8] block cites server-context.cpp:1211 (llama_n_ctx_seq):
+    under --kv-unified every slot's n_ctx_slot is the FULL c; otherwise c is split
+    across np slots. A client advertising more than that gets
+    ERROR_TYPE_EXCEED_CONTEXT_SIZE partway through a conversation.
+    """
+    def per_slot(keys):
+        c = keys.get("ctx-size") or keys.get("c")
+        if not c:
+            return None
+        np_ = keys.get("parallel") or keys.get("np")
+        np_ = int(np_) if np_ else 1
+        unified = str(keys.get("kv-unified", "")).lower() in ("true", "1", "on", "yes")
+        return int(c) if unified else int(c) // max(np_, 1)
+
+    eff = {}
+    for tier in TIERS:
+        secs = preset_sections(tier)
+        # A model with no section is still served: --models-dir auto-discovers it and
+        # it inherits [*]. Those are exactly the ones a section-only scan misses.
+        base = base_section(tier)
+        for mid in tier_models(tier):
+            keys = secs.get(mid, base)
+            v = per_slot(keys)
+            if v is not None:
+                eff[mid] = v
+        for sec, keys in secs.items():
+            v = per_slot(keys)
+            if v is not None:
+                eff.setdefault(sec, v)
+    for client, pname, base, mid, ctx in rows:
+        if not ctx or mid not in eff:
+            continue
+        if ctx > eff[mid]:
+            finding("context", f"{client}/{pname} advertises context {ctx} for '{mid}' but "
+                               f"the preset yields {eff[mid]} per slot "
+                               f"(add kv-unified = true, lower np, or lower the client value)")
+
+
+# --------------------------------------------------------------- 5. runtime
+def check_runtime():
+    try:
+        out = subprocess.run(["pgrep", "-f", "llama-server"], capture_output=True,
+                             text=True, timeout=10).stdout.split()
+    except Exception:
+        return
+    for pid in out:
+        try:
+            argv = open(f"/proc/{pid}/cmdline").read().split("\0")
+        except OSError:
+            continue
+        if "--alias" not in argv:
+            continue  # the router itself, not a model child
+        if "--model" not in argv and not any(a.startswith("-hf") for a in argv):
+            alias = argv[argv.index("--alias") + 1]
+            finding("runtime", f"pid {pid} serves alias '{alias}' with NO --model: it can "
+                               f"never finish loading, and pick_victim() skips models that "
+                               f"are not ready, so it holds a --models-max slot forever. "
+                               f"Restart the router to clear it.")
+    for port in (8080, 8081):
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/v1/models", timeout=5) as r:
+                data = json.load(r)
+        except Exception:
+            continue
+        for m in data.get("data", []):
+            if (m.get("status") or {}).get("value") == "loading":
+                finding("runtime", f":{port} model '{m.get('id')}' is stuck in 'loading' "
+                                   f"(unevictable while in this state)")
+
+
+# ---------------------------------------------------------------- 6. remote
+def recipe_map():
+    """{(destdir, basename): (repo, remote_relpath)} parsed from the fetch scripts.
+
+    Resolving by BASENAME alone is wrong: four different directories each hold a
+    `mmproj-F16.gguf`, so a filename-keyed lookup attributes every projector to
+    whichever repo appears first in the script. Key on the destination directory too.
+    """
+    out = {}
+    for script in FETCH_SCRIPTS:
+        if not os.path.exists(script):
+            continue
+        text = open(script).read().replace("\\\n", " ")  # join continuations
+        for line in text.splitlines():
+            line = line.strip()
+            if line.startswith("#"):
+                continue
+            m = re.match(r"fetch_dir_model\s+(\S+)\s+(\S+|\"[^\"]+\")\s+(.*)", line)
+            if m:
+                repo, dest, files = m.group(1), m.group(2), m.group(3).split()
+                dest = os.path.expandvars(dest.strip('"')).replace("$HOME", HOME)
+                for f in files:
+                    out[(dest, os.path.basename(f))] = (repo, f)
+                continue
+            m = re.match(r"fetch\s+(\S+)\s+(\S+)\s+(\S+|\"[^\"]+\")", line)
+            if m:
+                repo, f, dest = m.group(1), m.group(2), m.group(3)
+                dest = os.path.expandvars(dest.strip('"')).replace("$HOME", HOME)
+                out[(dest, os.path.basename(f))] = (repo, f)
+    return out
+
+
+def check_remote():
+    sys.path.insert(0, os.path.join(HOME, "dev/llama.cpp/gguf-py"))
+    try:
+        from gguf.gguf_reader import GGUFReader
+    except Exception as e:
+        note(f"--remote: gguf-py unavailable ({e}); skipping parse checks")
+        GGUFReader = None
+
+    recipes = recipe_map()
+    for path in sorted(all_ggufs()):
+        if os.path.islink(path):
+            continue
+        if GGUFReader:
+            try:
+                GGUFReader(path)
+            except Exception as e:
+                finding("corrupt", f"{path.replace(HOME,'~')} does not parse: "
+                                   f"{type(e).__name__}: {e}")
+                continue
+
+        key = (os.path.dirname(path), os.path.basename(path))
+        if key not in recipes:
+            continue
+        repo, relpath = recipes[key]
+
+        # A directory whose model file is not the one the recipe names came from
+        # somewhere else by design (see fetch_dir_model). Its sidecars will not match
+        # upstream byte counts either, and that is expected, not drift.
+        # Compare MODEL files only. The projector shares a name across recipes, so
+        # including it would always look like a match and never flag the directory.
+        on_disk_models = {f for f in os.listdir(key[0])
+                          if f.endswith(".gguf") and not f.startswith("mmproj")}
+        recipe_models = {b for (d, b) in recipes
+                         if d == key[0] and not b.startswith("mmproj")}
+        foreign = bool(on_disk_models) and bool(recipe_models) \
+            and not (on_disk_models & recipe_models)
+        if foreign:
+            note(f"{key[0].replace(HOME,'~')}: local build differs from the recipe "
+                 f"({repo}); size checks skipped for it")
+            continue
+
+        url = f"https://huggingface.co/{repo}/resolve/main/{relpath}"
+        try:
+            req = urllib.request.Request(url, method="HEAD")
+            with urllib.request.urlopen(req, timeout=30) as r:
+                remote = r.headers.get("x-linked-size") or r.headers.get("content-length")
+        except Exception:
+            continue
+        if remote and int(remote) != os.path.getsize(path):
+            finding("size", f"{path.replace(HOME,'~')}: local {os.path.getsize(path)} != "
+                            f"remote {remote} ({repo}) -- truncated or a different build")
+
+
+def main():
+    remote = "--remote" in sys.argv
+    check_recipes()
+    check_presets()
+    rows = client_models()
+    check_clients(rows)
+    check_context(rows)
+    check_runtime()
+    if remote:
+        check_remote()
+
+    for n in notes:
+        print(n)
+    if notes:
+        print()
+    if findings:
+        print(f"{len(findings)} finding(s):")
+        for f in findings:
+            print(f"  {f}")
+        return 1
+    print("audit clean" + ("" if remote else " (local checks only; add --remote for "
+                                             "GGUF parse + size verification)"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

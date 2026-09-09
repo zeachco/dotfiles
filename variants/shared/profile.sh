@@ -106,6 +106,9 @@ alias listen="$DOT_DIR/bin/listen"
 alias converse="$DOT_DIR/bin/converse"
 alias gpu-cap="$DOT_DIR/bin/gpu-cap"
 alias llamacpp-sync="$DOT_DIR/bin/llamacpp-sync"
+# Cross-checks ~/models vs the INI presets vs the client configs. Run it after adding
+# or removing a model; --remote also parses every GGUF and compares it to its HF size.
+alias llamacpp-audit="$DOT_DIR/bin/llamacpp-audit"
 # sniff_llms lives in its own repo (github.com/zeachco/sniff_llms), cloned at ~/dev/sniff_llms
 alias sniff_llms='cargo run --release --manifest-path "$HOME/dev/sniff_llms/Cargo.toml" --'
 

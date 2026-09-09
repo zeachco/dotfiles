@@ -1,0 +1,51 @@
+# TEMPLATE -- installed to ~/.config/systemd/user by install.sh in this directory.
+#
+# The CHEAP tier. This is an isolation boundary, not a performance tier: it keeps
+# high-frequency shell traffic (summarize/tab_autoname in variants/shared/_ai_tools.sh)
+# off the light router, whose eviction is pure LRU with no way to pin a model. See
+# cheap.ini's header and ryzen-llm-setup.md "The cheap tier" for the full argument.
+#
+# %h is systemd's own user-unit specifier for $HOME -- no install-time substitution
+# needed for paths. Only @CHEAP_CPU_QUOTA@ and @CHEAP_THREADS@ are rendered by install.sh.
+#   @CHEAP_CPU_QUOTA@   percentage for CPUQuota=, default 25 (see LOS_CHEAP_CPU_QUOTA)
+#   @CHEAP_THREADS@     -t/--threads-batch value, default 4 (see LOS_CHEAP_THREADS)
+
+[Unit]
+Description=llama.cpp router (cheap tier) on :8081
+Documentation=file:///home/olivier/dotfiles/ryzen-llm-setup.md
+After=graphical-session.target
+
+[Service]
+Type=simple
+# Per-tier cache, and here it is load-bearing rather than tidy: cached models are
+# enumerated UNCONDITIONALLY and ahead of --models-dir (server-models.cpp:506), so
+# sharing llama.cpp-light would pull the light tier's models -- qwen3.8 included --
+# into this router and defeat the whole point of the split.
+Environment=LLAMA_CACHE=%h/.cache/llama.cpp-cheap
+# --host 127.0.0.1, unlike the light router's 0.0.0.0: this tier serves local shell
+# helpers only and has no reason to be reachable from the LAN.
+ExecStart=%h/dev/llama.cpp/build/bin/llama-server \
+  --models-dir %h/models/cheap \
+  --models-preset %h/dotfiles/llamacpp/archlinux/cheap.ini \
+  --models-max 1 \
+  --host 127.0.0.1 \
+  --port 8081 \
+  -to 3600 \
+  --threads @CHEAP_THREADS@ \
+  --threads-batch @CHEAP_THREADS@
+# Consistent with the light unit. A ~3 GiB cold load is quick, but a first start
+# racing the light router's own load should still not count as a failure.
+TimeoutStartSec=0
+Restart=on-failure
+RestartSec=5
+
+# Much tighter than the light router's 90%. A tab-title summary must never compete
+# with interactive generation on :8080 -- and unlike the light tier, nothing here is
+# latency-critical: _ai_tools.sh already bounds every call with curl --max-time
+# (SUMMARIZE_TIMEOUT, default 60s) and falls back gracefully on a miss. Override with
+# `systemctl --user edit llama-router-cheap.service`, or reinstall with
+# LOS_CHEAP_CPU_QUOTA=<percent> and/or LOS_CHEAP_THREADS=<n> bash install.sh.
+CPUQuota=@CHEAP_CPU_QUOTA@%
+
+[Install]
+WantedBy=default.target

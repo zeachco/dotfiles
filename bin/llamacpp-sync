@@ -9,7 +9,8 @@ For each `llamacpp*` provider in pi's models.json (~/.pi/agent/models.json):
     maxTokens, compat, cost, samplingParams) is preserved for models that
     survive
   * new models get defaults derived from router metadata:
-      contextWindow  <- launch args (--ctx-size)
+      contextWindow  <- launch args, per slot: --ctx-size, divided by
+                        --parallel unless --kv-unified (see per_slot_context)
       input          <- architecture.input_modalities (text / text+image)
       reasoning      <- heuristic (qwen3/deepseek/glm-4/gpt-oss/ministral/mistral)
   * models the router no longer serves are dropped
@@ -69,13 +70,42 @@ def arg_value(args, flag):
     return None
 
 
+def per_slot_context(args):
+    """The context a single conversation actually gets, not the pool size.
+
+    --ctx-size is the size of the WHOLE KV pool. Without --kv-unified the router
+    splits it across --parallel slots, so a chat gets ctx/np, and llama.cpp caps a
+    slot at that (server-context.cpp, llama_n_ctx_seq). Under --kv-unified there is
+    one shared pool and every slot's n_ctx_slot is the full ctx instead.
+
+    Reporting the pool size as contextWindow overstates it by a factor of np, and a
+    client that believes it fails with ERROR_TYPE_EXCEED_CONTEXT_SIZE partway through
+    a conversation rather than refusing cleanly up front. bin/llamacpp-audit checks
+    this invariant against the INI presets.
+    """
+    ctx = arg_value(args, "--ctx-size")
+    if not (isinstance(ctx, str) and ctx.isdigit()):
+        return None
+    ctx = int(ctx)
+
+    # --kv-unified and --no-kv-unified are both plain flags, so look for presence.
+    if "--kv-unified" in args or "-kvu" in args:
+        return ctx
+
+    np_ = arg_value(args, "--parallel")
+    if not (isinstance(np_, str) and np_.isdigit()):
+        np_ = arg_value(args, "-np")
+    if isinstance(np_, str) and np_.isdigit() and int(np_) > 0:
+        return ctx // int(np_)
+    return ctx
+
+
 def build_model(live, existing):
     ex = existing or {}
     args = (live.get("status") or {}).get("args") or []
     modalities = (live.get("architecture") or {}).get("input_modalities") or []
 
-    ctx = arg_value(args, "--ctx-size")
-    ctx = int(ctx) if isinstance(ctx, str) and ctx.isdigit() else None
+    ctx = per_slot_context(args)
 
     model = {
         "id": live["id"],

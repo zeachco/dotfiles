@@ -39,7 +39,20 @@ fetch() {
     fi
   fi
 
-  echo "==> $repo :: ${file##*/}"
+  # Announce an in-place OVERWRITE distinctly from a first download. A local file
+  # whose size differs from upstream is a stale or foreign build (a different quant
+  # revision, or one that came out of ollama's blob store), and curl -o rewrites the
+  # SAME inode rather than replacing it -- so if a llama-server child still has that
+  # file mapped, its weights change underneath it. Fully GPU-offloaded models (-ngl
+  # 999) release the mapping after load and are unaffected, but a CPU-resident or
+  # partially-offloaded one is not. Unload the model first if this line appears:
+  #   curl -s -X POST localhost:8080/models/unload -H 'content-type: application/json' \
+  #     -d '{"model":"<id>"}'
+  if [ -f "$out" ]; then
+    echo "==> $repo :: ${file##*/} (OVERWRITING in place: local $local_size != remote $remote)"
+  else
+    echo "==> $repo :: ${file##*/}"
+  fi
   if ! curl -L --fail --retry 10 --retry-delay 5 --retry-all-errors -C - \
     --progress-bar -o "$out" "$url"; then
     echo "FAILED: $repo/$file" >&2
@@ -61,4 +74,48 @@ fetch_report() {
     return 1
   fi
   return 0
+}
+
+# fetch_dir_model <repo> <destdir> <file> [file...]
+#
+# Fetches a whole subdirectory model ATOMICALLY: all its files, or none. Skips the
+# directory entirely if it already holds a main GGUF under ANY filename.
+#
+# Two reasons it cannot be a plain fetch() per file:
+#
+#  1. For a subdirectory model the id is the DIRECTORY name, and scan_subdir() in
+#     llama.cpp's common/preset.cpp assigns model_file from whichever
+#     non-mmproj/non-draft/non-shard GGUF it iterates LAST. Two model files in one
+#     directory therefore make that id resolve nondeterministically. fetch()'s per-file
+#     size pre-check cannot see a differently-named sibling.
+#  2. A model and its projector must come from the SAME source. Guarding only the model
+#     file would still let the projector be replaced: ~/models/light/qwen3.8 holds an
+#     ollama-derived mmproj-F16.gguf of 931146016 bytes where unsloth ships 927607488,
+#     so fetch() would see a size mismatch and overwrite a working projector, leaving an
+#     ollama model paired with an unsloth one.
+#
+# The case that needs it: ~/models/light/qwen3.8 is an ollama-derived plain Q4_K_M named
+# qwen3.8-Q4_K_M.gguf, predating this recipe, which yields Qwen3.8-27B-UD-Q4_K_M.gguf.
+# Same model, different quant. A fresh machine gets the unsloth pair; this one keeps
+# what it has. The id is `qwen3.8` either way, because it is the directory name.
+#
+# Glob loop rather than `find -print -quit`: bash 3.2 / BSD userland (see PORTABILITY).
+fetch_dir_model() {
+  local repo="$1" dest="$2"
+  shift 2
+  local f file
+
+  for f in "$dest"/*.gguf; do
+    [ -f "$f" ] || continue                       # unmatched glob expands to itself
+    case "${f##*/}" in
+      mmproj*)  continue ;;                       # projector, not the model
+      *-of-*)   continue ;;                       # shard of a split model, not the model
+    esac
+    echo "==> $repo :: $dest (already has ${f##*/}, skipping directory)"
+    return 0
+  done
+
+  for file in "$@"; do
+    fetch "$repo" "$file" "$dest" || return 1
+  done
 }

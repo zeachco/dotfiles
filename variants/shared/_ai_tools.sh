@@ -13,10 +13,21 @@ _ai_debug() {
   printf '[debug] %s\n' "$@" >&2
 }
 
-# Base URL of the local llama.cpp router. Every host in this repo binds :8080 --
-# `los` (llamacpp/shared/_llama.sh) on Linux, the com.zeachco.llama-router launchd
-# agent on macOS. Resolved at call time, not at source time: variants/osx/profile.sh
-# defines LOS_URL and there is no guaranteed source order between the two files.
+# Base URL of the llama.cpp router these helpers talk to. Resolved at call time, not
+# at source time: variants/osx/profile.sh defines LOS_URL and there is no guaranteed
+# source order between the two files.
+#
+# Which router that is differs per host, on purpose:
+#   Linux  -- AI_LLAMA_URL=http://127.0.0.1:8081, the CHEAP tier
+#             (llama-router-cheap.service), exported by variants/archlinux/profile.sh.
+#   macOS  -- unset, so it falls back to LOS_URL :8080, the single router on that box.
+#
+# The Linux split is not a nicety. The light router on :8080 evicts by pure LRU on
+# last_used with no way to pin a model (the `pin` preset key is commented out in
+# llama.cpp's common/arg.cpp), and every POST refreshes its target's timestamp. These
+# helpers POST on every herdr tab rename, which kept the small model freshest and made
+# the ~28 GiB qwen3.8 the eviction victim. Do not point them back at :8080.
+# See ryzen-llm-setup.md "The cheap tier".
 _ai_url() {
   printf '%s' "${AI_LLAMA_URL:-${LOS_URL:-http://127.0.0.1:8080}}"
 }
@@ -97,10 +108,11 @@ debug() {
 # messages); anything else keeps the generic wording. --hint=... strongly
 # steers the title toward a specific aspect of the work.
 # Prints only the summary (exit 0), or a failure message at the end (exit 1).
-# Runs on the local llama.cpp router (AI_LLAMA_URL, default http://127.0.0.1:8080)
-# against the cheapest model on the box: gemma 4 E2B, overridable with
-# SUMMARIZE_MODEL. The name is resolved against GET /v1/models, so the host's own
-# id for it ("gemma-4-E2B-it" or "gemma-4-E2B-it-GGUF") is picked automatically.
+# Runs on whichever router _ai_url() resolves to (the cheap tier on Linux) against the
+# cheapest model on the box: gemma 4 E2B, overridable with SUMMARIZE_MODEL. The name is
+# resolved against GET /v1/models, so the host's own id for it ("gemma-4-E2B-it" on the
+# cheap tier and on macOS, "gemma-4-E2B-it-GGUF" on the Linux light tier) is picked
+# automatically.
 # Each model call is bounded by --timeout= seconds (SUMMARIZE_TIMEOUT).
 summarize() {
   local max_length=80 retries=3 content="" kind="" hint=""

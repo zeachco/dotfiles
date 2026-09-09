@@ -43,7 +43,7 @@
     "generate-code": {
       "description": "Sub agent used to generate large chunks of coded and keep the main orchestrer with lighter tokens, optimized for fast code generation",
       "mode": "subagent",
-      "model": "llamacpp/Qwen3-Coder-Next-UD-IQ4_XS",
+      "model": "llamacpp/GLM-4.7-Flash-UD-Q4_K_XL",
       "permission": {
         "edit": "deny",
         "bash": "deny"
@@ -76,16 +76,6 @@
           },
           "tool_call": true,
           "attachment": true,
-          "reasoning": true
-        },
-        "Qwen3-Coder-Next-UD-IQ4_XS": {
-          "name": "Qwen3 Coder Next 80B-A3B (light tier)",
-          "limit": {
-            "context": 65536,
-            "output": 32768
-          },
-          "tool_call": true,
-          "attachment": false,
           "reasoning": true
         },
         "GLM-4.7-Flash-UD-Q4_K_XL": {

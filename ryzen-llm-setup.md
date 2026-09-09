@@ -21,8 +21,11 @@ or die), then speed.
   running the ROCm backend and refusing Vulkan (`dropping integrated GPU; to enable, set
   OLLAMA_IGPU_ENABLE=1`), and its ~95 GB of weights duplicated `~/models`. Nothing served
   through it. See "Retiring ollama" below.
-- `~/.config/opencode/opencode.json` points a `llamacpp` provider at `http://127.0.0.1:8080/v1` but
-  declares `"context": 32768` — a quarter of what `los` actually serves.
+- `~/.config/opencode/opencode.json` (symlinked into `configs/opencode/`) points a single
+  `llamacpp` provider at `http://oli-llms.local:8080/v1` with per-model `limit.context` matching
+  `light.ini`. The `llamacpp-olim3` provider for the M4 was removed — that box is no longer a
+  dependency of this one. `headerTimeout` is left at its 300s default rather than disabled, so a
+  request queued behind `--models-max` surfaces instead of hanging forever.
 
 ## The four findings that drive this runbook
 
@@ -241,6 +244,61 @@ Extra args pass straight through, and children inherit the router's argv _and_ e
 
 Separate `LLAMA_CACHE` per tier is what stops an `-hf` pull in one tier from showing up in the other.
 
+### The cheap tier
+
+`llama-router-cheap.service` on **:8081**, one model, loopback only. It is an *isolation*
+boundary, not a performance tier, and the reason is a specific property of the router's
+eviction:
+
+- The victim is chosen by **pure LRU on `last_used`** — `pick_victim()` in
+  `tools/server/server-models.cpp` — skipping only models that are mid-request or not yet ready.
+- There is **no way to protect a model.** The `pin` preset key ("do not unload this model if
+  models_max is exceeded") is *commented out* in `common/arg.cpp`.
+- `last_used` is refreshed on every proxied **POST** (`proxy_request(..., update_last_used=true)`;
+  `proxy_get` passes `false`, so `/slots` and `/metrics` polling is harmless — the RGB daemon is
+  not a factor).
+
+So the high-frequency POST callers — `summarize()` and `tab_autoname()` in
+`variants/shared/_ai_tools.sh`, which fire on every herdr tab rename — kept the small model
+permanently freshest and made the largest resident model the eviction victim during any idle gap
+in a coding session. A tab title cost a multi-minute reload of qwen3.8.
+
+Lowering `--models-max` does **not** fix this; it makes it worse, by turning a memory problem
+into constant reload thrash. And at capacity the router does not fail fast, it *queues*
+(`join()`: "models_max reached, request … queued at position"), so with `-to 3600` and a client
+that has disabled its own timeout the symptom is an indefinite hang rather than a clean 503.
+
+The fix is to take that traffic off the router entirely:
+
+```bash
+# ~/models/cheap holds symlinks, not copies. The mmproj sidecar is deliberately
+# NOT linked: llama.cpp disables prefix cache reuse on any multimodal model, and
+# this tier wants that reuse far more than it wants vision.
+mkdir -p ~/models/cheap/gemma-4-E2B-it
+ln -s ~/models/light/gemma-4-E2B-it-GGUF/gemma-4-E2B-it-Q4_K_M.gguf \
+      ~/models/cheap/gemma-4-E2B-it/
+```
+
+The directory name **is** the model id, and `gemma-4-E2B-it` is exactly
+`SUMMARIZE_MODEL`'s default, so `_ai_resolve_model()` takes its exact-match branch instead of
+the case-insensitive substring fallback that exists to paper over the Linux/macOS naming split.
+
+`variants/archlinux/profile.sh` exports `AI_LLAMA_URL=http://127.0.0.1:8081`; `_ai_url()`
+resolves it at call time, so no shell helper needed a code change. It is set in the archlinux
+profile rather than the shared one on purpose — the macOS box runs a single router and no cheap
+tier, so there `AI_LLAMA_URL` stays unset and `_ai_url()` falls back to `LOS_URL` on :8080.
+
+Two rules to keep this working:
+
+1. **Do not add this port as an opencode or pi provider**, and do not point a fan-out subagent
+   loop at the light tier's small models. Either move puts the eviction race back.
+2. `gemma-4-E2B` stays present in `~/models/light` (auto-discovered from `--models-dir` with the
+   `[*]` defaults) so the vision path still works there. Only its text weights are symlinked into
+   the cheap tier.
+
+Measured on the first cold start: 12s from request to completion including the ~3 GiB load —
+comfortably inside `SUMMARIZE_TIMEOUT` (60s) and opencode's 300s `headerTimeout` default.
+
 ### Presets
 
 `llamacpp/archlinux/light.ini` and `llamacpp/archlinux/heavy.ini`. Keys are CLI args without leading dashes;
@@ -370,17 +428,62 @@ cmake --build ~/dev/llama.cpp/build-hip -j
 
 ## Phase 5 — Model set
 
-Download into the tier directories under `~/models/` (481 GB free).
+Download into the tier directories under `~/models/` with
+`llamacpp/archlinux/fetch-models.sh`.
+
+**Every GGUF under `~/models` must have a line in that script.** It did not used to, and the
+gap was invisible: `qwen3.8` — the default model for `opencode`'s `model`/`small_model`, four of
+its agents, and pi's `defaultModel` — existed only as a **hardlink out of ollama's blob store**
+(`find -links +1` shows the two shared inodes). Retiring ollama would have left no recipe for the
+most important model on the box. `bin/llamacpp-audit` now enforces the invariant.
+
+Two standing exceptions:
+
+- **`qwen3.8` is fetched with `fetch_dir_model`, not `fetch`.** The pair on this box is
+  ollama-derived (plain `Q4_K_M` named `qwen3.8-Q4_K_M.gguf`, 16810714464 bytes, projector
+  931146016) where the recipe yields unsloth's `UD-Q4_K_M` and a 927607488-byte projector. Plain
+  `fetch` would see both size mismatches and replace a working, self-consistent pair — and a
+  second model GGUF in that directory would make the id resolve nondeterministically, since
+  `scan_subdir()` takes whichever non-`mmproj` GGUF it iterates last. The guard skips the whole
+  directory when it already holds a model. A fresh machine gets the unsloth pair; the id is
+  `qwen3.8` either way, because it is the directory name.
+- **DeepSeek V4 Flash has no recipe and cannot have one.** It is a hand-tuned mixed quant built
+  against a custom imatrix, not a published artifact. It is the only file here a disk failure
+  would lose permanently — back it up separately.
+
+The **heavy tier is opt-in** (`LOS_FETCH_HEAVY=1`), because neither of its two files is currently
+on disk and an unguarded `fetch` would make every routine re-run start a 64 GB download.
+
 
 | Tier            | Model                                     | Quant                   | Size     | Expected                       | Role                                                                                                                                   |
 | --------------- | ----------------------------------------- | ----------------------- | -------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
 | **Workhorse**   | `gpt-oss-120b` (117B-A5.1B)               | MXFP4                   | ~63 GB   | ~55 t/s tg                     | Default chat + agentic coding; best capability-per-token-rate here. Goes in `heavy/`.                                                   |
-| **Loop engine** | `unsloth/Qwen3-Coder-Next-GGUF` (80B-A3B) | UD-Q4_K_XL              | ~45 GB   | ≫55 t/s (3B active)            | Hours-long autonomous loops, 256k ctx, 70.6% SWE-bench Verified.                                                                       |
+| ~~Loop engine~~ | ~~`unsloth/Qwen3-Coder-Next-GGUF`~~       | —                       | —        | —                              | **Removed.** `c901081` deleted the file and its `light.ini` section but left `generate-code` pointing at it; the router then held a child with `--alias` and no `--model`, stuck `loading` forever and — since `pick_victim()` skips models that are not ready — permanently holding one of five `--models-max` slots. `generate-code` now targets GLM-4.7-Flash. |
 | **Next arch**   | `unsloth/Qwen3.8-Flash-Next-GGUF` (125B+51B-A6B) | UD-IQ4_XS        | ~87 GiB  | TBD (6B active)                | Qwen4-preview arch: Gated DeltaNet + QSA hybrid attention, text-only (no mmproj). Needs llama.cpp PR #27742 before it loads.         |
-| **Fan-out**     | `GLM-4.7-Flash` (30B class)               | Q4_K_M                  | ~19 GB   | 60–100 t/s                     | Cheap parallel subagents, quick tool calls. Good `los` companion.                                                                      |
+| **Fan-out**     | `GLM-4.7-Flash` (30B class)               | UD-Q4_K_XL              | 16.32 GiB | 60–100 t/s                    | Cheap parallel subagents, quick tool calls; what opencode's `generate-code` subagent targets. Needs `kv-unified` — see below.           |
 | **Capability**  | existing DeepSeek V4 Flash 284B-A13B      | custom IQ2_XXS/Q4_K mix | 90.9 GiB | ~13 t/s, more with speculation | Hard planning/architecture steps only — ~155 t/s prefill means a 20k-token turn costs ~2 min before the first token. Not a loop engine. |
 
-Middle two sizes are estimates from parameter count; the DeepSeek figure is measured off disk.
+Middle sizes are estimates from parameter count; DeepSeek and GLM are measured off disk.
+
+### Per-slot context is not `--ctx-size`
+
+`--ctx-size` sizes the whole KV **pool**. Without `--kv-unified` the router splits it across
+`--parallel` slots, so one conversation gets `c/np`, and llama.cpp caps a slot there
+(`server-context.cpp`, `llama_n_ctx_seq`). Under `--kv-unified` there is one shared pool and
+every slot's `n_ctx_slot` is the full `c`, at the same total allocation.
+
+This matters because clients advertise a context window, and advertising more than a slot
+actually gets fails with `ERROR_TYPE_EXCEED_CONTEXT_SIZE` partway through a conversation rather
+than refusing up front. Two ways it went wrong here:
+
+- `bin/llamacpp-sync` derived pi's `contextWindow` straight from `--ctx-size`, overstating every
+  model by a factor of `np`. It now computes the per-slot value (`per_slot_context()`).
+- Raising `np` on a section without adding `kv-unified` silently divides the per-slot ceiling.
+  `[GLM-4.7-Flash-UD-Q4_K_XL]` at `c=131072, np=4` yields 32768/slot, well under the 65536
+  opencode advertises and the 131072 pi advertises — hence `kv-unified = true` on that section.
+
+`bin/llamacpp-audit` checks this invariant across `light.ini`/`cheap.ini`/`heavy.ini` and both
+client configs, including models with no INI section that inherit `[*]` via `--models-dir`.
 
 ## Phase 6 — Clients: picking a model on the fly
 

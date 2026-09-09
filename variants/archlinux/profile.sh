@@ -269,3 +269,19 @@ yayi() {
     [[ $package ]] && read -n1 -p "Install ${package}? [y/N]: " install
     [[ "$install" == "y" ]] && yayin $package
 }
+
+# --- llama.cpp: route the shell helpers to the cheap tier --------------------------
+# _ai_url() in variants/shared/_ai_tools.sh resolves
+# ${AI_LLAMA_URL:-${LOS_URL:-http://127.0.0.1:8080}} at call time, so this points
+# summarize()/tab_autoname() at :8081 without touching their code.
+#
+# Why not just let them hit :8080: the light router evicts by pure LRU on last_used
+# (llama.cpp tools/server/server-models.cpp pick_victim) and there is NO way to pin a
+# model -- the `pin` preset key is commented out in common/arg.cpp. Every proxied
+# request refreshes its target's last_used, so a tab rename firing every few seconds
+# kept the small model freshest and made the ~28 GiB qwen3.8 the eviction victim
+# during idle gaps in a coding session. A tab title cost a multi-minute reload.
+#
+# This is Linux-only on purpose: the macOS box runs a single router and no cheap tier,
+# so there AI_LLAMA_URL stays unset and _ai_url() falls back to LOS_URL on :8080.
+export AI_LLAMA_URL="http://127.0.0.1:8081"
