@@ -16,6 +16,15 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
+# Pull llama.cpp and rebuild it when the build has fallen behind the checkout, BEFORE
+# install.sh -- which refuses to install a unit pointing at a binary that is not there,
+# so on a fresh box the build has to happen first for the router to be installed at all.
+#
+# Self-gating: it exits silently unless this is the Strix Halo + omarchy box. See the
+# header there for why staleness is a stamp file and not an mtime.
+bash "$SCRIPT_DIR/update.sh" ||
+  echo -e "\033[0;31mllama.cpp update failed\033[0m"
+
 # `|| echo` so a router failure does not abort the rest of the Arch setup.
 bash "$SCRIPT_DIR/install.sh" ||
   echo -e "\033[0;31mllama router install failed\033[0m"

@@ -94,8 +94,9 @@ fetch unsloth/gemma-4-26B-A4B-it-GGUF mmproj-F16.gguf                   "$HOME/m
 # 87.3 GiB. Qwen3.8-Flash-Next: 125B + 51B n-gram embedding, 6B active. Three shards
 # MUST share one subdirectory -- the scanner reads a dir as one multi-shard model and
 # the dir name is the id. UD-IQ4_XS over UD-Q4_K_XL (103.7 GiB): the bigger quant does
-# not share the tier. The GGUF declares the qwen4exp arch, which needs llama.cpp
-# PR #27742 (unsloth) -- rebuild before first load.
+# not share the tier. The GGUF declares the qwen4exp arch, upstream since 2026-09-05
+# (#27742 + fixes) -- llamacpp/archlinux/update.sh keeps the build current, and an
+# out-of-date build refuses this model with "unknown model architecture: 'qwen4exp'".
 #
 # Plain fetch per shard, NOT fetch_dir_model: the guard would see an already-downloaded
 # shard and skip the rest, breaking resume. (It excludes *-of-* for exactly this reason,

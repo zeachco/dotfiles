@@ -9,8 +9,9 @@ or die), then speed.
 
 ## Where things stand
 
-- `~/dev/llama.cpp` @ `b10524-22-g0e1d9185c`, built in `build/` with **`GGML_VULKAN=ON`,
-  `GGML_HIP=OFF`** — Vulkan only.
+- `~/dev/llama.cpp` on **`master`**, built in `build/` with **`GGML_VULKAN=ON`,
+  `GGML_HIP=OFF`** — Vulkan only. `llamacpp/archlinux/update.sh` fast-forwards and
+  rebuilds it on every `dotfiles_update`; see "Keeping the build current" below.
 - `llamacpp/shared/_llama.sh` defines the three tier launchers over one `_los_router` helper:
   `los` (light, :8080), `los-cheap` (:8081), `los-heavy` (one model at a time). The original
   fzf-over-`ollama list` launcher was deleted along with ollama itself — see "Retiring ollama".
@@ -26,6 +27,54 @@ or die), then speed.
   `light.ini`. The `llamacpp-olim3` provider for the M4 was removed — that box is no longer a
   dependency of this one. `headerTimeout` is left at its 300s default rather than disabled, so a
   request queued behind `--models-max` surfaces instead of hanging forever.
+
+## Keeping the build current
+
+`llamacpp/archlinux/update.sh` runs from the Arch profile setup, so `dotfiles_update`
+fast-forwards `~/dev/llama.cpp` and rebuilds when the build has fallen behind.
+
+Why it exists — **2026-09-08, Qwen3.8-Flash-Next would not load:**
+
+```
+E llama_model_load: error loading model: unknown model architecture: 'qwen4exp'
+```
+
+The checkout had qwen4exp support. The *build* did not. `build/` held a half-finished
+rebuild: `libggml-base`/`libggml-cpu` relinked to 0.22.0 on Aug 27, while `libllama.so`
+and `llama-server` were still Aug 19 artifacts — six days older than the commit that
+added the arch. Nothing surfaced it. `git log` looked current, the router started
+normally, and every already-supported model kept working; only a model needing a *new*
+architecture failed, and it failed as if the model were at fault.
+
+Design consequences, each one paid for by that:
+
+- **Staleness is a stamp file** (`build/.dotfiles-build-commit`), written only after a
+  build exits 0 — never an mtime comparison. An interrupted build leaves the stamp
+  stale and the next run retries, which is exactly what mtime got wrong.
+- **It never restarts the routers.** A restart drops in-flight generation, and a long
+  prompt ingest is minutes of work. It reports which units still run the old binary
+  instead. Worth restarting at the next break rather than sitting on it: the router
+  forks a child per model, so after a relink a newly autoloaded child runs new code
+  under a parent still mapped to the old.
+- **It never rewrites history.** Dirty tree, diverged branch, or a checkout parked on
+  some other ref: it reports and declines. A deliberate PR-branch checkout still gets
+  its *binary* rebuilt, so a pinned branch is never served by a stale build.
+- **It is gated to this box** — omarchy plus `ryzen ai max` in `/proc/cpuinfo`. Nothing
+  else running these dotfiles should spend 32 cores on a Vulkan rebuild at login.
+- **ccache is wired in** (`CMAKE_{C,CXX}_COMPILER_LAUNCHER`). It was installed but
+  unused — 0 hits in 54 lookups — which is most of why rebuilding felt expensive
+  enough to defer.
+
+Knobs: `LLAMACPP_SKIP_UPDATE=1`, `LLAMACPP_BUILD_FORCE=1`, `LLAMACPP_REF=<branch>`,
+`LLAMACPP_BUILD_JOBS=<n>` (default half the cores, same headroom logic as CPUQuota).
+
+**Tracking a not-yet-merged arch.** Qwen3.8-Flash-Next arrived this way — checked out
+from unsloth's PR #27742 branch. That is fine, but it is a *temporary* state: the PR
+merged 2026-09-05 as `6c84c7d5d`, and master then collected four follow-up fixes
+(#27880 graph splits, #27941 seq_cp/mtmd/tests, #28023 indexer heads, #28123 recurrent
+state rollback) that the PR branch never had. Get back onto `master` once a PR lands —
+`update.sh` will tell you it is skipping the pull for as long as you are parked
+somewhere else.
 
 ## The four findings that drive this runbook
 
