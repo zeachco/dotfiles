@@ -257,6 +257,13 @@ _git_base_ref() {
 #               pane happens to live in *right now* — which is the wrong one
 #               as soon as anything else (all_my_prs) opens another tab while
 #               this pane boots.
+#   --workspace-id=W
+#               the workspace to rename alongside the tab. The sidebar rows are
+#               drawn from the *workspace* label (ui.sidebar.spaces/agents in
+#               config.toml), which `herdr tab rename` does not touch, so
+#               renaming only the tab leaves the sidebar on the raw branch name
+#               wt created the workspace with. Resolved from the tab when
+#               omitted.
 #   --pr=N      the PR number this tab belongs to, when the caller already knows
 #               it. Keeps the "#N: " prefix even if `gh pr view` comes up empty,
 #               so the tab stays matchable by all_my_prs' dedup check.
@@ -269,10 +276,11 @@ tab_autoname() {
   fi
   _git_check_repo || return 1
 
-  local tab_id="" known_pr="" hint="" arg
+  local tab_id="" workspace_id="" known_pr="" hint="" arg
   for arg in "$@"; do
     case "$arg" in
     --tab-id=*) tab_id="${arg#*=}" ;;
+    --workspace-id=*) workspace_id="${arg#*=}" ;;
     --pr=*) known_pr="${arg#*=}" ;;
     *) hint="${hint:+$hint }$arg" ;;
     esac
@@ -287,7 +295,11 @@ tab_autoname() {
     echo "Error: could not get the current tab id"
     return 1
   fi
-  _ai_debug "tab-autoname: renaming tab id $tab_id (pr=${known_pr:-unknown})"
+  if [ -z "$workspace_id" ]; then
+    # the workspace owning that tab, so the sidebar gets renamed too
+    workspace_id=$(herdr tab get "$tab_id" 2>/dev/null | jq -r '.result.tab.workspace_id // empty')
+  fi
+  _ai_debug "tab-autoname: renaming tab id $tab_id / workspace id ${workspace_id:-unknown} (pr=${known_pr:-unknown})"
 
   local branch=$(git branch --show-current)
   if [ -z "$branch" ]; then
@@ -351,5 +363,18 @@ tab_autoname() {
   else
     echo "Error: failed to rename tab id $tab_id"
     return 1
+  fi
+
+  # And the workspace behind it: that label is what the sidebar draws, and
+  # `herdr tab rename` leaves it alone. Not fatal — the top tab is already
+  # right, and a workspace we could not resolve is not worth failing over.
+  if [ -n "$workspace_id" ]; then
+    if herdr workspace rename "$workspace_id" "$new_name" >/dev/null 2>&1; then
+      echo "Sidebar (workspace $workspace_id) renamed to '$new_name'"
+    else
+      echo "Warning: failed to rename workspace id $workspace_id"
+    fi
+  else
+    echo "Warning: could not resolve the workspace for tab $tab_id; sidebar not renamed"
   fi
 }

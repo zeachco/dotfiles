@@ -102,10 +102,13 @@ herdr_branch_repo() {
     return 1
   fi
 
-  local target_path tab_id root_pane already_open
+  local target_path tab_id workspace_id root_pane already_open
   target_path=$(echo "$result" | jq -r '.result.worktree.path // empty')
   target_path="${target_path:-$repo_root}"
   tab_id=$(echo "$result" | jq -r '.result.tab.tab_id // empty')
+  # the sidebar rows are keyed on the workspace label, not the tab's, so
+  # tab_autoname needs the workspace id too — see its --workspace-id
+  workspace_id=$(echo "$result" | jq -r '.result.workspace.workspace_id // empty')
   root_pane=$(echo "$result" | jq -r '.result.root_pane.pane_id // empty')
   if [ -z "$tab_id" ] || [ -z "$root_pane" ]; then
     echo "Error: unexpected response from herdr"
@@ -137,6 +140,7 @@ herdr_branch_repo() {
     autoname_pane=$(herdr pane split "$root_pane" --direction down --cwd "$target_path" --no-focus | jq -r '.result.pane.pane_id // empty')
     if [ -n "$autoname_pane" ]; then
       autoname_cmd="tab_autoname --tab-id=$tab_id"
+      [ -n "$workspace_id" ] && autoname_cmd="$autoname_cmd --workspace-id=$workspace_id"
       [ -n "$pr_number" ] && autoname_cmd="$autoname_cmd --pr=$pr_number"
       herdr pane run "$autoname_pane" "$autoname_cmd; exit"
     fi
