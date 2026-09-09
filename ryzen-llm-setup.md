@@ -139,6 +139,27 @@ instead of a surprise eviction — is the whole point of the tier.
 
 pi sees it as a second provider, `llamacpp-heavy`; `llamacpp-sync` refreshes both.
 
+### Incident: the OOM of 2026-09-09 07:35
+
+Flash-Next (67 GiB GTT + 28 GiB RSS) was serving an 11k-token conversation on :7072 while other
+pi sessions pulled GLM and qwen3.8 onto :7070 (59 GiB GTT). ~154 GiB demanded of 125. The kernel
+thrashed for 30 s (`Mem-Info` dumps from 07:34:48), then a **global** OOM killed the Flash-Next
+child *and* a chromium process; systemd restarted the heavy unit with nothing loaded.
+
+Two lessons, both load-bearing for how the tiers are used:
+
+1. **GTT is invisible to the OOM killer.** amdgpu pins system RAM for the GPU outside any
+   process's RSS (fdinfo shows 67 GiB for the child; `ps` shows 28). `oom_score` is RSS-based,
+   so the kernel kills whichever process has the most *ordinary* memory — Flash-Next's mmapped
+   PLE table makes it the designated victim regardless of which router caused the pressure,
+   and anything else large (a browser) is collateral. Do not expect `MemoryMax=` on a unit to
+   help; it cannot see the GTT either.
+2. **`los-drain` before a heavy load is necessary but not sufficient.** Nothing stops another
+   client from re-loading light models *during* the heavy session; that is exactly what
+   happened. The routers are independent processes with no shared budget. Until a heavy
+   session also fences the light tier (stop it, or make it refuse loads), the failure mode is
+   a silent kill of the heavy model mid-conversation — not an error a client can react to.
+
 ### Which heavy model for what
 
 Measured on this box (2026-09-09, llama.cpp `e2d2c0d6`, Vulkan). "Fits beside" = what the
