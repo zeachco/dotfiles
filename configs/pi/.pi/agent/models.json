@@ -196,7 +196,7 @@
         },
         {
           "id": "gpt-oss-120b-MXFP4",
-          "name": "gpt-oss-120b-MXFP4",
+          "name": "gpt-oss-120b MXFP4 + EAGLE3 (heavy tier -- los-drain first)",
           "contextWindow": 131072,
           "maxTokens": 16384,
           "input": [
@@ -208,6 +208,15 @@
             "output": 0,
             "cacheRead": 0,
             "cacheWrite": 0
+          },
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": "low",
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": null
           }
         }
       ]
