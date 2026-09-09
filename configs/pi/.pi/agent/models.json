@@ -3,7 +3,7 @@
     "llamacpp": {
       "api": "openai-completions",
       "apiKey": "llamacpp",
-      "baseUrl": "http://oli-llms.local:7070/v1",
+      "baseUrl": "http://oli-llms.local:8080/v1",
       "models": [
         {
           "id": "GLM-4.7-Flash-UD-Q4_K_XL",
