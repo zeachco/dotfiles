@@ -14,7 +14,7 @@ Rules of thumb:
 - A subagent is a fresh process. It has NOT seen this conversation. Its task text must be self-contained: exact paths, function names, the change, how to verify. If you cannot write that brief yet, you are not done thinking.
 - Reach for `scout` before reading more than two or three files yourself.
 - Do not route to more than these two models in one session. The router evicts by LRU with no pinning; a third large model makes one of them reload.
-- `Qwen3.8-Flash-Next` lives on the **heavy** provider (`llamacpp-heavy`, :7072). It cannot share the GPU with the two models above: it is never loaded implicitly (selecting it gives 400 "model is not loaded"): in a shell, `los-drain` then `los-load Qwen3.8-Flash-Next`, or inside pi `/llama` (after a one-time `/login llama.cpp` with http://127.0.0.1:7072). Expect qwen3.8/GLM to reload afterwards. Never route a subagent to it.
+- Heavy-tier models (`llamacpp-heavy`, :7072 -- gpt-oss-120b, DeepSeek) are never loaded implicitly (selecting one gives 400 "model is not loaded"): in a shell, `los-drain` then `los-load <model>`, or inside pi `/llama` (after a one-time `/login llama.cpp` with http://127.0.0.1:7072). Expect qwen3.8/GLM to reload afterwards. Never route a subagent to them.
 - Not agents: `qwen2.5-coder-0.5b` and `gemma-4-E2B` are too small to drive tools reliably. Leave them to shell helpers.
 
-Workflows: `/implement <task>` (scout → planner → worker), `/build <task>` (worker only), `/review [what]`. Manual switch: `/preset think`, `/preset build`.
+Workflows: `/implement <task>` (scout → planner → worker), `/build <task>` (worker only), `/review [what]`. Manual switch: `/preset think` (alias `/preset plan`), `/preset build`.

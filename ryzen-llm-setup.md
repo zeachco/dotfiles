@@ -125,7 +125,7 @@ request" line in the router journal, not a client.
 `llama-router-heavy.service` on **:7072** serves `~/models/heavy` one model at a time and loads
 nothing until asked (`--no-models-autoload`; load with `/llama` in pi, or
 `curl -X POST localhost:7072/models/load -d '{"model":"Qwen3.8-Flash-Next"}'`). It exists for
-models that cannot share the GPU with the daily set: Qwen3.8-Flash-Next (~87 GiB) and the
+models that cannot share the GPU with the daily set: gpt-oss-120b (~63 GiB) and the
 90.9 GiB DeepSeek. On the light tier such a model would be loaded by LRU *eviction* of qwen3.8
 and GLM — every other live session then pays a multi-minute reload the moment it comes back.
 
@@ -169,8 +169,17 @@ the number that decides whether a heavy "brain" can drive light-tier workers.
 | model | GPU (GTT) | host RSS | gen tok/s | prompt tok/s | fits beside |
 |---|---|---|---|---|---|
 | gpt-oss-120b MXFP4 + EAGLE3 | ~63 + small KV | — | *unmeasured; ~55 expected* | — | **GLM (27)** |
-| Qwen3.8-Flash-Next IQ4_XS | 67 | 28 (PLE table, mmapped) | 27 | 58 (cold) | a 4B-class model only |
+| ~~Qwen3.8-Flash-Next IQ4_XS~~ *retired, see below* | 67 | 28 (PLE table, mmapped) | 27 | 58 (cold) | a 4B-class model only |
 | DeepSeek-V4-Flash chat-v2 | 91 | — | 16–17, flat | 107–144 | a 4B-class model only |
+
+**Retired 2026-09-09: Qwen3.8-Flash-Next.** Measured against the others it had no unique
+advantage to pay 95 GiB for: 27 tok/s is *slower* than GLM (29) on the light tier, which also
+gives 202k per chat with no drain; its 262k native window is matched by qwen3.8 for deep work;
+gpt-oss is expected to be ~2× faster on the same tier; and its 28 GiB in-RAM table made it the
+OOM killer's designated victim (see the incident above). Text-only as fetched (no mmproj).
+Config removed everywhere; the 88 GB of shards were MOVED to `~/models/archive/`, not deleted,
+so reinstating it is `mv` back + the three `fetch` lines from git history. Delete the archive
+when the decision has aged.
 
 Reading: for *agentic* work — an orchestrator that emits plans/briefs/tool calls and fans out
 to workers — generation speed and room for GLM dominate, which points at gpt-oss. Flash-Next

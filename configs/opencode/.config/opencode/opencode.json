@@ -68,8 +68,8 @@
         "timeout": false
       },
       "models": {
-        "Qwen3.8-Flash-Next": {
-          "name": "Qwen3.8 Flash Next 125B-A6B (heavy tier)",
+        "gpt-oss-120b-MXFP4": {
+          "name": "gpt-oss-120b MXFP4 + EAGLE3 (heavy tier)",
           "limit": { "context": 131072, "output": 16384 },
           "tool_call": true,
           "attachment": false,

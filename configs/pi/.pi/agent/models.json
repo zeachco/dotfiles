@@ -179,22 +179,6 @@
           }
         },
         {
-          "id": "Qwen3.8-Flash-Next",
-          "name": "Qwen3.8 Flash Next 125B-A6B (heavy tier -- los-drain first)",
-          "contextWindow": 131072,
-          "maxTokens": 16384,
-          "input": [
-            "text"
-          ],
-          "reasoning": true,
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cacheRead": 0,
-            "cacheWrite": 0
-          }
-        },
-        {
           "id": "gpt-oss-120b-MXFP4",
           "name": "gpt-oss-120b MXFP4 + EAGLE3 (heavy tier -- los-drain first)",
           "contextWindow": 131072,
@@ -203,12 +187,6 @@
             "text"
           ],
           "reasoning": true,
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cacheRead": 0,
-            "cacheWrite": 0
-          },
           "thinkingLevelMap": {
             "off": null,
             "minimal": "low",
@@ -217,6 +195,12 @@
             "high": "high",
             "xhigh": null,
             "max": null
+          },
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
           }
         }
       ]

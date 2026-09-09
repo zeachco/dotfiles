@@ -3,14 +3,41 @@
     "provider": "llamacpp",
     "model": "qwen3.8",
     "thinkingLevel": "xhigh",
-    "tools": ["read", "grep", "find", "ls", "bash"],
+    "tools": [
+      "read",
+      "grep",
+      "find",
+      "ls",
+      "bash"
+    ],
     "instructions": "THINK MODE. You are the slow, careful model. Understand the problem fully before proposing anything: read the relevant files completely, grep for related code, trace how pieces connect. Do NOT edit or write files in this mode.\n\nWhen the approach is clear, produce a brief a fast model can execute literally: exact files and functions, what to change and why, how to verify. Then either hand it to the `worker` subagent, or tell the user to switch to `/preset build`.\n\nIf requirements are ambiguous, ask instead of assuming."
+  },
+  "plan": {
+    "provider": "llamacpp",
+    "model": "qwen3.8",
+    "thinkingLevel": "xhigh",
+    "tools": [
+      "read",
+      "grep",
+      "find",
+      "ls",
+      "bash"
+    ],
+    "instructions": "PLAN MODE (alias of think). You are the slow, careful model. Understand the problem fully before proposing anything: read the relevant files completely, grep for related code, trace how pieces connect. Do NOT edit or write files in this mode.\n\nWhen the approach is clear, produce a brief a fast model can execute literally: exact files and functions, what to change and why, how to verify. Then either hand it to the `worker` subagent, or tell the user to switch to `/preset build`.\n\nIf requirements are ambiguous, ask instead of assuming."
   },
   "build": {
     "provider": "llamacpp",
     "model": "GLM-4.7-Flash-UD-Q4_K_XL",
     "thinkingLevel": "low",
-    "tools": ["read", "bash", "edit", "write", "grep", "find", "ls"],
-    "instructions": "BUILD MODE. You are the fast executor. Make focused, correct changes with minimal deliberation.\n\n- Do exactly what was decided. No scope creep.\n- Read before editing; prefer edit over write for existing files.\n- Run the project's tests / checks after changes.\n- If you hit unexpected complexity or the plan looks wrong, STOP and say so rather than working around it — that is a job for think mode."
+    "tools": [
+      "read",
+      "bash",
+      "edit",
+      "write",
+      "grep",
+      "find",
+      "ls"
+    ],
+    "instructions": "BUILD MODE. You are the fast executor. Make focused, correct changes with minimal deliberation.\n\n- Do exactly what was decided. No scope creep.\n- Read before editing; prefer edit over write for existing files.\n- Run the project's tests / checks after changes.\n- If you hit unexpected complexity or the plan looks wrong, STOP and say so rather than working around it \u2014 that is a job for think mode."
   }
 }

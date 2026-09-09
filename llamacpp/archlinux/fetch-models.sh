@@ -91,22 +91,6 @@ fetch unsloth/gemma-4-E4B-it-GGUF mmproj-F16.gguf            "$HOME/models/light
 fetch unsloth/gemma-4-26B-A4B-it-GGUF gemma-4-26B-A4B-it-UD-Q4_K_M.gguf "$HOME/models/light/gemma-4-26B-A4B-it-GGUF"
 fetch unsloth/gemma-4-26B-A4B-it-GGUF mmproj-F16.gguf                   "$HOME/models/light/gemma-4-26B-A4B-it-GGUF"
 
-# --- heavy tier ----------------------------------------------------------------
-# 87.3 GiB. Qwen3.8-Flash-Next: 125B + 51B n-gram embedding, 6B active. Three shards
-# MUST share one subdirectory -- the scanner reads a dir as one multi-shard model and
-# the dir name is the id. UD-IQ4_XS over UD-Q4_K_XL (103.7 GiB): the bigger quant does
-# not share the tier. The GGUF declares the qwen4exp arch, upstream since 2026-09-05
-# (#27742 + fixes) -- llamacpp/archlinux/update.sh keeps the build current, and an
-# out-of-date build refuses this model with "unknown model architecture: 'qwen4exp'".
-#
-# Plain fetch per shard, NOT fetch_dir_model: the guard would see an already-downloaded
-# shard and skip the rest, breaking resume. (It excludes *-of-* for exactly this reason,
-# but per-shard fetch is clearer here.) Shard 1 is only 10.9 MB -- that is correct, it
-# is a metadata-only index shard; shards 2 and 3 carry all 1224 tensors.
-fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf "$HOME/models/heavy/Qwen3.8-Flash-Next"
-fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00002-of-00003.gguf "$HOME/models/heavy/Qwen3.8-Flash-Next"
-fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00003-of-00003.gguf "$HOME/models/heavy/Qwen3.8-Flash-Next"
-
 # --- light tier, single-file models (id = filename stem) -----------------------
 # 16.32 GiB. Fan-out: cheap parallel subagents and quick tool calls, and what
 # opencode's generate-code subagent targets.

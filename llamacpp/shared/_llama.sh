@@ -61,7 +61,7 @@ los-heavy() { LOS_PORT="${LOS_PORT:-7072}" _los_router heavy 1 --no-models-autol
 # pulling ~90 GiB under someone's feet). Pair with los-drain. Inside pi the same thing is
 # `/login llama.cpp` once with http://127.0.0.1:7072, then `/llama`.
 #   los-load                      # list what :7072 has and what is loaded
-#   los-load Qwen3.8-Flash-Next   # load it, wait until ready
+#   los-load gpt-oss-120b-MXFP4   # load it, wait until ready
 los-load() {
   local url="${LOS_HEAVY_URL:-http://127.0.0.1:7072}" model="${1:-}"
   if [[ -z "$model" ]]; then
