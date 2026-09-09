@@ -165,7 +165,7 @@
         {
           "id": "Qwen3.8-Flash-Next",
           "name": "Qwen3.8 Flash Next 125B-A6B (heavy tier -- los-drain first)",
-          "contextWindow": 32768,
+          "contextWindow": 131072,
           "maxTokens": 16384,
           "input": [
             "text"

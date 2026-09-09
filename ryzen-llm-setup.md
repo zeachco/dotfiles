@@ -111,6 +111,15 @@ only takes effect when the unit restarts; `install.sh` deliberately does not do 
 restart llama-router.service llama-router-cheap.service` when idle. Clients (`pi` `models.json`,
 opencode, `AI_LLAMA_URL`) already point at the new ports.
 
+Two things a port move does NOT update by itself, both bitten on 2026-09-09: `~/.dotfiles_*`
+are *copies* made by `install_profile` (re-run `setup.sh`/`dotfiles_update`, or `cp` the profile,
+then open a new shell — an existing shell keeps the old `AI_LLAMA_URL`); and
+`framework-ryzen/framework-rgb` bakes its default `LLAMACPP_URL` into the binary, so it needs
+`cargo build --release` + `sudo framework-ryzen/install-root.sh $USER`. Until then the LEDs blink
+red ("llama-router active, endpoint unavailable"). That daemon also polls `/v1/models` and
+`/slots?model=…&autoload=false` every 2 s (`POLL_SECONDS`) — that is the steady "proxying
+request" line in the router journal, not a client.
+
 ## The heavy tier
 
 `llama-router-heavy.service` on **:7072** serves `~/models/heavy` one model at a time and loads
