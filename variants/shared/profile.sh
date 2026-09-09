@@ -8,10 +8,35 @@ PATH=$PATH:/home/olivier/.cargo/bin
 
 DOT_DIR="$HOME/dotfiles"
 dotfiles_update() {
-  cd $DOT_DIR || exit 1
+  cd $DOT_DIR || return 1
   git fetch
+
+  # git reset --hard below throws away local work, warn before it happens
+  DIRTY=$(git status --porcelain)
+  UNPUSHED=$(git log --oneline origin/main..HEAD 2>/dev/null)
+  if [ -n "$DIRTY" ] || [ -n "$UNPUSHED" ]; then
+    printf "\033[0;33mdotfiles has local work that 'git reset --hard origin/main' will destroy:\033[0m\n"
+    [ -n "$DIRTY" ] && printf "\nuncommitted changes:\n%s\n" "$DIRTY"
+    [ -n "$UNPUSHED" ] && printf "\nunpushed commits:\n%s\n" "$UNPUSHED"
+    if [ ! -t 0 ]; then
+      printf "\nnot a tty, aborting update\n"
+      cd - >/dev/null || return 1
+      return 1
+    fi
+    printf "\ndiscard it and reset to origin/main? [y/N] "
+    read -r REPLY_RESET
+    case "$REPLY_RESET" in
+      y | Y | yes | YES) ;;
+      *)
+        printf "aborted, dotfiles left untouched\n"
+        cd - >/dev/null || return 1
+        return 1
+        ;;
+    esac
+  fi
+
   git reset --hard origin/main
-  cd - || exit 1
+  cd - || return 1
 
   $SHELL "$DOT_DIR/setup.sh"
 
