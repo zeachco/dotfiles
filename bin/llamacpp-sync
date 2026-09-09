@@ -82,6 +82,12 @@ def per_slot_context(args):
     client that believes it fails with ERROR_TYPE_EXCEED_CONTEXT_SIZE partway through
     a conversation rather than refusing cleanly up front. bin/llamacpp-audit checks
     this invariant against the INI presets.
+
+    Known gap: the router's /props does not expose n_ctx_train, so this cannot cap the
+    result at the model's native context. Under --kv-unified a pool LARGER than native
+    would therefore be advertised in full while llama.cpp caps each slot at native --
+    the same ERROR_TYPE_EXCEED_CONTEXT_SIZE, for one long chat. Rule of thumb in the
+    presets: with kv-unified, set c to at most the native context (GLM: 202752).
     """
     ctx = arg_value(args, "--ctx-size")
     if not (isinstance(ctx, str) and ctx.isdigit()):

@@ -8,7 +8,7 @@
         {
           "id": "GLM-4.7-Flash-UD-Q4_K_XL",
           "name": "GLM-4.7 Flash (light tier, fan-out)",
-          "contextWindow": 131072,
+          "contextWindow": 202752,
           "maxTokens": 16384,
           "input": [
             "text"
