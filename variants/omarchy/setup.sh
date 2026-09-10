@@ -21,8 +21,18 @@ fi
 # Offline text-to-speech (speak to the default output via espeak-ng "text")
 install espeak-ng
 
-# Keep automatic locking enabled while disabling the optional screensaver.
+# Disable the optional screensaver everywhere.
 omarchy-toggle screensaver-off on
+
+# The Strix Halo desktop also skips the idle lock entirely: it sits at a desk
+# running long local-model jobs, and a 300s lock interrupts watching them. Same
+# CPU gate as llamacpp/archlinux/update.sh -- the laptops keep locking. Both
+# toggles are marker files under ~/.local/state/omarchy that the commands rm -f
+# on change, so they are set here rather than stowed. Undo on the box itself
+# with `omarchy toggle idle allow-idle`.
+if grep -qi "ryzen ai max" /proc/cpuinfo 2>/dev/null; then
+  omarchy-toggle-idle stay-awake >/dev/null
+fi
 
 # Phone as webcam / second screen (see bin/phone). Bootstrap only when the
 # virtual camera module is missing: `phone setup` opens a pkexec dialog, and
