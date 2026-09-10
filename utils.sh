@@ -101,12 +101,44 @@ function install() {
     elif command -v apt &>/dev/null; then
       sudo apt install -y $pkg_name
     elif command -v pacman &>/dev/null; then
-      sudo pacman -S $pkg_name --noconfirm
+      sudo pacman -S $pkg_name --needed --noconfirm
     elif command -v brew &>/dev/null; then
       brew install $pkg_name
     else
       echo -e "${FAIL} I don't know how to install $pkg_name ${NORM}"
     fi
+  fi
+}
+
+# Same as `install` but asks the package manager whether the package is present instead
+# of looking for a command of the same name. Needed for anything that ships no binary
+# (headers, libraries, plugins): `command -v vulkan-headers` can never succeed, so
+# `install vulkan-headers` re-ran pacman on every dotfiles_update.
+function install_pkg() {
+  pkg_name="$1"
+
+  if [[ -n "$TERMUX_VERSION" ]] || [[ "$PREFIX" == *"com.termux"* ]]; then
+    dpkg-query -W -f='${Status}' "$pkg_name" 2>/dev/null | grep -q "ok installed" && return 0
+    print_needs "$pkg_name"
+    echo -e "${WARN}installing ${NORM}$pkg_name..."
+    pkg install -y "$pkg_name"
+  elif command -v apt &>/dev/null; then
+    dpkg-query -W -f='${Status}' "$pkg_name" 2>/dev/null | grep -q "ok installed" && return 0
+    print_needs "$pkg_name"
+    echo -e "${WARN}installing ${NORM}$pkg_name..."
+    sudo apt install -y "$pkg_name"
+  elif command -v pacman &>/dev/null; then
+    pacman -Q "$pkg_name" &>/dev/null && return 0
+    print_needs "$pkg_name"
+    echo -e "${WARN}installing ${NORM}$pkg_name..."
+    sudo pacman -S "$pkg_name" --needed --noconfirm
+  elif command -v brew &>/dev/null; then
+    brew list "$pkg_name" &>/dev/null && return 0
+    print_needs "$pkg_name"
+    echo -e "${WARN}installing ${NORM}$pkg_name..."
+    brew install "$pkg_name"
+  else
+    echo -e "${FAIL} I don't know how to install $pkg_name ${NORM}"
   fi
 }
 

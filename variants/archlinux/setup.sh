@@ -14,8 +14,10 @@ install nvtop # per-process GPU/VRAM usage (supports AMDGPU)
 # llama.cpp Vulkan backend BUILD deps (the driver alone is not enough). Declared here
 # so they cannot silently drift: vulkan-headers was removed by hand on 2026-08-25 and
 # every llama.cpp rebuild failed for two weeks without anyone seeing why.
-install vulkan-headers
-install shaderc # glslc
+# install_pkg, not install: neither ships a binary of its own name (shaderc provides
+# glslc), so the command-based check re-ran pacman on every dotfiles_update.
+install_pkg vulkan-headers
+install_pkg shaderc # glslc
 
 # Check neovim version and install/update if needed
 neovimVersion=$(nvim --version 2>/dev/null | head -n 1 | awk '{print $2}' || echo "0.0.0")
@@ -73,11 +75,7 @@ install cvlc vlc-cli
 # VLC 3 is split into optional plugins on Arch. Chromecast output needs these
 # plugins for device support, media decoding, and H.264 transcoding.
 for package in vlc-plugin-chromecast vlc-plugin-ffmpeg vlc-plugin-x264; do
-  if pacman -Q "$package" >/dev/null 2>&1; then
-    print_exists "$package"
-  else
-    sudo pacman -S "$package" --needed --noconfirm
-  fi
+  install_pkg "$package"
 done
 
 # Configure WirePlumber - Sound Blaster GS5 analog stereo profile
