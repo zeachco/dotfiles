@@ -209,8 +209,10 @@ emit("%sdrain idle%s        %sunload what nobody is generating on%s" % (BOLD, OF
 emit("%sload%s              %spick from the models that are not resident%s" % (BOLD, OFF, DIM, OFF),
      "load",
      "load\n\n"
-     "  Lists every UNLOADED model across all routers and loads the one you pick,\n"
-     "  waiting until it actually reports 'loaded' rather than trusting the POST.\n\n"
+     "  Lists every UNLOADED model across all routers and loads what you pick, waiting\n"
+     "  until each actually reports 'loaded' rather than trusting the POST.\n\n"
+     "  Tab marks several; they load in the order shown. A failed load stops the batch --\n"
+     "  the cause is almost always memory, so the rest would fail the same way.\n\n"
      "  The heavy tier runs --no-models-autoload, so this is the only way to bring a\n"
      "  heavy model up from a shell; light/cheap would also autoload on first request.\n\n"
      "  Nothing coordinates memory between the routers. Loading a 91 GiB model with the\n"
@@ -220,8 +222,8 @@ emit("%sload%s              %spick from the models that are not resident%s" % (B
 emit("%sunload%s            %spick from the models that are resident%s" % (BOLD, OFF, DIM, OFF),
      "unload",
      "unload\n\n"
-     "  Lists every LOADED model across all routers and unloads the one you pick,\n"
-     "  keeping the router up. This is how GPU memory is given back.\n\n"
+     "  Lists every LOADED model across all routers and unloads what you pick, keeping\n"
+     "  the routers up. This is how GPU memory is given back. Tab marks several.\n\n"
      "  Unlike 'drain idle' this does not care whether the model is busy: unloading one\n"
      "  mid-generation kills that request. The preview marks which models are working.\n")
 
@@ -329,6 +331,54 @@ _los_menu_unload() {
     && echo ok || { echo FAILED; return 1; }
 }
 
+# Apply one verb to a newline-separated list of row keys.
+# Loads stop at the first failure: the usual cause is memory, and every later load in the
+# batch would fail the same way -- better one clear error than five.
+_los_menu_run_many() {
+  local dir="$1" keys="$2" verb="$3" k port id
+  while IFS= read -r k; do
+    [[ -z "$k" ]] && continue
+    port=$(_los_menu_meta "$dir" "$k" 4)
+    id=$(_los_menu_meta "$dir" "$k" 5)
+    if [[ "$verb" == load ]]; then
+      _los_menu_load "$port" "$id" || {
+        echo "los: stopping here -- a failed load is usually memory, so the rest of the" >&2
+        echo "     batch would fail too. Unload something and retry." >&2
+        return 1
+      }
+    else
+      _los_menu_unload "$port" "$id"
+    fi
+  done <<< "$keys"
+  return 0
+}
+
+# Toggle several models from the main list in one go.
+#
+# UNLOADS RUN FIRST, always. Marking "unload GLM" and "load qwen3.8" together is a swap,
+# and it only fits if the memory is freed before the load is attempted -- the routers do
+# not coordinate a budget, so doing it in selection order is exactly the OOM in
+# ryzen-llm-setup.md "Incident: the OOM of 2026-09-09".
+_los_menu_toggle_many() {
+  local dir="$1" keys="$2" k unloads= loads=
+  while IFS= read -r k; do
+    [[ -z "$k" ]] && continue
+    if [[ "$(_los_menu_meta "$dir" "$k" 2)" != model ]]; then
+      echo "los: actions run one at a time -- select models only, or the action alone" >&2
+      return 1
+    fi
+    if [[ "$(_los_menu_meta "$dir" "$k" 6)" == loaded ]]; then
+      unloads="$unloads$k"$'\n'
+    else
+      loads="$loads$k"$'\n'
+    fi
+  done <<< "$keys"
+
+  [[ -n "$unloads" ]] && { _los_menu_run_many "$dir" "$unloads" unload || return 1; }
+  [[ -n "$loads" ]]   && { _los_menu_run_many "$dir" "$loads" load   || return 1; }
+  return 0
+}
+
 # Unload only what has no slot generating, everywhere.
 _los_menu_drain_idle() {
   local spec tier port unit any=
@@ -387,15 +437,29 @@ los() {
     _los_menu_snapshot "$dir" "$LOS_MENU_TIERS" || { rm -rf "$dir"; return 1; }
     [[ -s "$dir/index.tsv" ]] || { echo "los: no routers reachable ($LOS_MENU_TIERS)" >&2; rm -rf "$dir"; return 1; }
 
-    local key
-    key=$(fzf --ansi --delimiter='\t' --with-nth=2.. \
+    # -m so several models can be toggled in one pass. With nothing marked, fzf returns
+    # the hovered row, so the single-selection path below is the normal case.
+    local keys
+    keys=$(fzf --ansi --multi --delimiter='\t' --with-nth=2.. \
               --height=100% --reverse --prompt='los > ' \
-              --header="$(cat "$dir/header.txt")" \
+              --header="$(cat "$dir/header.txt")"$'\n'"tab marks · models can be marked together, actions are one at a time" \
               --preview "cat $dir/{1}.txt" --preview-window='right:58%:wrap' \
               < "$dir/index.tsv" | cut -f1) || break
-    [[ -z "$key" ]] && break
+    [[ -z "$keys" ]] && break
 
-    local kind port id
+    # The separator is selectable; drop it rather than making it an error.
+    keys=$(printf '%s\n' "$keys" | while IFS= read -r k; do
+             [[ -z "$k" ]] && continue
+             [[ "$(_los_menu_meta "$dir" "$k" 2)" == sep ]] || printf '%s\n' "$k"
+           done)
+    [[ -z "$keys" ]] && continue
+
+    if [[ $(printf '%s\n' "$keys" | grep -c .) -gt 1 ]]; then
+      _los_menu_toggle_many "$dir" "$keys"
+      continue
+    fi
+
+    local key="$keys" kind port id
     kind=$(_los_menu_meta "$dir" "$key" 2)
     port=$(_los_menu_meta "$dir" "$key" 4)
     id=$(_los_menu_meta "$dir" "$key" 5)
@@ -413,13 +477,12 @@ los() {
                ' "$dir/meta.tsv" "$dir/index.tsv")
         [[ -z "$list" ]] && { echo "los: nothing to $want"; continue; }
         sub=$(printf '%s\n' "$list" |
-              fzf --ansi --delimiter='\t' --with-nth=2.. --height=100% --reverse \
+              fzf --ansi --multi --delimiter='\t' --with-nth=2.. --height=100% --reverse \
                   --prompt="$want > " --preview "cat $dir/{1}.txt" \
+                  --header="tab marks several · they are ${want}ed in the order shown" \
                   --preview-window='right:58%:wrap' | cut -f1) || continue
         [[ -z "$sub" ]] && continue
-        port=$(_los_menu_meta "$dir" "$sub" 4)
-        id=$(_los_menu_meta "$dir" "$sub" 5)
-        [[ "$want" == load ]] && _los_menu_load "$port" "$id" || _los_menu_unload "$port" "$id"
+        _los_menu_run_many "$dir" "$sub" "$want"
         ;;
       logs) _los_menu_logs ;;
       model)

@@ -146,7 +146,8 @@ GPU 33.1 GiB free of 125.1 GiB GTT  ·  1 loaded (DeepSeek-V4-Flash-chat-v2)
   light  qwen3.8                     unloaded  15.7 GiB on disk
 ```
 
-Enter on a model toggles it; the actions open a filtered sub-picker. Hovering anything
+Enter on a model toggles it; the actions open a filtered sub-picker. **Tab marks several
+models** — in the main list and in the load/unload pickers alike. Hovering anything
 previews it — for a model: its `.ini` section, resolved context and slot count, whether the KV
 pool is shared (`kv-unified`) or split per slot, KV quantization, offload, live slot state, and
 what it costs to load.
@@ -171,6 +172,13 @@ Three details that make it safe to open while the box is busy:
   `needs 27.1 GiB to load — fits, 33.1 GiB free` from the last time it was actually resident. A
   model never yet loaded says so rather than guessing: KV cost per token is arch-specific (MLA,
   hybrid attention, quantized KV all change it) and a wrong guess is what OOMs the box.
+
+Two rules make a multi-selection predictable. **Unloads always run before loads**, whatever
+order you marked things in: marking "unload GLM" and "load qwen3.8" together is a *swap*, and
+it only fits if the memory is freed first — the routers share no budget, so obeying selection
+order here is exactly the OOM below. And **a failed load stops the batch**, because the cause is
+almost always memory and every later load would fail identically. Actions can't be marked
+alongside models (they are one at a time); the separator row is ignored rather than an error.
 
 `drain idle` unloads only models with no slot generating, so it will not kill a request in
 flight. It is **not** a fence: autoload means the next request pulls a model straight back. To
