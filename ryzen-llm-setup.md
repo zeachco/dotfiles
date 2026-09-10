@@ -201,7 +201,8 @@ session is explicit: `los-drain` (unloads every model on :7070, keeps the router
 unloaded heavy model in pi gives `400 model is not loaded`; that is the tier refusing, not a bug. The light models reload on demand afterwards. That trade — an explicit step
 instead of a surprise eviction — is the whole point of the tier.
 
-pi sees it as a second provider, `llamacpp-heavy`; `llamacpp-sync` refreshes both.
+pi and opencode both see it as a second provider, `llamacpp-heavy`; `llamacpp-sync` refreshes
+every `llamacpp*` provider in both clients (the `sync-models` action in the `los` menu).
 
 ### Incident: the OOM of 2026-09-09 07:35
 
@@ -785,8 +786,13 @@ one entry per router model. Reference them elsewhere as `provider/model`:
 Switching on the fly, in order of convenience: the TUI model picker, `--model
 llamacpp/<id>` on the CLI, or a per-agent `model` override in the `agent` section. `small_model`
 routes cheap work (title generation) to the fan-out tier — worth pointing at the smallest model so it
-never wakes a big one. Note the current config's `"context": 32768` is a leftover placeholder;
-correct it per model or opencode will truncate far below what the server serves.
+never wakes a big one.
+
+The `models` map is not maintained by hand: `bin/llamacpp-sync` (the `sync-models` action in the
+`los` menu) rebuilds it from `/v1/models` for every `llamacpp*` provider, which is what keeps
+`limit.context` at the per-slot truth instead of the placeholder it used to drift to. It splices
+only that one object, so the comments and the `agent`/`mcp` blocks around it survive; every other
+key of an entry it finds — `name`, `tool_call`, a hand-set `reasoning` — is left alone.
 
 ### pi
 

@@ -1,28 +1,41 @@
 #!/usr/bin/env python3
-"""llamacpp-sync -- rebuild pi's llama.cpp model definitions from the live routers.
+"""llamacpp-sync -- rebuild the local clients' llama.cpp model defs from the live routers.
 
-For each `llamacpp*` provider in pi's models.json (~/.pi/agent/models.json):
+Two clients, one pass. For every `llamacpp*` provider in
+
+  * pi        ~/.pi/agent/models.json           providers.<name>.models  (JSON array)
+  * opencode  ~/.config/opencode/opencode.json  provider.<name>.models   (JSON object)
+
+it:
 
   * queries GET {baseUrl}/models (llama.cpp router OpenAI-compat API)
-  * rebuilds the provider's models[] list to match what the router serves now
-  * per-model tuning already in models.json (name, reasoning, thinkingLevelMap,
-    maxTokens, compat, cost, samplingParams) is preserved for models that
-    survive
+  * rebuilds the provider's model list to match what the router serves now
+  * per-model tuning already in the config is preserved for models that survive
+    (pi: name, reasoning, thinkingLevelMap, maxTokens, compat, cost, samplingParams;
+    opencode: every key the entry already carries -- name, tool_call, attachment, ...)
   * new models get defaults derived from router metadata:
-      contextWindow  <- launch args, per slot: --ctx-size, divided by
-                        --parallel unless --kv-unified (see per_slot_context)
-      input          <- architecture.input_modalities (text / text+image)
-      reasoning      <- heuristic (qwen3/deepseek/glm-4/gpt-oss/ministral/mistral)
+      context    <- launch args, per slot: --ctx-size, divided by
+                    --parallel unless --kv-unified (see per_slot_context)
+      input      <- architecture.input_modalities (text / text+image)
+      reasoning  <- heuristic (qwen3/deepseek/glm-4/gpt-oss/ministral/mistral)
   * models the router no longer serves are dropped
   * unreachable servers, empty model lists, or non-llama.cpp responses are
     skipped with a warning -- existing defs are kept
 
-Providers whose name does not start with `llamacpp` are left untouched.
-The file is rewritten through its real path so the dotfiles symlink in
-~/.pi/agent/ is never replaced.
+Providers whose name does not start with `llamacpp` are left untouched. Each config is
+rewritten through its real path, so the dotfiles symlinks in ~/.pi/agent/ and
+~/.config/opencode/ are never replaced by a regular file.
+
+The two clients are written differently on purpose. pi's models.json is plain JSON that
+this script owns, so it is re-serialized whole. opencode.json is JSONC and
+hand-maintained -- MCP servers, agent definitions, commented-out keys -- so only the
+`models` object of each llamacpp* provider is spliced in place and the rest of the file,
+comments included, comes out byte-identical. A json.dumps round-trip would silently eat
+those comments.
 
 Usage:
-  llamacpp-sync [--dry-run] [--provider NAME]... [--timeout SEC] [--models-json PATH]
+  llamacpp-sync [--dry-run] [--client pi|opencode]... [--provider NAME]...
+                [--timeout SEC] [--models-json PATH] [--opencode-json PATH]
 """
 
 import argparse
@@ -35,7 +48,10 @@ import urllib.error
 import urllib.request
 
 DEFAULT_MODELS_JSON = os.path.expanduser("~/.pi/agent/models.json")
+DEFAULT_OPENCODE_JSON = os.path.expanduser("~/.config/opencode/opencode.json")
 PREFIX = "llamacpp"
+DEFAULT_CONTEXT = 131072
+DEFAULT_MAX_TOKENS = 16384
 REASONING_HINT = re.compile(
     r"(qwen3|deepseek|glm-4|gpt-oss|ministral|mistral|kimi)", re.I
 )
@@ -45,10 +61,14 @@ def warn(msg):
     print(f"llamacpp-sync: {msg}", file=sys.stderr)
 
 
-def fetch_models(base_url, timeout):
+def models_url(base_url):
     url = base_url.rstrip("/")
     if not url.endswith("/models"):
         url += "/models"
+    return url
+
+
+def fetch_models(url, timeout):
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         payload = json.load(resp)
@@ -60,6 +80,35 @@ def fetch_models(base_url, timeout):
 
 def is_llamacpp(entry):
     return isinstance(entry.get("status"), dict) and "architecture" in entry
+
+
+_LIVE_CACHE = {}
+
+
+def live_models(base_url, timeout):
+    """Validated model list for one router, or (None, reason).
+
+    Cached by URL: pi and opencode point their llamacpp providers at the SAME routers,
+    so a single pass over both clients would otherwise ask each router the same question
+    twice -- and on a busy box each of those calls waits behind whatever is generating.
+    """
+    url = models_url(base_url)
+    if url in _LIVE_CACHE:
+        return _LIVE_CACHE[url]
+    try:
+        data = fetch_models(url, timeout)
+    except Exception as e:  # noqa: BLE001 - report and keep moving
+        result = (None, f"{base_url} unreachable ({e}); keeping existing models")
+    else:
+        live = [m for m in data if isinstance(m, dict) and m.get("id")]
+        if not live:
+            result = (None, f"{base_url} returned no models; keeping existing defs")
+        elif not all(is_llamacpp(m) for m in live):
+            result = (None, f"{base_url} is not a llama.cpp router; skipped")
+        else:
+            result = (live, None)
+    _LIVE_CACHE[url] = result
+    return result
 
 
 def arg_value(args, flag):
@@ -106,23 +155,59 @@ def per_slot_context(args):
     return ctx
 
 
-def build_model(live, existing):
-    ex = existing or {}
+def live_facts(live):
+    """(per-slot context or None, has image input, reasoning guess) for one live model."""
     args = (live.get("status") or {}).get("args") or []
     modalities = (live.get("architecture") or {}).get("input_modalities") or []
+    return (
+        per_slot_context(args),
+        "image" in modalities,
+        bool(REASONING_HINT.search(live["id"])),
+    )
 
-    ctx = per_slot_context(args)
+
+def write_atomic(real, text):
+    """Replace `real` in one rename, never truncating it in place.
+
+    Both clients re-read their config on their own schedule (pi on every /model open),
+    and a half-written models.json is a client that comes up with no models at all.
+    """
+    fd, tmp = tempfile.mkstemp(
+        dir=os.path.dirname(real) or ".", prefix=".llamacpp-sync.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+        os.chmod(tmp, os.stat(real).st_mode & 0o7777)
+        os.replace(tmp, real)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+
+def report(name, base_url, items, added, removed, describe):
+    """One block per provider: what it serves now, what appeared, what went away."""
+    print(f"{name} ({base_url}): {len(items)} models")
+    for mid, model in items:
+        print(f"  {mid}  {describe(model)}{'  added' if mid in added else ''}")
+    if removed:
+        print(f"  removed: {', '.join(removed)}")
+
+
+# --------------------------------------------------------------------- pi
+def build_pi_model(live, existing):
+    ex = existing or {}
+    ctx, has_image, reasoning_guess = live_facts(live)
 
     model = {
         "id": live["id"],
         "name": ex.get("name") or live["id"],
-        "contextWindow": ctx or ex.get("contextWindow") or 131072,
-        "maxTokens": ex.get("maxTokens") or 16384,
-        "input": ["text"] + (["image"] if "image" in modalities else []),
+        "contextWindow": ctx or ex.get("contextWindow") or DEFAULT_CONTEXT,
+        "maxTokens": ex.get("maxTokens") or DEFAULT_MAX_TOKENS,
+        "input": ["text"] + (["image"] if has_image else []),
     }
-    model["reasoning"] = (
-        ex["reasoning"] if "reasoning" in ex else bool(REASONING_HINT.search(live["id"]))
-    )
+    model["reasoning"] = ex["reasoning"] if "reasoning" in ex else reasoning_guess
     for key in ("thinkingLevelMap", "compat", "cost", "samplingParams"):
         if ex.get(key) is not None:
             model[key] = ex[key]
@@ -132,7 +217,7 @@ def build_model(live, existing):
     return model
 
 
-def sync(models_path, provider_filter, timeout, dry_run):
+def sync_pi(models_path, provider_filter, timeout, dry_run):
     real = os.path.realpath(models_path)
     with open(real) as f:
         doc = json.load(f)
@@ -153,56 +238,239 @@ def sync(models_path, provider_filter, timeout, dry_run):
             warn(f"provider '{name}' has no baseUrl; skipped")
             continue
 
-        try:
-            live = fetch_models(base_url, timeout)
-        except Exception as e:  # noqa: BLE001 - report and keep moving
-            warn(f"{name}: {base_url} unreachable ({e}); keeping existing models")
-            continue
-        live = [m for m in live if isinstance(m, dict) and m.get("id")]
-        if not live:
-            warn(f"{name}: {base_url} returned no models; keeping existing defs")
-            continue
-        if not all(is_llamacpp(m) for m in live):
-            warn(f"{name}: {base_url} is not a llama.cpp router; skipped")
+        live, reason = live_models(base_url, timeout)
+        if live is None:
+            warn(f"{name}: {reason}")
             continue
 
         old = {m["id"]: m for m in cfg.get("models") or [] if isinstance(m, dict)}
-        new = [build_model(m, old.get(m["id"])) for m in live]
+        new = [build_pi_model(m, old.get(m["id"])) for m in live]
         new_ids = {m["id"] for m in new}
-        added = [m["id"] for m in new if m["id"] not in old]
-        removed = [i for i in old if i not in new_ids]
+        added = {m["id"] for m in new if m["id"] not in old}
 
         cfg["models"] = new
-        print(f"{name} ({base_url}): {len(new)} models")
-        for m in new:
-            flags = []
-            if m["id"] in added:
-                flags.append("added")
-            print(
-                f"  {m['id']}  ctx={m['contextWindow']} "
-                f"in={'+'.join(m['input'])} reasoning={'on' if m['reasoning'] else 'off'} "
-                f"{' '.join(flags)}"
-            )
-        if removed:
-            print(f"  removed: {', '.join(removed)}")
+        report(
+            name, base_url, [(m["id"], m) for m in new], added,
+            [i for i in old if i not in new_ids],
+            lambda m: (
+                f"ctx={m['contextWindow']} in={'+'.join(m['input'])} "
+                f"reasoning={'on' if m['reasoning'] else 'off'}"
+            ),
+        )
 
     if dry_run:
-        print("dry-run: no changes written")
+        print("dry-run: no changes written to pi")
         return 0
 
-    fd, tmp = tempfile.mkstemp(
-        dir=os.path.dirname(real) or ".", prefix=".models.json.", suffix=".tmp"
-    )
-    try:
-        with os.fdopen(fd, "w") as f:
-            json.dump(doc, f, indent=2, ensure_ascii=False)
-            f.write("\n")
-        os.replace(tmp, real)
-    except BaseException:
-        os.unlink(tmp)
-        raise
+    write_atomic(real, json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
     print(f"updated {real}")
     print("pi picks this up on the next /model open -- no restart needed")
+    return 0
+
+
+# --------------------------------------------------------------- opencode
+def build_opencode_model(live, existing):
+    """One entry of opencode's provider.<name>.models object.
+
+    Unknown keys are carried through untouched: opencode's model schema is wider than
+    what a router can report (options, cost, temperature...) and this script is not the
+    owner of any of it -- it only owns membership and what /v1/models actually knows.
+    """
+    ex = dict(existing or {})
+    ctx, has_image, reasoning_guess = live_facts(live)
+
+    model = dict(ex)
+    model["name"] = ex.get("name") or live["id"]
+
+    limit = dict(ex.get("limit") or {})
+    limit["context"] = ctx or limit.get("context") or DEFAULT_CONTEXT
+    limit["output"] = limit.get("output") or DEFAULT_MAX_TOKENS
+    model["limit"] = limit
+
+    # llama.cpp serves tool calls for any chat model with a template, so default it on;
+    # it is a per-model knob to turn off for the small ones that answer with prose
+    # instead of a call. attachment/reasoning come from the router, then stay hand-tuned.
+    model.setdefault("tool_call", True)
+    model["attachment"] = ex["attachment"] if "attachment" in ex else has_image
+    model["reasoning"] = ex["reasoning"] if "reasoning" in ex else reasoning_guess
+    return model
+
+
+def blank_comments(text):
+    """`text` with // and /* */ comments replaced by spaces, byte-for-byte same length.
+
+    Same length is the whole point: offsets found in this copy index straight back into
+    the original, which is what lets one `models` object be spliced out of a JSONC file
+    while every comment and every hand-formatted block around it survives verbatim.
+    """
+    out = list(text)
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':  # string -- comment markers inside it are just characters
+            i += 1
+            while i < n and text[i] != '"':
+                i += 2 if text[i] == "\\" else 1
+            i += 1
+        elif c == "/" and text[i : i + 2] == "//":
+            while i < n and text[i] != "\n":
+                out[i] = " "
+                i += 1
+        elif c == "/" and text[i : i + 2] == "/*":
+            while i < n and text[i : i + 2] != "*/":
+                if text[i] != "\n":  # keep line numbering and offsets both intact
+                    out[i] = " "
+                i += 1
+            for j in range(i, min(i + 2, n)):
+                out[j] = " "
+            i += 2
+        else:
+            i += 1
+    return "".join(out)
+
+
+def _skip_ws(s, i):
+    while i < len(s) and s[i] in " \t\r\n":
+        i += 1
+    return i
+
+
+def _end_of_value(s, i):
+    """Index just past the JSON value starting at s[i]. Assumes s parses."""
+    if s[i] == '"':
+        i += 1
+        while s[i] != '"':
+            i += 2 if s[i] == "\\" else 1
+        return i + 1
+    if s[i] in "{[":
+        depth = 0
+        while i < len(s):
+            c = s[i]
+            if c == '"':
+                i = _end_of_value(s, i)
+                continue
+            if c in "{[":
+                depth += 1
+            elif c in "}]":
+                depth -= 1
+                if depth == 0:
+                    return i + 1
+            i += 1
+        raise ValueError("unterminated object/array")
+    j = i
+    while j < len(s) and s[j] not in ",}] \t\r\n":
+        j += 1
+    return j
+
+
+def _member_span(s, i, key):
+    """(start, end) of the value of `key` in the object at s[i], or None."""
+    i = _skip_ws(s, i)
+    if i >= len(s) or s[i] != "{":
+        return None
+    i += 1
+    while True:
+        i = _skip_ws(s, i)
+        if i >= len(s) or s[i] == "}":
+            return None
+        k_end = _end_of_value(s, i)
+        name = json.loads(s[i:k_end])
+        i = _skip_ws(s, k_end)
+        if i >= len(s) or s[i] != ":":
+            return None
+        v_start = _skip_ws(s, i + 1)
+        v_end = _end_of_value(s, v_start)
+        if name == key:
+            return v_start, v_end
+        i = _skip_ws(s, v_end)
+        if i < len(s) and s[i] == ",":
+            i += 1
+
+
+def value_span(s, path):
+    """(start, end) of the value at `path` (a list of object keys), or None."""
+    span, start = None, _skip_ws(s, 0)
+    for key in path:
+        span = _member_span(s, start, key)
+        if span is None:
+            return None
+        start = span[0]
+    return span
+
+
+def reindent(obj, column):
+    """`obj` as JSON whose continuation lines sit at `column`, matching the file."""
+    body = json.dumps(obj, indent=2, ensure_ascii=False)
+    return ("\n" + " " * column).join(body.split("\n"))
+
+
+def sync_opencode(config_path, provider_filter, timeout, dry_run):
+    real = os.path.realpath(config_path)
+    with open(real) as f:
+        raw = f.read()
+    blank = blank_comments(raw)
+    doc = json.loads(blank)
+    providers = doc.get("provider") or {}
+
+    wanted = provider_filter or [k for k in providers if k.startswith(PREFIX)]
+    if not wanted:
+        warn(f"no {PREFIX}* providers found in {config_path}")
+        return 1
+
+    edits = []
+    for name in wanted:
+        cfg = providers.get(name)
+        if cfg is None:
+            warn(f"provider '{name}' not in {config_path}; skipped")
+            continue
+        base_url = ((cfg.get("options") or {}).get("baseURL")) if isinstance(cfg, dict) else None
+        if not base_url:
+            warn(f"provider '{name}' has no options.baseURL; skipped")
+            continue
+        span = value_span(blank, ["provider", name, "models"])
+        if span is None:
+            warn(f"provider '{name}' has no models object to replace; skipped")
+            continue
+
+        live, reason = live_models(base_url, timeout)
+        if live is None:
+            warn(f"{name}: {reason}")
+            continue
+
+        old = cfg.get("models") if isinstance(cfg.get("models"), dict) else {}
+        by_id = {m["id"]: m for m in live}
+        # Keep the file's own order and append newcomers, rather than adopting the
+        # router's order: this object is read and edited by hand, and a sync that
+        # reshuffles it turns "one model appeared" into an unreviewable diff.
+        ids = [i for i in old if i in by_id] + [i for i in by_id if i not in old]
+        new = {i: build_opencode_model(by_id[i], old.get(i)) for i in ids}
+        added = {i for i in new if i not in old}
+
+        line_start = raw.rfind("\n", 0, span[0]) + 1
+        head = raw[line_start : span[0]]
+        edits.append((span, reindent(new, len(head) - len(head.lstrip()))))
+        report(
+            name, base_url, list(new.items()), added,
+            [i for i in old if i not in new],
+            lambda m: (
+                f"ctx={m['limit']['context']} "
+                f"attachment={'on' if m['attachment'] else 'off'} "
+                f"reasoning={'on' if m['reasoning'] else 'off'}"
+            ),
+        )
+
+    if dry_run:
+        print("dry-run: no changes written to opencode")
+        return 0
+    if not edits:
+        return 0
+
+    # Back to front: an earlier splice would move every later span.
+    for (start, end), text in sorted(edits, key=lambda e: e[0][0], reverse=True):
+        raw = raw[:start] + text + raw[end:]
+    write_atomic(real, raw)
+    print(f"updated {real}")
+    print("opencode reads its config at startup -- restart it to see the change")
     return 0
 
 
@@ -212,9 +480,20 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     ap.add_argument(
+        "--client",
+        action="append",
+        choices=("pi", "opencode"),
+        help="client to sync; repeatable (default: both)",
+    )
+    ap.add_argument(
         "--models-json",
         default=DEFAULT_MODELS_JSON,
         help=f"path to pi models.json (default: {DEFAULT_MODELS_JSON})",
+    )
+    ap.add_argument(
+        "--opencode-json",
+        default=DEFAULT_OPENCODE_JSON,
+        help=f"path to opencode.json (default: {DEFAULT_OPENCODE_JSON})",
     )
     ap.add_argument(
         "--provider",
@@ -226,10 +505,24 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="show what would change")
     args = ap.parse_args()
 
-    if not os.path.exists(args.models_json):
-        warn(f"no models.json at {args.models_json}")
-        return 1
-    return sync(args.models_json, args.provider, args.timeout, args.dry_run)
+    clients = args.client or ["pi", "opencode"]
+    paths = {"pi": args.models_json, "opencode": args.opencode_json}
+    syncs = {"pi": sync_pi, "opencode": sync_opencode}
+
+    rc = 0
+    for client in clients:
+        path = paths[client]
+        if not os.path.exists(path):
+            # Named explicitly it is an error; in the default both-clients pass it just
+            # means that client is not installed on this box.
+            if args.client:
+                warn(f"no {client} config at {path}")
+                rc = 1
+            continue
+        if len(clients) > 1:
+            print(f"---- {client}")
+        rc = syncs[client](path, args.provider, args.timeout, args.dry_run) or rc
+    return rc
 
 
 if __name__ == "__main__":

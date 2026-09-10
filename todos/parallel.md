@@ -36,9 +36,13 @@ parallelism:
   but does not diff section names against the router's ids, and a section matching no id is
   ignored silently. The macOS helpers in `variants/osx/profile.sh` remain a separate
   implementation.
-- **Consolidate the three model resolvers.** Deferred — `bin/llamacpp-sync` (Python, pi),
-  `plugins/llamacpp-model-sync.ts` (opencode), and `_ai_tools.sh:_ai_resolve_model` all implement
-  overlapping versions of "ask the router what it serves"; the menu is now a fourth reader of
-  `/v1/models`, though a read-only one.
+- **Consolidate the three model resolvers.** *Half done 2026-09-10* — `bin/llamacpp-sync` now
+  writes both clients (pi's `models.json` and opencode's `opencode.json`), and the `los` menu's
+  `sync-models` action is the one entry point. That makes
+  `configs/opencode/.config/opencode/plugins/llamacpp-model-sync.ts` redundant, and it is worth
+  deleting rather than keeping: it throws on the `//` comment in `opencode.json` and silently
+  no-ops today, and if that comment ever went away it would start round-tripping the file through
+  `JSON.stringify` — eating every comment the next one adds. Still open: `_ai_tools.sh:_ai_resolve_model`
+  is a third reader of `/v1/models`, and the menu a fourth (read-only).
 - **Faster models.** Untouched. The cheap tier now has a fast path for shell calls, but nothing new
   was downloaded.

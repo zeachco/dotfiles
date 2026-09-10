@@ -238,6 +238,27 @@ emit("%slogs%s              %sfollow a router's journal%s" % (BOLD, OFF, DIM, OF
      "  a Vulkan/GGML allocation error in the router's log while the client just sees a\n"
      "  400. Ctrl-C to stop following.\n")
 
+emit("%ssync-models%s       %spush the routers' model list into pi and opencode%s" % (BOLD, OFF, DIM, OFF),
+     "sync-models",
+     "sync-models\n\n"
+     "  Rewrites the llamacpp* model lists of the two clients from what the routers\n"
+     "  serve right now, and leaves the change as a git diff in ~/dotfiles to review:\n\n"
+     "    pi        configs/pi/.pi/agent/models.json\n"
+     "    opencode  configs/opencode/.config/opencode/opencode.json\n\n"
+     "  Both live paths (~/.pi/agent/, ~/.config/opencode/) are stowed symlinks, and the\n"
+     "  sync writes through to the real file, so what it changes is git-tracked -- `gd`\n"
+     "  after. Providers not named llamacpp* are never touched.\n\n"
+     "  Refreshed: membership (models a router dropped go away) and the facts only the\n"
+     "  router knows -- PER-SLOT context (--ctx-size divided by --parallel unless\n"
+     "  --kv-unified, which is the number a chat can actually fill) and image input.\n"
+     "  Preserved: every hand-tuning -- display names, thinkingLevelMap, tool_call,\n"
+     "  maxTokens, cost. New models arrive with guessed defaults worth a look.\n\n"
+     "  Loads nothing: /v1/models reports unloaded models too, so a fully idle box\n"
+     "  still syncs the complete set -- no need to load anything first.\n\n"
+     "  pi re-reads models.json the next time you open /model. opencode reads its\n"
+     "  config at startup, so restart it.\n\n"
+     "  Same thing as `llamacpp-sync` in a shell, and what dotfiles_update runs.\n")
+
 emit("%s%s%s" % (DIM, "─" * 58, OFF), "sep", "(separator -- pick a model below, or an action above)")
 
 wid = max([len(r["id"]) for r in rows] + [10])
@@ -405,6 +426,21 @@ except Exception: print(-1)' 2>/dev/null)
   return 0
 }
 
+# Rewrite pi's and opencode's model definitions from the live routers.
+#
+# The pause matters: the menu loop redraws fzf over the full terminal height the moment
+# this returns, and the list of added/removed models -- the only output worth reading --
+# would be painted over before it was read.
+_los_menu_sync_models() {
+  local sync="${DOT_DIR:-$HOME/dotfiles}/bin/llamacpp-sync"
+  [[ -x "$sync" ]] || { echo "los: no llamacpp-sync at $sync" >&2; return 1; }
+  "$sync" "$@"
+  local rc=$?
+  printf '\n%s' "[enter] back to the menu "
+  read -r
+  return $rc
+}
+
 _los_menu_logs() {
   local spec tier port unit pick
   pick=$(for spec in $LOS_MENU_TIERS; do
@@ -423,6 +459,7 @@ los() {
       echo "los                            interactive menu over the llama.cpp routers"
       echo "los-load <model>               load a model and wait until it reports loaded"
       echo "los-drain [url]                unload everything on a router (default :7070)"
+      echo "llamacpp-sync                  the menu's sync-models action, non-interactive"
       echo "los-server-{light,cheap,heavy} run a router in the FOREGROUND (the daemons'"
       echo "                               journals are the menu's 'logs' action instead)"
       return 0 ;;
@@ -485,6 +522,7 @@ los() {
         _los_menu_run_many "$dir" "$sub" "$want"
         ;;
       logs) _los_menu_logs ;;
+      sync-models) _los_menu_sync_models ;;
       model)
         if [[ "$(_los_menu_meta "$dir" "$key" 6)" == loaded ]]; then
           _los_menu_unload "$port" "$id"
