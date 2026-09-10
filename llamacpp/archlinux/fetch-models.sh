@@ -119,7 +119,7 @@ fetch Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF qwen2.5-coder-0.5b-instruct-q4_k_m.g
 
 echo
 echo "Done. Restart the router to pick up new models:"
-echo "  systemctl --user restart llama-router   # or: killport 7070 && los"
+echo "  systemctl --user restart llama-router   # or: killport 7070 && los-server-light"
 echo "Then check nothing has drifted:"
 echo "  bash $HOME/dotfiles/bin/llamacpp-audit"
 

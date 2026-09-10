@@ -29,11 +29,16 @@ parallelism:
 
 ## Still open
 
-- **`los-models` and friends on Linux.** `variants/osx/profile.sh` already has `los-models`,
-  `los-loaded`, `los-unload`, `los-check`; Linux has none. They should move into
-  `llamacpp/shared/_llama.sh` rather than being duplicated. Tracked as part of the deferred
-  "consolidate the three model resolvers" work — `bin/llamacpp-sync` (Python, pi),
+- **`los-models` and friends on Linux.** *Largely addressed 2026-09-10* by the `los` fzf menu
+  (`llamacpp/shared/_los_menu.sh`): listing, load, unload, per-model config and live slot state
+  are all in one place, across all three tiers rather than the one router the macOS helpers
+  assume. Still open: `los-check` has no equivalent — the menu shows each model's `.ini` section
+  but does not diff section names against the router's ids, and a section matching no id is
+  ignored silently. The macOS helpers in `variants/osx/profile.sh` remain a separate
+  implementation.
+- **Consolidate the three model resolvers.** Deferred — `bin/llamacpp-sync` (Python, pi),
   `plugins/llamacpp-model-sync.ts` (opencode), and `_ai_tools.sh:_ai_resolve_model` all implement
-  overlapping versions of "ask the router what it serves".
+  overlapping versions of "ask the router what it serves"; the menu is now a fourth reader of
+  `/v1/models`, though a read-only one.
 - **Faster models.** Untouched. The cheap tier now has a fast path for shell calls, but nothing new
   was downloaded.

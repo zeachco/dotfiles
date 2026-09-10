@@ -39,8 +39,8 @@ docker() {
 # re-applying here on each shell start.
 #
 # These are los-PREFIXED helpers, deliberately not a redefinition of `los` --
-# llamacpp/shared/_llama.sh owns `los`/`los-heavy`/`los-cheap` as the foreground
-# launchers, and these wrap the launchd agent instead.
+# llamacpp/shared/_llama.sh owns `los-server-light`/`los-server-heavy`/`los-server-cheap` as the foreground
+# launchers and `los` is the fzf menu in _los_menu.sh; these wrap the launchd agent instead.
 LOS_LABEL="com.zeachco.llama-router"
 LOS_URL="http://127.0.0.1:7070"
 LOS_LOG="$HOME/Library/Logs/llama-router/router.log"

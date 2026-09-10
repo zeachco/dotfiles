@@ -268,8 +268,10 @@ _set gt "git_test"
 # Source media streaming utilities
 [[ -f "$DOT_DIR/variants/shared/_streaming.sh" ]] && source "$DOT_DIR/variants/shared/_streaming.sh"
 
-# Source llama.cpp utilities
+# Source llama.cpp utilities -- _llama.sh owns the launchers and verbs, _los_menu.sh the
+# `los` fzf menu that fronts them (and calls back into los-load, so order matters).
 [[ -f "$DOT_DIR/llamacpp/shared/_llama.sh" ]] && source "$DOT_DIR/llamacpp/shared/_llama.sh"
+[[ -f "$DOT_DIR/llamacpp/shared/_los_menu.sh" ]] && source "$DOT_DIR/llamacpp/shared/_los_menu.sh"
 
 power() {
   upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep 'state\|percentage'

@@ -48,13 +48,23 @@ _los_router() {
 # Small/medium models, up to 5 resident -- matches llama-router.service's --models-max
 # so a foreground run behaves like the unit. DeepSeek-class is excluded by directory.
 # Use this for a foreground/ad-hoc run (`killport 7070` first if the service owns :7070).
-los() { _los_router light 5 "$@"; }
+#
+# Renamed from `los` to los-server-light on 2026-09-10, when plain `los` became the fzf menu
+# over all three routers (llamacpp/shared/_los_menu.sh). The los-server-* prefix is the point
+# of the rename: these three START A SERVER in the foreground, which is a different kind of
+# thing from the verbs below (los-load / los-drain, which talk to a router already running)
+# and from the menu. `los-light` would have read like "show me the light tier".
+#
+# Daemon logs are NOT here -- the three routers normally run as systemd --user units, and
+# their journals are the `logs` action in the `los` menu. Use these launchers for a
+# foreground/ad-hoc run instead, e.g. on a different LOS_PORT or with a different build.
+los-server-light() { _los_router light 5 "$@"; }
 
 # One model at a time, the big ones, on :7072 -- mirroring llama-router-heavy.service.
 # No longer mutually exclusive with `los` by PORT, but still by MEMORY: the routers do
 # not coordinate, so with qwen3.8 + GLM resident on :7070 an 87 GiB load here fails on
 # the GPU. `los-drain` first. See ryzen-llm-setup.md "The heavy tier".
-los-heavy() { LOS_PORT="${LOS_PORT:-7072}" _los_router heavy 1 --no-models-autoload "$@"; }
+los-server-heavy() { LOS_PORT="${LOS_PORT:-7072}" _los_router heavy 1 --no-models-autoload "$@"; }
 
 # Load a heavy-tier model explicitly (the heavy router runs --no-models-autoload, so a
 # request for an unloaded model is refused with 400 "model is not loaded" instead of
@@ -119,4 +129,4 @@ for m in json.load(sys.stdin).get("data",[]):
 # request refreshes the target's timestamp. A tab-title call every few seconds therefore
 # keeps the small model freshest and makes the ~28 GiB qwen3.8 the eviction victim during
 # any idle gap. Separate port, separate LLAMA_CACHE, one model resident.
-los-cheap() { LOS_PORT="${LOS_PORT:-7071}" _los_router cheap 1 "$@"; }
+los-server-cheap() { LOS_PORT="${LOS_PORT:-7071}" _los_router cheap 1 "$@"; }

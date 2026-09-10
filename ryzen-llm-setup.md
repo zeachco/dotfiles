@@ -12,9 +12,17 @@ or die), then speed.
 - `~/dev/llama.cpp` on **`master`**, built in `build/` with **`GGML_VULKAN=ON`,
   `GGML_HIP=OFF`** — Vulkan only. `llamacpp/archlinux/update.sh` fast-forwards and
   rebuilds it on every `dotfiles_update`; see "Keeping the build current" below.
-- `llamacpp/shared/_llama.sh` defines the three tier launchers over one `_los_router` helper:
-  `los` (light, :7070), `los-cheap` (:7071), `los-heavy` (one model at a time). The original
-  fzf-over-`ollama list` launcher was deleted along with ollama itself — see "Retiring ollama".
+- `llamacpp/shared/_llama.sh` defines the three foreground **server** launchers over one
+  `_los_router` helper — `los-server-light` (:7070), `los-server-cheap` (:7071),
+  `los-server-heavy` (one model at a time) — plus the verbs `los-load` / `los-drain`, which talk
+  to a router that is already running. The original fzf-over-`ollama list` launcher was deleted
+  along with ollama itself — see "Retiring ollama".
+- `llamacpp/shared/_los_menu.sh` defines **`los`**, one fzf menu over all three routers: drain
+  idle / load / unload / logs, then every model with its state. Hovering previews the model's
+  `.ini` section, context and slot layout, KV layout, and what it costs to load. See "The `los`
+  menu" below. (Plain `los` was the light-tier launcher until 2026-09-10; it is now
+  `los-server-light`, and the `los-server-*` prefix marks the three that start a server rather
+  than inspect one.)
 - `~/models/DeepSeek-V4-Flash-chat-v2/…-chat-v2-imatrix-fixed.gguf` — **90.9 GiB** hand-tuned mixed
   quant (layers 37–42 experts Q4_K, other expert layers IQ2_XXS gate/up, Q2_K down,
   attn-proj/shared-experts/output Q8). `general.architecture = deepseek4`.
@@ -119,6 +127,54 @@ then open a new shell — an existing shell keeps the old `AI_LLAMA_URL`); and
 red ("llama-router active, endpoint unavailable"). That daemon also polls `/v1/models` and
 `/slots?model=…&autoload=false` every 2 s (`POLL_SECONDS`) — that is the steady "proxying
 request" line in the router journal, not a client.
+
+## The `los` menu
+
+`los` (in `llamacpp/shared/_los_menu.sh`) is one fzf entry point over all three routers. The
+los-* verbs are still the scriptable interface and the menu calls them; this exists because
+remembering which of `los-load` / `los-drain` / `los-server-heavy` did what was the actual
+friction.
+
+```
+GPU 33.1 GiB free of 125.1 GiB GTT  ·  1 loaded (DeepSeek-V4-Flash-chat-v2)
+  drain idle        unload what nobody is generating on
+  load              pick from the models that are not resident
+  unload            pick from the models that are resident
+  logs              follow a router's journal
+  ──────────────────────────────────────────
+  heavy  DeepSeek-V4-Flash-chat-v2   busy      91.5 GiB GTT
+  light  qwen3.8                     unloaded  15.7 GiB on disk
+```
+
+Enter on a model toggles it; the actions open a filtered sub-picker. Hovering anything
+previews it — for a model: its `.ini` section, resolved context and slot count, whether the KV
+pool is shared (`kv-unified`) or split per slot, KV quantization, offload, live slot state, and
+what it costs to load.
+
+Three details that make it safe to open while the box is busy:
+
+- **Everything comes from one `/v1/models` call per tier.** The router reports `status.args`
+  and `status.preset` for *unloaded* models too, so a 91 GiB model previews its full
+  configuration without being touched. Previews are pre-rendered files, so hovering never
+  re-queries a router.
+- **`&autoload=false` on every `/slots` probe.** A model can unload between the `/v1/models`
+  snapshot and the liveness probe; without the guard, asking a router for slot state *reloads*
+  the model. Opening a menu must never trigger a multi-GiB load. Same guard `framework-rgb`
+  polls with (see "Ports").
+- **The `logs` action follows the daemons**, i.e. the systemd `--user` units in the Ports table.
+  A tier started by hand with `los-server-<tier>` is not a unit and has no journal — its output
+  goes to the terminal it was started in.
+- **Footprints are measured, never estimated.** Weights-on-disk badly understates what a model
+  needs — `qwen3.8` is 15.7 GiB of weights and ~40 GiB resident once its KV pool exists. Real
+  GTT is read from the child's fdinfo (amdgpu pins GPU memory outside RSS, so `ps` shows ~42 MiB
+  for a 91 GiB model) and cached in `~/.cache/los-menu/resident.tsv`, so an unloaded model shows
+  `needs 27.1 GiB to load — fits, 33.1 GiB free` from the last time it was actually resident. A
+  model never yet loaded says so rather than guessing: KV cost per token is arch-specific (MLA,
+  hybrid attention, quantized KV all change it) and a wrong guess is what OOMs the box.
+
+`drain idle` unloads only models with no slot generating, so it will not kill a request in
+flight. It is **not** a fence: autoload means the next request pulls a model straight back. To
+keep a tier down for a heavy session, stop its unit. See the incident below.
 
 ## The heavy tier
 
@@ -250,7 +306,7 @@ rm -rf ~/.ollama                           # the ~95 GB of weights
 ```
 
 Repo-side, this removed `llama-ollama-server`/`los-pick`, `_los_free_memory` **and its call site
-in `_los_router`** (deleting the function alone would have broken `los` and `los-heavy`),
+in `_los_router`** (deleting the function alone would have broken `los` and `los-server-heavy`),
 `codeai`/`speakai`/`pie_score`, the macOS `OLLAMA_CONTEXT_LENGTH` `launchctl setenv` and
 `los-free`, and the unused `variants/debian/Modelfile`. Nothing in any `setup.sh` installed
 ollama, so there is no risk of `setup.sh` reinstating it — the only `ollama` strings left in
@@ -390,20 +446,20 @@ _los_router() {
 
 # Small/medium models, up to 5 resident -- matches llama-router.service's --models-max.
 # DeepSeek-class is excluded by directory.
-los() { _los_router light 5 "$@"; }
+los-server-light() { _los_router light 5 "$@"; }
 
 # One model at a time, the big ones.
-los-heavy() { _los_router heavy 1 "$@"; }
+los-server-heavy() { _los_router heavy 1 "$@"; }
 
 # High-frequency shell traffic only, on its own port. See "The cheap tier".
-los-cheap() { LOS_PORT="${LOS_PORT:-7071}" _los_router cheap 1 "$@"; }
+los-server-cheap() { LOS_PORT="${LOS_PORT:-7071}" _los_router cheap 1 "$@"; }
 ```
 
-`los` binds :7070, `los-cheap` :7071 and `los-heavy` :7072 — the same ports as the three
+`los-server-light` binds :7070, `los-server-cheap` :7071 and `los-server-heavy` :7072 — the same ports as the three
 systemd units, so a foreground run of any tier behaves like its service. Run `los-drain` before a
 heavy session: the routers do not coordinate memory (see "The heavy tier" below).
 Extra args pass straight through, and children inherit the router's argv _and_ environment, so
-`GGML_VK_FORCE_MAX_ALLOCATION_SIZE=… los-heavy` works as expected.
+`GGML_VK_FORCE_MAX_ALLOCATION_SIZE=… los-server-heavy` works as expected.
 
 Separate `LLAMA_CACHE` per tier is what stops an `-hf` pull in one tier from showing up in the other.
 
@@ -515,8 +571,8 @@ half of `nproc` by default, capping ggml's own thread pool the same way CPUQuota
 Override either with `LOS_CPU_QUOTA=<percent>` / `LOS_THREADS=<n>` `bash
 llamacpp/archlinux/install.sh` to re-render, or `systemctl --user edit
 llama-router.service` to override `CPUQuota=` directly without touching the tracked template. The
-same `LOS_THREADS` default applies to the manual `los`/`los-heavy` launchers in `_llama.sh`. The
-heavy tier stays a manual `los-heavy` invocation, never a service, since it is mutually exclusive
+same `LOS_THREADS` default applies to the manual `los-server-light`/`los-server-heavy` launchers in `_llama.sh`. The
+heavy tier stays a manual `los-server-heavy` invocation, never a service, since it is mutually exclusive
 with the light tier on :7070.
 
 ## Phase 2 — Size the context for a 90.9 GiB model
@@ -586,7 +642,7 @@ cmake --build ~/dev/llama.cpp/build-hip -j
 - Watch for **llama.cpp #17917**, a ROCm 7.x prompt-processing regression on Strix Halo (you'd be on
   7.2.4). If measured pp at depth doesn't beat Vulkan, that's why — stay on Vulkan and revisit.
 - A router runs **one binary**, so per-model backend choice isn't a preset key. Mixing backends means
-  two routers on two ports (`LLAMA_CPP_BUILD=~/dev/llama.cpp/build-hip LOS_PORT=7072 los-heavy`), not
+  two routers on two ports (`LLAMA_CPP_BUILD=~/dev/llama.cpp/build-hip LOS_PORT=7072 los-server-heavy`), not
   two presets.
 
 ## Phase 5 — Model set
@@ -781,14 +837,14 @@ the whole conversation each turn.
 ## Verification
 
 1. `cat /sys/class/drm/card1/device/mem_info_gtt_total` → ~128 GiB after the Phase 0 reboot.
-2. `los`, then `curl -s localhost:7070/v1/models | jq -r '.data[].id'` → the light tier only, with
+2. `los-server-light`, then `curl -s localhost:7070/v1/models | jq -r '.data[].id'` → the light tier only, with
    **no DeepSeek entry**. That absence is the test that the directory + `LLAMA_CACHE` filtering works.
-3. `killport 7070; los-heavy`, then the same call → DeepSeek present. Send it a request and confirm
+3. `killport 7070; los-server-heavy`, then the same call → DeepSeek present. Send it a request and confirm
    it loads. **Loading at all is the proof Phase 0 worked.** Check the child log for full offload: no
    CPU buffer for weight tensors, `llama_prepare_model_devices` reporting >100 GiB free.
 4. A `/v1/chat/completions` call with a tool definition → well-formed `tool_calls` (validates
    `--jinja` against the deepseek4 template).
-5. Autoload/LRU: on `los`, request two different models in sequence and watch `GET /models/sse`
+5. Autoload/LRU: on `los-server-light`, request two different models in sequence and watch `GET /models/sse`
    report `loading` → `loaded`, and the LRU unload once `--models-max` is hit. Confirm `free -g`
    returns to baseline after an unload.
 6. On-the-fly switch: same curl twice with different `"model"` values, and an opencode session
