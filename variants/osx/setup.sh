@@ -80,21 +80,35 @@ fi
 # herdr with no args launches or attaches to the persistent session
 HERDR_PATH=$(which herdr 2>/dev/null || echo "$HOME/.local/bin/herdr")
 
-# Launch through a login shell so the herdr *server* inherits a real PATH.
-# Alacritty starts from launchd with PATH=/usr/bin:/bin:/usr/sbin:/sbin, the
-# client spawns the server as a child, and the server hands its own environment
-# to every plugin command and [[keys.command]] entry. Without this, anything
-# outside those four directories -- bun, gh, every brew binary -- fails to spawn
-# with "No such file or directory (os error 2)" (visible in `herdr plugin log`).
+# Launch through an interactive login shell so the herdr *server* inherits a
+# real PATH. Alacritty starts from launchd with PATH=/usr/bin:/bin:/usr/sbin:
+# /sbin, the client spawns the server as a child, and the server hands its own
+# environment to every plugin command and [[keys.command]] entry. Without this,
+# anything outside those four directories fails to spawn with "No such file or
+# directory (os error 2)" (visible in `herdr plugin log`).
+#
+# Both flags are load-bearing, and -i is the subtle one: zsh sources ~/.zshrc
+# only for *interactive* shells, and ~/.zshrc is where every PATH export lives
+# (bun, ~/.local/bin, lmstudio, gcloud) because ~/.zshenv is empty and there is
+# no ~/.zprofile. A plain `-l -c` therefore gets only path_helper's PATH, which
+# does carry /opt/homebrew/bin -- so `gh` and the brew binaries resolve and the
+# server looks fixed, while `bun` alone still fails and takes every PR Tracker
+# hook and action with it. Verify a change here from a clean environment, not
+# from an inherited one:
+#   env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+#     "$SHELL" -l -i -c 'command -v bun'
+#
 # Pane shells were never affected: terminal.shell_mode = "auto" already makes
-# them login shells on macOS, which is why $PATH looks fine inside a pane.
+# them interactive login shells on macOS, which is why $PATH looks fine inside
+# a pane. A PATH change reaches the server only when Alacritty is relaunched --
+# restarting the server alone respawns it from the client's stale environment.
 LOGIN_SHELL="${SHELL:-/bin/zsh}"
 
 rm -f ~/.config/alacritty/os.toml
 cat >~/.config/alacritty/os.toml <<EOF
 [terminal.shell]
 program = "$LOGIN_SHELL"
-args = ["-l", "-c", "exec '$HERDR_PATH'"]
+args = ["-l", "-i", "-c", "exec '$HERDR_PATH'"]
 EOF
 
 # call `defaults delete <property>` to reset to default
