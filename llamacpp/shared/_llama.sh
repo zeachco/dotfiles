@@ -16,7 +16,41 @@ ensure_llama_cpp() {
   return 1
 }
 
-LOS_CONF_DIR="${LOS_CONF_DIR:-$HOME/dotfiles/llamacpp/archlinux}"
+# ---- per-OS layout -----------------------------------------------------------------
+# The three-tier split is a Linux-only SHAPE, not a preference. On the Strix Halo box
+# each tier gets its own models directory, its own ini and its own port, because 128 GiB
+# of unified memory can hold a light set and a 90.9 GiB DeepSeek in separate routers
+# with a CPUQuota on each.
+#
+# The Mac has ONE 37.4 GiB Metal working set, a FLAT ~/models, and one preset file
+# (llamacpp/osx/osx.ini, which the launchd plist also points at) whose three models
+# already measure 33.06 GiB together. So `light` is the only tier that exists there and
+# the other two are refused outright -- pointed at the Arch inis, a Mac run would
+# advertise a 90.9 GiB DeepSeek out of a ~/models/heavy that does not exist.
+#
+# These launchers were unreachable on the Mac until 2026-09-11 (ensure_llama_cpp bailed
+# for want of a ~/dev/llama.cpp build), which is why the Arch-shaped defaults below were
+# never a problem before llamacpp/osx/update.sh started producing one.
+_los_is_mac() { [[ "$(uname -s)" == "Darwin" ]]; }
+
+if _los_is_mac; then
+  LOS_CONF_DIR="${LOS_CONF_DIR:-$HOME/dotfiles/llamacpp/osx}"
+else
+  LOS_CONF_DIR="${LOS_CONF_DIR:-$HOME/dotfiles/llamacpp/archlinux}"
+fi
+
+# nproc is GNU coreutils and does NOT exist on macOS: `$(( $(nproc) / 2 ))` is a math
+# error there, not a fallback. /usr/sbin is absent from PATH inside a devbox shell (and
+# those are auto-entered on cd), so sysctl gets its absolute path first.
+_los_ncpu() {
+  if command -v nproc >/dev/null 2>&1; then
+    nproc
+  elif [[ -x /usr/sbin/sysctl ]]; then
+    /usr/sbin/sysctl -n hw.ncpu
+  else
+    sysctl -n hw.ncpu 2>/dev/null || echo 2
+  fi
+}
 
 # Router mode: no -m, so llama-server loads nothing itself and forks one child
 # process per model, routed on the JSON body's "model" field. See
@@ -30,13 +64,42 @@ LOS_CONF_DIR="${LOS_CONF_DIR:-$HOME/dotfiles/llamacpp/archlinux}"
 # other two outside their units, e.g. on a different LOS_PORT.
 _los_router() {
   local tier="$1" max="$2"; shift 2
-  local half_cores=$(( $(nproc) / 2 ))
+  local ini models_dir cache ncpu half_cores
+
+  if _los_is_mac; then
+    if [[ "$tier" != "light" ]]; then
+      echo "_los_router: there is no '$tier' tier on macOS -- one 37.4 GiB Metal pool," >&2
+      echo "  one flat ~/models, one preset (llamacpp/osx/osx.ini). The Arch ini would" >&2
+      echo "  advertise models this box cannot hold. See llamacpp/osx/osx.ini's budget." >&2
+      return 1
+    fi
+    ini="$LOS_CONF_DIR/osx.ini"
+    models_dir="$HOME/models"
+    # The SAME cache as the launchd agent, on purpose: pinning LLAMA_CACHE is what makes
+    # GET /v1/models return exactly the directories under ~/models, so a foreground run
+    # with its own cache would enumerate a different model set than the daemon does.
+    cache="$HOME/.cache/llama.cpp-router"
+  else
+    ini="$LOS_CONF_DIR/$tier.ini"
+    models_dir="$HOME/models/$tier"
+    cache="$HOME/.cache/llama.cpp-$tier"
+  fi
+
+  # Fail on the missing piece by name. llama-server starts happily with a models dir
+  # that is not there and a preset it cannot read, then serves an empty model list --
+  # a router that answers /health and has nothing to route.
+  [[ -f "$ini" ]] || { echo "_los_router: no preset file at $ini" >&2; return 1; }
+  [[ -d "$models_dir" ]] || { echo "_los_router: no models directory at $models_dir" >&2; return 1; }
+
+  ncpu="$(_los_ncpu)"
+  [[ -n "$ncpu" ]] || ncpu=2
+  half_cores=$(( ncpu / 2 ))
   ((half_cores < 1)) && half_cores=1
   ensure_llama_cpp || return 1
-  LLAMA_CACHE="$HOME/.cache/llama.cpp-$tier" \
+  LLAMA_CACHE="$cache" \
     "$LLAMA_CPP_BUILD/bin/llama-server" \
-      --models-dir "$HOME/models/$tier" \
-      --models-preset "$LOS_CONF_DIR/$tier.ini" \
+      --models-dir "$models_dir" \
+      --models-preset "$ini" \
       --models-max "$max" \
       --host 127.0.0.1 --port "${LOS_PORT:-7070}" \
       -to 3600 \
@@ -58,7 +121,17 @@ _los_router() {
 # Daemon logs are NOT here -- the three routers normally run as systemd --user units, and
 # their journals are the `logs` action in the `los` menu. Use these launchers for a
 # foreground/ad-hoc run instead, e.g. on a different LOS_PORT or with a different build.
-los-server-light() { _los_router light 5 "$@"; }
+# --models-max mirrors whatever serves this tier as a daemon on THIS host, so a
+# foreground run behaves like it: 5 on Linux (llama-router.service), 4 on the Mac (the
+# launchd plist). On the Mac the agent owns :7070, so boot it out first --
+# `launchctl bootout gui/$(id -u)/com.zeachco.llama-router` -- or pass a free LOS_PORT.
+los-server-light() {
+  if _los_is_mac; then
+    _los_router light 4 "$@"
+  else
+    _los_router light 5 "$@"
+  fi
+}
 
 # One model at a time, the big ones, on :7072 -- mirroring llama-router-heavy.service.
 # No longer mutually exclusive with `los` by PORT, but still by MEMORY: the routers do
