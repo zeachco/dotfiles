@@ -32,20 +32,34 @@ if ! command -v brew >/dev/null 2>&1; then
 fi
 BREW="$(brew --prefix)"
 
-# llama.cpp v0.3.0 ships a multi-tool `llama` AND per-subcommand `llama-*` binaries
-# (its brew test asserts on both). Prefer the explicit server binary and fall back to
-# the subcommand form, so a future rename degrades instead of producing a plist whose
-# argv[0] does not exist -- launchd reports that as posix_spawn error 2 in
-# `launchctl print` and writes nothing at all to the log file.
+# Three candidates, in preference order. A plist whose argv[0] does not exist is the
+# worst outcome available here: launchd reports it as posix_spawn error 2 inside
+# `launchctl print` and writes nothing at all to the log file, so the router looks
+# installed and is simply dead.
+#
+# 1. The source build from update.sh, when there is one. It tracks master, so it is
+#    the binary that can load architectures the brew formula has never heard of.
+#    Built with GGML_METAL_EMBED_LIBRARY=ON and an @loader_path rpath, so it needs no
+#    metallib and no DYLD_* next to it -- unlike the brew build, whose backends are
+#    dlopen'd from $BREW/opt/ggml/libexec (see the plist's GGML_BACKEND_PATH note).
+# 2. brew's `llama-server`.
+# 3. brew's multi-tool `llama` with a `server` subcommand: v0.3.0 ships both and its
+#    brew test asserts on both, so a future rename degrades instead of breaking.
+SOURCE_BUILD="${LLAMA_CPP_BUILD:-$HOME/dev/llama.cpp/build}/bin/llama-server"
 SUBCOMMAND=""
-if [[ -x "$BREW/opt/llama.cpp/bin/llama-server" ]]; then
+if [[ -x "$SOURCE_BUILD" ]]; then
+  LLAMA_SERVER="$SOURCE_BUILD"
+  echo "llama router: using the source build ($LLAMA_SERVER)"
+elif [[ -x "$BREW/opt/llama.cpp/bin/llama-server" ]]; then
   LLAMA_SERVER="$BREW/opt/llama.cpp/bin/llama-server"
 elif [[ -x "$BREW/opt/llama.cpp/bin/llama" ]]; then
   echo "llama router: llama-server not found, using the 'llama server' subcommand"
   LLAMA_SERVER="$BREW/opt/llama.cpp/bin/llama"
   SUBCOMMAND="server"
 else
-  echo "llama router skipped: llama.cpp is not installed (brew install llama.cpp)"
+  echo "llama router skipped: no llama.cpp binary found"
+  echo "                     build it:   bash $DOT_DIR/llamacpp/osx/update.sh"
+  echo "                     or install: brew install llama.cpp"
   exit 0
 fi
 

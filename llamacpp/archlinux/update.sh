@@ -52,9 +52,11 @@ good() { echo -e "${PASS}llama.cpp:${NORM} $*"; }
 # the exact "MAX+ 395 w/ Radeon 8060S" string so a 385 or a BIOS that reformats the
 # model name still matches; omarchy pins it to this desktop rather than a bare Arch
 # server that happens to share the silicon.
+. "$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)/../shared/_hw-gate.sh"
+
 is_strix_halo_omarchy() {
   [[ -d /usr/share/omarchy ]] || return 1
-  grep -qi "ryzen ai max" /proc/cpuinfo 2>/dev/null || return 1
+  is_ryzen_ai_max || return 1
   return 0
 }
 

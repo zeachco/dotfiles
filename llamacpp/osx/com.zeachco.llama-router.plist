@@ -7,7 +7,8 @@
   "$(brew --prefix)" are literal strings, in paths and in EnvironmentVariables alike.
   Every absolute path is therefore baked in at install time, which substitutes:
 
-    @LLAMA_SERVER@  absolute path to the server binary (from `brew --prefix`)
+    @LLAMA_SERVER@  absolute path to the server binary -- the ~/dev/llama.cpp
+                    source build when update.sh has produced one, else brew's
     @SUBCOMMAND@    substituted with `server`, or the whole line deleted
     @HOME@          $HOME
     @BREW@          $(brew --prefix)   -- /opt/homebrew or /usr/local
@@ -20,10 +21,11 @@
   <key>Label</key>
   <string>com.zeachco.llama-router</string>
 
-  <!-- launchd never PATH-resolves argv[0]; it must be absolute. The opt/ symlink is
-       stable across `brew upgrade` (it points into the versioned Cellar), so an
-       upgrade does not invalidate this path -- but the running process keeps the old
-       dylibs mapped, so run `los-restart` after upgrading llama.cpp. -->
+  <!-- launchd never PATH-resolves argv[0]; it must be absolute. Both candidate
+       paths are stable: brew's opt/ symlink points into the versioned Cellar, and the
+       source build lives at a fixed ~/dev/llama.cpp/build/bin. In both cases the
+       RUNNING process keeps the old dylibs mapped after an upgrade or a rebuild, so
+       run `los-restart` once the new binary is in place. -->
   <key>ProgramArguments</key>
   <array>
     <string>@LLAMA_SERVER@</string>
