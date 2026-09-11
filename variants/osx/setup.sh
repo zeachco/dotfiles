@@ -112,3 +112,8 @@ defaults write -g NSWindowShouldDragOnGesture -bool true
 # All llama.cpp setup (brew install, router install, optional model fetch via
 # LOS_FETCH_MODELS=1) lives in llamacpp/.
 bash "$DOT_DIR/llamacpp/osx/setup.sh"
+
+# Must stay last: the Stow relinks above leave a running Alacritty reloaded
+# against a half-written config, which drops the Nerd Font. See
+# nudge_alacritty_reload in utils.sh.
+nudge_alacritty_reload

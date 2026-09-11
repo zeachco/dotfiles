@@ -201,3 +201,29 @@ function stow_link() {
   # Use regular stow since we've already removed conflicts
   stow --target="$HOME" "$pkg" 2>&1 || stow --target="$HOME" --restow "$pkg"
 }
+
+# Alacritty live-reloads its config (live_config_reload defaults to true), and a
+# dotfiles run rewrites that config underneath any running terminal. The churn is
+# unavoidable: ~/.config/alacritty/look.toml is owned by *two* Stow packages --
+# the shared `alacritty` one (window padding only) and the per-OS
+# `alacritty-<os>` one (which is where the Nerd Font family is set) -- so
+# stow_link deletes and relinks it on every run. Alacritty debounces the whole
+# burst of Stow events into a single reload, which can land while look.toml
+# still points at the fontless shared copy. The terminal then falls back to
+# Menlo, every Nerd Font glyph turns into a box in nvim's file tree, and it
+# stays that way until Alacritty is restarted -- the later os.toml rewrite is
+# inside the same debounce window and does not wake the watcher again.
+#
+# Bumping the mtimes once everything has settled forces one final reload against
+# the correct files. Called at the end of a variant's setup, after the last write.
+function nudge_alacritty_reload() {
+  local dir="$HOME/.config/alacritty"
+  [[ -d "$dir" ]] || return 0
+  # find rather than a glob: these setup scripts are run through $SHELL, so on a
+  # zsh box an unmatched *.toml would abort the function instead of expanding to
+  # nothing. touch follows the Stow symlinks and bumps the repo file's mtime,
+  # which is what Alacritty's watcher is looking at.
+  find "$dir" -maxdepth 1 -name '*.toml' -exec touch {} + 2>/dev/null
+  echo -e "${INFO}reloaded ${NORM}alacritty config"
+  return 0
+}
