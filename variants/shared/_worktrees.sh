@@ -127,8 +127,10 @@ herdr_branch_repo() {
   fi
 
   # Devbox shell in the root pane, then the editor in the same pane once the
-  # shell exits.
-  herdr pane run "$root_pane" "cd \"$target_path\" && ds && e ."
+  # shell exits. This is the one pane of the workspace that runs the devbox
+  # setup (DEVBOX_SETUP=1); ds defaults to 0 everywhere else, so panes added
+  # later on the same worktree reuse what this one installed.
+  herdr pane run "$root_pane" "cd \"$target_path\" && DEVBOX_SETUP=1 ds && e ."
 
   # Auto-name the tab from its own PR/commits when no explicit name was
   # given, in a second pane split below that closes itself once done, so the

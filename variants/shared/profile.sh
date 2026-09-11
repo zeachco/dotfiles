@@ -119,7 +119,6 @@ _set theme "$DOT_DIR/bin/theme-switch"
 _set lt "eza --tree --level=2 --long --icons --git --git-ignore --ignore-glob='.git'"
 _set lg "lazygit"
 _set ld "lazydocker"
-_set ds "devbox shell"
 _set oo "opencode"
 _set prs "gh pr list  --author \"@me\""
 
@@ -300,6 +299,17 @@ ai() {
 #   check_for_devbox
 # }
 
+# Enter a devbox shell. DEVBOX_SETUP defaults to 0 so a repo's init hook skips
+# its (slow) setup: with several panes on the same worktree only one of them
+# should install anything. `wt` runs exactly one pane per workspace with
+# DEVBOX_SETUP=1, so the setup still happens once. Override by hand the same
+# way: `DEVBOX_SETUP=1 ds`.
+ds() {
+  local setup="${DEVBOX_SETUP:-0}"
+  use "DEVBOX_SETUP=$setup devbox shell"
+  DEVBOX_SETUP="$setup" devbox shell "$@"
+}
+
 check_for_devbox() {
   if [[ -f "devbox.json" ]]; then
 
@@ -313,7 +323,8 @@ check_for_devbox() {
       echo "Found devbox.json. Entering devbox shell..."
       which devbox >/dev/null || curl -fsSL https://get.jetify.com/devbox | bash
       export DEVBOX_WORKING_DIR="$(pwd)"
-      devbox shell
+      # auto-entered shells (cd / new pane) never own the setup — see ds()
+      DEVBOX_SETUP="${DEVBOX_SETUP:-0}" devbox shell
       echo "You've exited devbox from!"
     fi
   fi
