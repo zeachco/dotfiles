@@ -264,6 +264,10 @@ _git_base_ref() {
 #               pane happens to live in *right now* — which is the wrong one
 #               as soon as anything else (all_my_prs) opens another tab while
 #               this pane boots.
+#   --no-tab    rename the workspace only and leave every tab alone. What wt
+#               wants: its tabs are named after their job (edit/tests/ai), so
+#               the name belongs on the space they share. Needs --workspace-id
+#               unless a tab id is given to resolve it from.
 #   --workspace-id=W
 #               the workspace to rename alongside the tab. The sidebar rows are
 #               drawn from the *workspace* label (ui.sidebar.spaces/agents in
@@ -282,37 +286,51 @@ tab_autoname() {
     return 1
   fi
 
-  local tab_id="" workspace_id="" known_pr="" hint="" arg
+  local tab_id="" workspace_id="" known_pr="" hint="" rename_tab=1 arg
   for arg in "$@"; do
     case "$arg" in
     --tab-id=*) tab_id="${arg#*=}" ;;
     --workspace-id=*) workspace_id="${arg#*=}" ;;
+    --no-tab) rename_tab=0 ;;
     --pr=*) known_pr="${arg#*=}" ;;
     *) hint="${hint:+$hint }$arg" ;;
     esac
   done
 
-  if [ -z "$tab_id" ]; then
+  if [ -z "$tab_id" ] && [ "$rename_tab" = 1 ]; then
     # interactive use only: with no id given, fall back to the tab of the
     # pane this was typed in
     tab_id="$HERDR_TAB_ID"
+    if [ -z "$tab_id" ]; then
+      echo "Error: could not get the current tab id"
+      return 1
+    fi
   fi
-  if [ -z "$tab_id" ]; then
-    echo "Error: could not get the current tab id"
-    return 1
-  fi
-  if [ -z "$workspace_id" ]; then
+  if [ -z "$workspace_id" ] && [ -n "$tab_id" ]; then
     # the workspace owning that tab, so the sidebar gets renamed too
     workspace_id=$(herdr tab get "$tab_id" 2>/dev/null | jq -r '.result.tab.workspace_id // empty')
   fi
-  _ai_debug "tab-autoname: renaming tab id $tab_id / workspace id ${workspace_id:-unknown} (pr=${known_pr:-unknown})"
+  if [ -z "$workspace_id" ] && [ "$rename_tab" = 0 ]; then
+    echo "Error: --no-tab needs a workspace to rename (--workspace-id=W)"
+    return 1
+  fi
+  _ai_debug "tab-autoname: renaming tab id ${tab_id:-none} / workspace id ${workspace_id:-unknown} (pr=${known_pr:-unknown})"
 
   # What this pane sits on. Both can come up empty: the workspace may have no
   # git repo linked at all, or be parked on a detached HEAD with no branch to
   # name — either way there is nothing branch-shaped for the model to chew on.
-  local repo_root repo_name="" branch=""
+  local repo_root repo_name="" branch="" common_dir=""
   if repo_root=$(git rev-parse --show-toplevel 2>/dev/null) && [ -n "$repo_root" ]; then
-    repo_name=$(basename "$repo_root")
+    # In a linked worktree --show-toplevel is the worktree directory, so its
+    # basename is the *branch* ("PED-1234:PED-1234"). The repo is named after
+    # the main checkout, which is what wt labels spaces with and what
+    # all_my_prs dedups on — get there through the shared .git dir.
+    common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+    if [ -n "$common_dir" ]; then
+      repo_name=$(basename "$(dirname "$common_dir")")
+    else
+      repo_name=$(basename "$repo_root")
+    fi
     branch=$(git branch --show-current 2>/dev/null)
   fi
 
@@ -402,11 +420,13 @@ tab_autoname() {
 
   # rename by stable tab id, never by focus: this runs in a throwaway pane and
   # the focused tab has very likely moved on by now
-  if herdr tab rename "$tab_id" "$new_name" >/dev/null 2>&1; then
-    echo "Tab renamed to '$new_name'"
-  else
-    echo "Error: failed to rename tab id $tab_id"
-    return 1
+  if [ "$rename_tab" = 1 ]; then
+    if herdr tab rename "$tab_id" "$new_name" >/dev/null 2>&1; then
+      echo "Tab renamed to '$new_name'"
+    else
+      echo "Error: failed to rename tab id $tab_id"
+      return 1
+    fi
   fi
 
   # And the workspace behind it: that label is what the sidebar draws, and

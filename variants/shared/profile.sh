@@ -301,9 +301,10 @@ ai() {
 
 # Enter a devbox shell. DEVBOX_SETUP defaults to 0 so a repo's init hook skips
 # its (slow) setup: with several panes on the same worktree only one of them
-# should install anything. `wt` runs exactly one pane per workspace with
-# DEVBOX_SETUP=1, so the setup still happens once. Override by hand the same
-# way: `DEVBOX_SETUP=1 ds`.
+# should install anything. `wt` gives every workspace a throwaway `setup...`
+# tab that runs `DEVBOX_SETUP=1 devbox run` once, so the setup still happens —
+# the four shells it opens all enter with 0. Override by hand the same way:
+# `DEVBOX_SETUP=1 ds`.
 ds() {
   local setup="${DEVBOX_SETUP:-0}"
   use "DEVBOX_SETUP=$setup devbox shell"

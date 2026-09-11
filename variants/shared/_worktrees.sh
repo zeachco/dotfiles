@@ -4,10 +4,18 @@
 # HERDR & WORKTREE UTILITIES
 # ==============================================================================
 
-# Open a Herdr workspace (devbox shell + editor) on a branch's worktree.
-# Usage: herdr_branch_repo <branch|PR url|JIRA url> [tab_label] [--pr=N]
-# --pr=N names the tab "#N: <branch>" from the start and hands the number to
-# tab_autoname, so the tab is identifiable before the async rename lands.
+# Open another tab on the same worktree in an existing Herdr workspace.
+# Usage: _wt_new_tab <workspace_id> <cwd> <label>  ->  "<tab_id>\t<pane_id>"
+_wt_new_tab() {
+  herdr tab create --workspace "$1" --cwd "$2" --label "$3" --no-focus 2>/dev/null |
+    jq -r '[(.result.tab.tab_id // ""), (.result.root_pane.pane_id // "")] | @tsv' 2>/dev/null
+}
+
+# Open a Herdr workspace on a branch's worktree, with a tab per job: edit,
+# tests, ai and a throwaway setup tab (see the layout comment further down).
+# Usage: herdr_branch_repo <branch|PR url|JIRA url> [label] [--pr=N]
+# --pr=N labels the space "#N: <branch>" from the start and hands the number to
+# tab_autoname, so the space is identifiable before the async rename lands.
 herdr_branch_repo() {
   if [ -z "$HERDR_ENV" ]; then
     echo "Error: Not in a Herdr session"
@@ -59,8 +67,8 @@ herdr_branch_repo() {
   if [ -n "$tab_label" ]; then
     tab_name="${repo_name}:${tab_label}"
   elif [ -n "$pr_number" ]; then
-    # key the tab on the PR number immediately: all_my_prs dedups on it, so it
-    # must not depend on the async tab_autoname rename having landed
+    # key the space on the PR number immediately: all_my_prs dedups on it, so
+    # it must not depend on the async tab_autoname rename having landed
     tab_name="#${pr_number}: ${branch_name}"
   elif [ -n "$tab_prefix" ]; then
     tab_name="$tab_prefix"
@@ -116,39 +124,75 @@ herdr_branch_repo() {
   fi
 
   # Herdr already had this worktree open and handed back its existing tab. Its
-  # answer beats any label match: a tab renamed by tab_autoname before its PR
+  # answer beats any label match: a space renamed by tab_autoname before its PR
   # existed carries neither "#<number>: " nor "<repo>:<branch>". Stop here —
-  # running the pane command again would cd and restart the editor on top of
-  # whatever is running in that pane. Return 2 so callers can count it apart.
+  # running the pane commands again would cd and restart the editor on top of
+  # whatever is running in those panes. Return 2 so callers can count it apart.
   already_open=$(echo "$result" | jq -r '.result.already_open // false')
   if [ "$already_open" = "true" ]; then
     echo "Already open in tab id $tab_id at $target_path"
     return 2
   fi
 
-  # Devbox shell in the root pane, then the editor in the same pane once the
-  # shell exits. This is the one pane of the workspace that runs the devbox
-  # setup (DEVBOX_SETUP=1); ds defaults to 0 everywhere else, so panes added
-  # later on the same worktree reuse what this one installed.
-  herdr pane run "$root_pane" "cd \"$target_path\" && DEVBOX_SETUP=1 ds && e ."
+  # Four tabs on the worktree, one workspace. The sidebar row is drawn from the
+  # *workspace* label, so that one keeps the branch/PR name and the tabs are
+  # named after what you do in them instead:
+  #
+  #   edit     devbox shell with `e .` waiting, unrun, at the prompt
+  #   tests    devbox shell, empty
+  #   ai       devbox shell, empty
+  #   setup…   names the space, runs the repo's devbox setup, names it again
+  #            now that a PR/commits may exist, then closes itself
+  #
+  # Only the setup tab runs the repo's init hook (DEVBOX_SETUP=1). Every other
+  # shell enters with 0, so the four panes don't each install the same
+  # dependencies on top of one another.
+  herdr tab rename "$tab_id" "edit" >/dev/null 2>&1
+  herdr pane run "$root_pane" "cd \"$target_path\" && DEVBOX_SETUP=0 ds"
+  # Typed, not run: `e .` lands as typeahead and sits at the devbox shell's
+  # prompt until you hit Enter. Appending it to the line above with && would
+  # instead run it in the *outer* shell, after the devbox shell is exited.
+  herdr pane send-text "$root_pane" "e ." >/dev/null 2>&1
 
-  # Auto-name the tab from its own PR/commits when no explicit name was
-  # given, in a second pane split below that closes itself once done, so the
-  # slow gh/model calls never hold up the devbox shell or the editor. The tab
-  # id has to be passed in: that pane cannot work out on its own which tab it
-  # lives in, it would only ever see whichever tab is focused.
-  if [ -z "$tab_label" ] && [ "$branch_name" != "main" ] && [ "$branch_name" != "master" ]; then
-    local autoname_pane autoname_cmd
-    autoname_pane=$(herdr pane split "$root_pane" --direction down --cwd "$target_path" --no-focus | jq -r '.result.pane.pane_id // empty')
-    if [ -n "$autoname_pane" ]; then
-      autoname_cmd="tab_autoname --tab-id=$tab_id"
-      [ -n "$workspace_id" ] && autoname_cmd="$autoname_cmd --workspace-id=$workspace_id"
-      [ -n "$pr_number" ] && autoname_cmd="$autoname_cmd --pr=$pr_number"
-      herdr pane run "$autoname_pane" "$autoname_cmd; exit"
-    fi
+  if [ -z "$workspace_id" ]; then
+    echo "Warning: could not resolve the workspace; only the edit tab was opened"
+    echo "Space '$tab_name' ready at $target_path"
+    return 0
   fi
 
-  echo "Tab '$tab_name' (id $tab_id) ready at $target_path"
+  local label tab_pane
+  for label in tests ai; do
+    tab_pane=$(_wt_new_tab "$workspace_id" "$target_path" "$label" | cut -f2)
+    [ -n "$tab_pane" ] && herdr pane run "$tab_pane" "cd \"$target_path\" && DEVBOX_SETUP=0 ds"
+  done
+
+  local setup_out setup_tab setup_pane setup_cmd autoname_cmd=""
+  setup_out=$(_wt_new_tab "$workspace_id" "$target_path" "setup...")
+  setup_tab=$(printf '%s' "$setup_out" | cut -f1)
+  setup_pane=$(printf '%s' "$setup_out" | cut -f2)
+  if [ -n "$setup_pane" ]; then
+    # Auto-name the space from its own PR/commits when no explicit name was
+    # given. --no-tab because the tabs carry roles now, not names — only the
+    # workspace label is renamed. It runs twice: once up front so the sidebar
+    # stops showing the raw branch name while the (slow) setup runs, once after
+    # in case a PR or the first commits landed in the meantime.
+    if [ -z "$tab_label" ] && [ "$branch_name" != "main" ] && [ "$branch_name" != "master" ]; then
+      autoname_cmd="tab_autoname --no-tab --workspace-id=$workspace_id"
+      [ -n "$pr_number" ] && autoname_cmd="$autoname_cmd --pr=$pr_number"
+    fi
+    setup_cmd="cd \"$target_path\""
+    [ -n "$autoname_cmd" ] && setup_cmd="$setup_cmd; $autoname_cmd"
+    # `ds` can't be used here: it opens an interactive shell that never hands
+    # control back, so nothing after it would ever run and this tab would never
+    # close. `devbox run` runs the very same init hook and returns.
+    setup_cmd="$setup_cmd; DEVBOX_SETUP=1 devbox run -- true"
+    [ -n "$autoname_cmd" ] && setup_cmd="$setup_cmd; $autoname_cmd"
+    # last thing: this takes down the pane running it
+    [ -n "$setup_tab" ] && setup_cmd="$setup_cmd; herdr tab close $setup_tab"
+    herdr pane run "$setup_pane" "$setup_cmd"
+  fi
+
+  echo "Space '$tab_name' ready at $target_path (tabs: edit, tests, ai, setup...)"
 }
 _set wt "herdr_branch_repo"
 
@@ -177,8 +221,10 @@ all_my_prs() {
     return 0
   fi
 
-  local open_tabs
-  open_tabs=$(herdr tab list 2>/dev/null | jq -r '.result.tabs[].label')
+  # dedup on the *workspace* labels: wt's tabs are named after their job
+  # (edit/tests/ai), the space is what carries the PR/branch name
+  local open_spaces
+  open_spaces=$(herdr workspace list 2>/dev/null | jq -r '.result.workspaces[].label')
 
   # make sure the PR branches are known locally before creating worktrees
   git fetch origin --quiet </dev/null 2>/dev/null
@@ -192,18 +238,18 @@ all_my_prs() {
     echo ""
     echo "=== PR #${number} (${branch}) ==="
 
-    # Match every name a tab for this PR can carry. "#<number>: ..." is given
+    # Match every name a space for this PR can carry. "#<number>: ..." is given
     # at creation time and preserved by tab_autoname; "<repo>:<branch>" covers
-    # tabs opened before PR-numbered names, whose autoname never landed, or
+    # spaces opened before PR-numbered names, whose autoname never landed, or
     # whose autoname deliberately fell back to it (no PR, or no summary).
     # Both are deterministic — dedup must not depend on the async rename.
-    if printf '%s\n' "$open_tabs" | grep -q "^#${number}\([^0-9]\|$\)"; then
-      echo "Skipping: a tab starting with '#${number}' is already open."
+    if printf '%s\n' "$open_spaces" | grep -q "^#${number}\([^0-9]\|$\)"; then
+      echo "Skipping: a space starting with '#${number}' is already open."
       skipped=$((skipped + 1))
       continue
     fi
-    if printf '%s\n' "$open_tabs" | grep -qxF "${repo_name}:${branch}"; then
-      echo "Skipping: a tab named '${repo_name}:${branch}' is already open."
+    if printf '%s\n' "$open_spaces" | grep -qxF "${repo_name}:${branch}"; then
+      echo "Skipping: a space named '${repo_name}:${branch}' is already open."
       skipped=$((skipped + 1))
       continue
     fi
@@ -213,7 +259,7 @@ all_my_prs() {
     0)
       count=$((count + 1))
       # keep the snapshot in step, in case the same PR shows up twice
-      open_tabs=$(printf '%s\n#%s: %s' "$open_tabs" "$number" "$branch")
+      open_spaces=$(printf '%s\n#%s: %s' "$open_spaces" "$number" "$branch")
       ;;
     2)
       skipped=$((skipped + 1))
