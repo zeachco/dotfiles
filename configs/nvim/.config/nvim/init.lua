@@ -119,7 +119,6 @@ local nvim_to_herdr_theme_map = {
   ["rose-pine-main"] = "rose-pine",
   ["rose-pine-moon"] = "rose-pine",
   ["rose-pine-dawn"] = "rose-pine-dawn",
-  ["noctis-bordo"] = "vesper",
 }
 
 -- Apply transparency if enabled
