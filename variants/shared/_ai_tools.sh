@@ -253,9 +253,11 @@ _git_base_ref() {
 # commit subjects since main/master when no PR exists.
 #
 # Nothing to summarize gets a deterministic name instead of a model call:
-# "<repo>:<branch>" when the tab is bound to no PR and sits on main/master (and
-# as the fallback whenever the model comes up empty on a PR-less branch), and
-# ".../<dir>" when no git repo is linked from the workspace at all.
+# "<repo>:<branch>" when the tab is bound to no PR and sits on main/master, or
+# when the branch has no commits of its own yet (and as the fallback whenever
+# the model comes up empty on a PR-less branch), "#<pr>: <branch>" for a
+# commitless branch the caller tied to a PR, and ".../<dir>" when no git repo is
+# linked from the workspace at all.
 # Options:
 #   --tab-id=N  the tab to rename. ALWAYS pass this when running unattended:
 #               the fallback below resolves $HERDR_TAB_ID, the tab the calling
@@ -364,8 +366,14 @@ tab_autoname() {
         desc=$(git log --format='%s' "${base}..HEAD" 2>/dev/null | head -n 30)
         [ -n "$desc" ] && _ai_debug "tab-autoname: using commit subjects since $base"
       fi
-      # no commits of its own: give the model at least the branch name
-      [ -n "$desc" ] || desc="$branch"
+      if [ -z "$desc" ]; then
+        # a fresh branch with no commits of its own has nothing to summarize:
+        # handed just the branch name the model invents a plausible subject
+        # ("wip: fix bug in user profile") that describes no work that exists,
+        # so name the tab deterministically instead of asking it
+        new_name=$(printf '%s' "${fallback_name:-${prefix}${branch}}" | cut -c 1-40)
+        _ai_debug "tab-autoname: no commits on $branch yet, naming the tab '$new_name'"
+      fi
     fi
   fi
 
