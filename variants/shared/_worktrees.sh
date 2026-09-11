@@ -252,6 +252,18 @@ worktree_branch_delete() {
 
   local branch_name=$(git branch --show-current)
 
+  # Resolve the space this pane lives in *before* the worktree is removed, so it
+  # can be closed once the removal succeeds. $HERDR_WORKSPACE_ID is what the
+  # pane was started with; falling back through the tab covers a pane that has
+  # since been moved.
+  local workspace_id=""
+  if [ -n "$HERDR_ENV" ]; then
+    workspace_id="$HERDR_WORKSPACE_ID"
+    if [ -z "$workspace_id" ] && [ -n "$HERDR_TAB_ID" ]; then
+      workspace_id=$(herdr tab get "$HERDR_TAB_ID" 2>/dev/null | jq -r '.result.tab.workspace_id // empty')
+    fi
+  fi
+
   # Move to main repo root before removing the worktree
   cd "$main_root" || return 1
 
@@ -269,7 +281,15 @@ worktree_branch_delete() {
     git branch -D "$branch_name"
   fi
 
-  echo "Worktree removed. Closing tab in 2 seconds..."
+  # Last thing: closing the space takes down every tab and pane in it, this
+  # one included, so nothing can run after it.
+  if [ -n "$workspace_id" ]; then
+    echo "Worktree removed. Closing space $workspace_id in 2 seconds..."
+    sleep 2
+    herdr workspace close "$workspace_id"
+  else
+    echo "Worktree removed."
+  fi
 }
 _set wtd "worktree_branch_delete"
 
