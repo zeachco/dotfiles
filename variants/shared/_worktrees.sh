@@ -138,7 +138,7 @@ herdr_branch_repo() {
   # *workspace* label, so that one keeps the branch/PR name and the tabs are
   # named after what you do in them instead:
   #
-  #   edit     devbox shell with `e .` waiting, unrun, at the prompt
+  #   edit     devbox shell that opens the editor on `e .` once it is ready
   #   tests    devbox shell, empty
   #   ai       devbox shell, empty
   #   setup…   names the space, runs the repo's devbox setup, names it again
@@ -148,11 +148,11 @@ herdr_branch_repo() {
   # shell enters with 0, so the four panes don't each install the same
   # dependencies on top of one another.
   herdr tab rename "$tab_id" "edit" >/dev/null 2>&1
-  herdr pane run "$root_pane" "cd \"$target_path\" && DEVBOX_SETUP=0 ds"
-  # Typed, not run: `e .` lands as typeahead and sits at the devbox shell's
-  # prompt until you hit Enter. Appending it to the line above with && would
-  # instead run it in the *outer* shell, after the devbox shell is exited.
-  herdr pane send-text "$root_pane" "e ." >/dev/null 2>&1
+  # The devbox shell runs `e .` itself, on its first prompt (DOTFILES_INIT_CMD,
+  # see profile.sh). Typing it into the pane instead raced the shell's and
+  # devbox's startup and was regularly swallowed; appending it here with &&
+  # would run it in the *outer* shell, after the devbox shell is exited.
+  herdr pane run "$root_pane" "cd \"$target_path\" && DOTFILES_INIT_CMD='e .' DEVBOX_SETUP=0 ds"
 
   if [ -z "$workspace_id" ]; then
     echo "Warning: could not resolve the workspace; only the edit tab was opened"

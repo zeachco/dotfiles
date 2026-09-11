@@ -309,6 +309,9 @@ ds() {
   local setup="${DEVBOX_SETUP:-0}"
   use "DEVBOX_SETUP=$setup devbox shell"
   DEVBOX_SETUP="$setup" devbox shell "$@"
+  # Nothing to enter here, so no new shell ever reached a prompt and a pending
+  # DOTFILES_INIT_CMD (see the end of this file) would be dropped. Run it here.
+  [ -f devbox.json ] || _dotfiles_run_init_cmd
 }
 
 check_for_devbox() {
@@ -348,3 +351,33 @@ bind 'set completion-ignore-case off' 2>/dev/null || true
 dockersh() {
   docker run -it --entrypoint sh "$1"
 }
+
+# ==============================================================================
+# ONE-SHOT SHELL INIT COMMAND
+# ==============================================================================
+# A command handed to a fresh interactive shell through the environment, run
+# once when that shell reaches its first prompt. `wt` uses it to open the editor
+# in its edit tab: typing `e .` into the pane instead raced the shell's (and
+# devbox's) startup and was regularly swallowed, while chaining it with && would
+# run it in the *outer* shell, only once the devbox shell is exited.
+_dotfiles_run_init_cmd() {
+  [ -n "$DOTFILES_INIT_CMD" ] || return 0
+  _dotfiles_init_cmd="$DOTFILES_INIT_CMD"
+  # unset before running, not after: it is exported, so any shell the command
+  # starts (or one nested in this one) would otherwise run it all over again
+  unset DOTFILES_INIT_CMD
+  eval "$_dotfiles_init_cmd"
+  unset _dotfiles_init_cmd
+}
+
+case "$-" in
+*i*)
+  if [ -n "$ZSH_VERSION" ]; then
+    autoload -Uz add-zsh-hook
+    # precmd fires before every prompt; the function no-ops after the first one
+    add-zsh-hook precmd _dotfiles_run_init_cmd
+  elif [ -n "$BASH_VERSION" ]; then
+    PROMPT_COMMAND="_dotfiles_run_init_cmd${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+  fi
+  ;;
+esac
