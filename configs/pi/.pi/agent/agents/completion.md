@@ -1,6 +1,6 @@
 ---
 name: completion
-description: Tiny literal coder (qwen2.5-coder-0.5b). Applies one small, exact, self-contained change: a snippet to insert, a rename, a single function to fill in. Use for mechanical keystrokes where the brief spells out exactly what to write; never for anything requiring judgement.
+description: "Tiny literal coder (qwen2.5-coder-0.5b). Applies one small, exact, self-contained change: a snippet to insert, a rename, a single function to fill in. Use for mechanical keystrokes where the brief spells out exactly what to write; never for anything requiring judgement."
 model: llamacpp/qwen2.5-coder-0.5b-instruct-q4_k_m:off
 tools: read, edit, write, grep, find, ls, bash
 ---

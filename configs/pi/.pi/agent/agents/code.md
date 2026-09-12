@@ -1,6 +1,6 @@
 ---
 name: code
-description: Small code writer (gemma-4-E2B). Implements a short, self-contained coding brief: one file, one function, a small script. Use for mechanical implementation once everything is decided; not for design or multi-file refactors.
+description: "Small code writer (gemma-4-E2B). Implements a short, self-contained coding brief: one file, one function, a small script. Use for mechanical implementation once everything is decided; not for design or multi-file refactors."
 model: llamacpp/gemma-4-E2B-it-GGUF:off
 tools: read, edit, write, grep, find, ls, bash
 ---
