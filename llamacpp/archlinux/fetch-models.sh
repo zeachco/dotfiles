@@ -9,8 +9,9 @@
 # unload anything CPU-resident or partially offloaded before overwriting it.
 #
 # EVERY GGUF UNDER ~/models SHOULD HAVE A LINE HERE. It did not used to: qwen3.8 -- the
-# default model for every agent -- existed only as a hardlink out of ollama's blob
-# store, so retiring ollama would have left no way to re-obtain it. `bin/llamacpp-audit`
+# default model for every agent -- existed only as a hardlink out of a retired
+# inference daemon's blob store, so retiring that daemon would have left no way to
+# re-obtain it. `bin/llamacpp-audit`
 # now checks this invariant; keep it true.
 #
 # THE ONE EXCEPTION, and it cannot be fixed:
@@ -67,8 +68,8 @@ fi
 # agents, plus pi's defaultModel, all resolve to `qwen3.8`. 27.3B, qwen35 arch, vision
 # via a qwen3vl_merger projector.
 #
-# fetch_dir_model, not fetch: the pair on this box is ollama-derived (plain Q4_K_M named
-# qwen3.8-Q4_K_M.gguf, 16810714464 bytes, and an mmproj of 931146016) and predates this
+# fetch_dir_model, not fetch: the pair on this box is a legacy quant (plain Q4_K_M
+# named qwen3.8-Q4_K_M.gguf, 16810714464 bytes, and an mmproj of 931146016) and predates this
 # recipe, which yields unsloth's UD-Q4_K_M and a 927607488-byte projector. Plain fetch()
 # would see both size mismatches and replace a working, self-consistent pair. The guard
 # skips the whole directory when it already holds a model. A fresh machine gets the

@@ -15,8 +15,9 @@ or die), then speed.
 - `llamacpp/shared/_llama.sh` defines the three foreground **server** launchers over one
   `_los_router` helper — `los-server-light` (:7070), `los-server-cheap` (:7071),
   `los-server-heavy` (one model at a time) — plus the verbs `los-load` / `los-drain`, which talk
-  to a router that is already running. The original fzf-over-`ollama list` launcher was deleted
-  along with ollama itself — see "Retiring ollama".
+  to a router that is already running. The original fzf launcher over the old inference
+  daemon's model list was deleted along with that daemon — see "Retiring the old inference
+  daemon".
 - `llamacpp/shared/_los_menu.sh` defines **`los`**, one fzf menu over all three routers: drain
   idle / load / unload / logs, then every model with its state. Hovering previews the model's
   `.ini` section, context and slot layout, KV layout, and what it costs to load. See "The `los`
@@ -26,10 +27,13 @@ or die), then speed.
 - `~/models/DeepSeek-V4-Flash-chat-v2/…-chat-v2-imatrix-fixed.gguf` — **90.9 GiB** hand-tuned mixed
   quant (layers 37–42 experts Q4_K, other expert layers IQ2_XXS gate/up, Q2_K down,
   attn-proj/shared-experts/output Q8). `general.architecture = deepseek4`.
-- ~~`ollama` 0.32.14 (`/usr/local/bin`, hand-installed), 91 GB of models~~ — **retired**. It was
-  running the ROCm backend and refusing Vulkan (`dropping integrated GPU; to enable, set
-  OLLAMA_IGPU_ENABLE=1`), and its ~95 GB of weights duplicated `~/models`. Nothing served
-  through it. See "Retiring ollama" below.
+- ~~The old inference daemon (0.32.14, hand-installed under `/usr/local/bin`)~~ — **removed from
+  this box 2026-09-12**. It ran the ROCm backend and refused Vulkan (log: `dropping integrated
+  GPU`, with its own iGPU-enable env var), and its weights duplicated `~/models`. Nothing served
+  through it. By the end it held a single 17 GB model, entirely hardlinked into
+  `~/models/light/qwen3.8/`.
+  **llama.cpp is now the only model server on this machine**; everything is served out of
+  `~/models` via the routers on :7070/:7071/:7072. See "Retiring the old inference daemon" below.
 - `~/.config/opencode/opencode.json` (symlinked into `configs/opencode/`) points a single
   `llamacpp` provider at `http://oli-llms.local:7070/v1` with per-model `limit.context` matching
   `light.ini`. The `llamacpp-olim3` provider for the M4 was removed — that box is no longer a
@@ -268,8 +272,9 @@ agent count, never onto several small models.
    isolates each model in a child process, and supports resumable SSE streams. This replaces both the
    fzf-relaunch flow and any need for llama-swap — see Phase 1.
 3. **`los` couldn't see the DeepSeek model anyway** — the original launcher enumerated
-   `ollama list` only, and a 90.9 GiB hand-quant will never be in ollama's registry. Router mode
-   (finding 2) removed that constraint, and ollama has since been retired outright.
+   the old daemon's model list only, and a 90.9 GiB hand-quant will never be in that daemon's
+   registry. Router mode (finding 2) removed that constraint, and the old daemon has since been
+   retired outright.
 4. **Mainline llama.cpp already supports the model and ships speculative decoding for it.**
    `LLM_ARCH_DEEPSEEK4` and `llama_model_deepseek4` are in `src/` at b10524, so the "you need the
    nisparks fork" advice is obsolete. And `common/arg.cpp` carries
@@ -295,35 +300,59 @@ DeepSeek tier.
 
 ---
 
-## Retiring ollama
+## Retiring the old inference daemon
 
-Nothing served through it once router mode landed: `ollama serve` sat resident doing nothing while
+Nothing served through it once router mode landed: its daemon sat resident doing nothing while
 its store held ~95 GB duplicating `~/models`. It also lagged upstream llama.cpp by weeks on new
 architectures, which is the opposite of what this box is for.
 
-It was **not** a managed package — `pacman -Qq | grep ollama` was empty, the binary came from
-upstream's install script in `/usr/local/bin`, and `ollama.service` was a **system** unit, not a
-`--user` one:
+It was **not** a managed package — no such entry in `pacman -Qq`; the binary came from
+upstream's install script in `/usr/local/bin`, and the service was a **system** unit, not a
+`--user` one (with a hand-written `service.d/override.conf` pinning its context-length and
+KV-cache-type env vars, which `disable` alone does not remove). In the commands below, `<d>` is
+the retired daemon's name — its unit, binary, lib dir, service user and `~/.<d>` store all share
+it:
 
 ```bash
-sudo systemctl disable --now ollama.service
-sudo rm -f /etc/systemd/system/ollama.service /usr/local/bin/ollama
-sudo rm -rf /usr/local/lib/ollama          # bundled libs, incl. its private rocm_v7_2
+sudo systemctl disable --now <d>.service
+sudo rm -f /etc/systemd/system/<d>.service /usr/local/bin/<d>
+sudo rm -rf /etc/systemd/system/<d>.service.d   # the override drop-in
+sudo rm -rf /usr/local/lib/<d>                  # bundled libs, incl. its private rocm_v7_2
 sudo systemctl daemon-reload
-sudo userdel ollama 2>/dev/null            # service user the installer creates
-rm -rf ~/.ollama                           # the ~95 GB of weights
+sudo userdel <d> 2>/dev/null                    # service user the installer creates
+rm -rf ~/.<d>                                   # the weights
 ```
 
-Repo-side, this removed `llama-ollama-server`/`los-pick`, `_los_free_memory` **and its call site
-in `_los_router`** (deleting the function alone would have broken `los` and `los-server-heavy`),
-`codeai`/`speakai`/`pie_score`, the macOS `OLLAMA_CONTEXT_LENGTH` `launchctl setenv` and
-`los-free`, and the unused `variants/debian/Modelfile`. Nothing in any `setup.sh` installed
-ollama, so there is no risk of `setup.sh` reinstating it — the only `ollama` strings left in
-`framework-ryzen/setup.sh` *remove* a legacy `ollama-framework-rgb.service`.
+**The repo-side cleanup below landed first; the machine-side commands above were not actually run
+until 2026-09-12.** Until then the daemon was still resident on this box (`Restart=always`,
+34.5 GB peak RSS, 4h53m of CPU burned serving nothing). Check the unit's state on the machine,
+not with the repo state — a clean repo does not mean a clean machine.
 
-Two false positives to leave alone: `configs/pi/.pi/agent/settings.json` matches a grep for
-"ollama" only because of the pi package `npm:@ollama/pi-web-search` (an npm scope, unrelated to
-the daemon), and the `com.zeachco.llama-router.plist` hit is an explanatory comment.
+Deleting the `~/.<d>` store was free of data risk and freed **no** real disk: by then the store
+held one model (`qwen3.8:latest`, 17 GB) whose two blobs were *both* hardlinks (`-links 2`) shared
+with `~/models/light/qwen3.8/`, so `du` double-counted them and the delete only dropped one link
+each. Verify before any such delete — nothing in the store should have `-links 1`:
+
+```bash
+find ~/.<d> -type f -links 1 -printf '%s %p\n'   # must be empty
+```
+
+Repo-side, this removed the old-daemon server wrapper and `los-pick`, `_los_free_memory` **and
+its call site in `_los_router`** (deleting the function alone would have broken `los` and
+`los-server-heavy`), `codeai`/`speakai`/`pie_score`, the macOS context-length `launchctl setenv`
+and `los-free`, and the unused `variants/debian/Modelfile`. Nothing in any `setup.sh` installed
+the old daemon, so there is no risk of `setup.sh` reinstating it. As of 2026-09-12 there are
+**zero** references left in `setup.sh`, `utils.sh` or any `variants/*` profile (the old
+`framework-ryzen` variant, whose setup removed a legacy daemon-named RGB unit, is itself gone).
+Re-check the whole repo with (the bracket keeps this check itself clean):
+
+```bash
+grep -rni 'o[l][l]ama' . --exclude-dir=.git --exclude-dir=node_modules   # must print nothing
+```
+
+The two former false positives are fixed too: the pi web-search package is gone from
+`configs/pi/.pi/agent/settings.json` (and uninstalled from `~/.pi/agent/npm`), and the
+`com.zeachco.llama-router.plist` comment no longer names it.
 
 ---
 
@@ -433,9 +462,9 @@ existing `DeepSeek-V4-Flash-chat-v2/` already has the right shape — just `mv` 
 ### The two launchers
 
 **Implemented** in `llamacpp/shared/_llama.sh`. There are now **three** launchers, not two — the
-cheap tier was split out onto :7071 (see "The cheap tier" below). The original fzf-over-`ollama
-list` function and the `_los_free_memory` helper that stopped resident ollama runners were both
-deleted when ollama was retired.
+cheap tier was split out onto :7071 (see "The cheap tier" below). The original fzf launcher over
+the old daemon's model list and the `_los_free_memory` helper that stopped its resident runners
+were both deleted when it was retired.
 
 ```bash
 LOS_CONF_DIR="${LOS_CONF_DIR:-$HOME/dotfiles/llamacpp/archlinux}"
@@ -632,8 +661,9 @@ Set these as preset keys so they apply per model rather than per launch.
 ## Phase 4 — Second build: HIP + rocWMMA
 
 Keep `build/` (Vulkan) and add `build-hip/` so backends can be A/B'd without rebuilding. ROCm is
-**not** installed system-wide — it used to be reachable only via ollama's bundled `rocm_v7_2`, and
-with ollama retired there is no ROCm on the box at all — so this pulls a large SDK (Arch `extra`
+**not** installed system-wide — it used to be reachable only via the old daemon's bundled
+`rocm_v7_2`, and with that daemon retired there is no ROCm on the box at all — so this pulls a
+large SDK (Arch `extra`
 currently carries 7.2.4, including `rocwmma`):
 
 ```bash
@@ -646,8 +676,8 @@ cmake --build ~/dev/llama.cpp/build-hip -j
 - `GGML_HIP_ROCWMMA_FATTN=ON` is what produces the long-context win; without it ROCm isn't worth the
   disk space.
 - Test `GGML_HIP_NO_VMM` both ways. One Strix Halo writeup needed `-DGGML_HIP_NO_VMM=OFF` to reach
-  GTT, then needed `--no-warmup` to survive the VMM allocator. Ollama's bundled build runs
-  `NO_VMM = 1` and still saw 62.5 GiB — confirming that cap is the kernel's, not this flag's.
+  GTT, then needed `--no-warmup` to survive the VMM allocator. The old daemon's bundled build
+  runs `NO_VMM = 1` and still saw 62.5 GiB — confirming that cap is the kernel's, not this flag's.
 - Watch for **llama.cpp #17917**, a ROCm 7.x prompt-processing regression on Strix Halo (you'd be on
   7.2.4). If measured pp at depth doesn't beat Vulkan, that's why — stay on Vulkan and revisit.
 - A router runs **one binary**, so per-model backend choice isn't a preset key. Mixing backends means
@@ -661,14 +691,15 @@ Download into the tier directories under `~/models/` with
 
 **Every GGUF under `~/models` must have a line in that script.** It did not used to, and the
 gap was invisible: `qwen3.8` — the default model for `opencode`'s `model`/`small_model`, four of
-its agents, and pi's `defaultModel` — existed only as a **hardlink out of ollama's blob store**
-(`find -links +1` shows the two shared inodes). Retiring ollama would have left no recipe for the
+its agents, and pi's `defaultModel` — existed only as a **hardlink out of the old daemon's blob
+store** (`find -links +1` shows the two shared inodes). Retiring that daemon would have left no
+recipe for the
 most important model on the box. `bin/llamacpp-audit` now enforces the invariant.
 
 Two standing exceptions:
 
-- **`qwen3.8` is fetched with `fetch_dir_model`, not `fetch`.** The pair on this box is
-  ollama-derived (plain `Q4_K_M` named `qwen3.8-Q4_K_M.gguf`, 16810714464 bytes, projector
+- **`qwen3.8` is fetched with `fetch_dir_model`, not `fetch`.** The pair on this box is a
+  legacy quant (plain `Q4_K_M` named `qwen3.8-Q4_K_M.gguf`, 16810714464 bytes, projector
   931146016) where the recipe yields unsloth's `UD-Q4_K_M` and a 927607488-byte projector. Plain
   `fetch` would see both size mismatches and replace a working, self-consistent pair — and a
   second model GGUF in that directory would make the id resolve nondeterministically, since

@@ -5,8 +5,8 @@ Read-only. Exists because they drifted apart silently and it took a manual
 investigation to notice:
 
   * ~/models/light/qwen3.8 -- the default model for every agent -- had no fetch
-    recipe at all. It was a hardlink out of ollama's blob store, so retiring
-    ollama would have left no way to re-obtain it.
+    recipe at all. It was a hardlink out of a retired inference daemon's blob
+    store, so retiring that daemon would have left no way to re-obtain it.
   * GLM-4.7-Flash-UD-Q4_K_XL.gguf sat truncated at 1.10 of 16.32 GiB, failing to
     parse, while light.ini and pi both advertised it.
   * Qwen3-Coder-Next was deleted along with its light.ini section, but opencode's

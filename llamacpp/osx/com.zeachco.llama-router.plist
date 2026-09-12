@@ -136,7 +136,7 @@
     <integer>4096</integer>
   </dict>
 
-  <!-- One file for both streams, matching homebrew.mxcl.ollama.plist. llama-server
+  <!-- One file for both streams, matching Homebrew's service-plist convention. llama-server
        writes banners to stdout and errors to stderr; split files lose the
        interleaving, which is exactly what you need to read a failed model load.
        launchd does NOT rotate these -- see install.sh's closing note. -->

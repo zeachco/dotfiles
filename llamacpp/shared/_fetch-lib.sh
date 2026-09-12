@@ -41,7 +41,7 @@ fetch() {
 
   # Announce an in-place OVERWRITE distinctly from a first download. A local file
   # whose size differs from upstream is a stale or foreign build (a different quant
-  # revision, or one that came out of ollama's blob store), and curl -o rewrites the
+  # revision, or one that came out of a retired daemon's blob store), and curl -o rewrites the
   # SAME inode rather than replacing it -- so if a llama-server child still has that
   # file mapped, its weights change underneath it. Fully GPU-offloaded models (-ngl
   # 999) release the mapping after load and are unaffected, but a CPU-resident or
@@ -89,12 +89,12 @@ fetch_report() {
 #     directory therefore make that id resolve nondeterministically. fetch()'s per-file
 #     size pre-check cannot see a differently-named sibling.
 #  2. A model and its projector must come from the SAME source. Guarding only the model
-#     file would still let the projector be replaced: ~/models/light/qwen3.8 holds an
-#     ollama-derived mmproj-F16.gguf of 931146016 bytes where unsloth ships 927607488,
-#     so fetch() would see a size mismatch and overwrite a working projector, leaving an
-#     ollama model paired with an unsloth one.
+#     file would still let the projector be replaced: ~/models/light/qwen3.8 holds a
+#     legacy mmproj-F16.gguf of 931146016 bytes where unsloth ships 927607488,
+#     so fetch() would see a size mismatch and overwrite a working projector, leaving a
+#     legacy model paired with an unsloth one.
 #
-# The case that needs it: ~/models/light/qwen3.8 is an ollama-derived plain Q4_K_M named
+# The case that needs it: ~/models/light/qwen3.8 is a legacy plain Q4_K_M named
 # qwen3.8-Q4_K_M.gguf, predating this recipe, which yields Qwen3.8-27B-UD-Q4_K_M.gguf.
 # Same model, different quant. A fresh machine gets the unsloth pair; this one keeps
 # what it has. The id is `qwen3.8` either way, because it is the directory name.
