@@ -6,7 +6,8 @@
 --
 -- Default: only ERRORs get inline virtual text. Warnings/hints/info stay quiet
 -- (gutter sign only) until the cursor lands on the line, where `virtual_lines`
--- spells out the full message. `<leader>uw` toggles every severity back inline.
+-- spells out the full message. `<leader>uW` toggles every severity back inline.
+-- (`<leader>uw` is LazyVim's Toggle Wrap -- don't shadow it, markdown needs it.)
 
 local virtual_text = {
   spacing = 4,
@@ -24,7 +25,7 @@ local function apply()
   vim.diagnostic.config({ virtual_text = vim.g.inline_warnings and virtual_text or errors_only })
 end
 
-vim.keymap.set("n", "<leader>uw", function()
+vim.keymap.set("n", "<leader>uW", function()
   vim.g.inline_warnings = not vim.g.inline_warnings
   apply()
   vim.notify((vim.g.inline_warnings and "Enabled" or "Disabled") .. " inline warnings")

@@ -79,6 +79,7 @@ For ubuntu, it also installs [omakub](https://omakub.org/) it's just too good to
 ## How this repo works
 
 The repository uses a profile-based approach for different environments. When you run `setup.sh`:
+
 1. It automatically detects your operating system and environment (macOS, Arch, Debian, Ubuntu, Termux, etc.).
 2. It first runs the `common` profile which installs the base set of tools and configurations using `stow` for symlinking `configs/` into your `$HOME`.
 3. It then runs the specific profile for your OS (e.g. `variants/osx`, `variants/ubuntu`).
