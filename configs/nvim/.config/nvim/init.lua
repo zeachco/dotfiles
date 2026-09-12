@@ -7,6 +7,10 @@ if vim.fn.has("mac") == 1 and not vim.env.XDG_RUNTIME_DIR then
   vim.env.XDG_RUNTIME_DIR = run_dir
 end
 
+-- NvChad's base46 compiles its highlights into this cache directory. It has to be
+-- set before any plugin loads. See lua/plugins/nvchad-ui.lua.
+vim.g.base46_cache = vim.fn.stdpath("data") .. "/base46/"
+
 -- bootstrap lazy.nvim, LazyVim and your plugins
 require("config.lazy")
 
