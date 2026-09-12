@@ -3,11 +3,42 @@
 -- lua/chadrc.lua: themes/current owns the theme so nvim follows the rest of the
 -- dotfiles theme system instead of drifting from it.
 
--- base46 paints highlights directly with nvim_set_hl from a compiled bytecode
--- cache; it never goes through `:colorscheme`. Any `:colorscheme` call therefore
--- wipes it, and LazyVim issues one at startup (from themes/current/neovim.lua).
--- Re-applying the cache on ColorScheme lets both coexist: LazyVim's colorscheme
--- still fires the hook in init.lua that syncs Herdr, and base46 wins the repaint.
+-- base46 compiles highlights into a cache directory that records nothing about
+-- which theme produced it, so after `theme-switch` writes a new base46-theme the
+-- stale cache would keep being served. Track what the cache was built for.
+local theme_marker = vim.fn.stdpath("data") .. "/base46-theme"
+
+local function read_trimmed(path)
+  local file = io.open(path, "r")
+  if not file then
+    return nil
+  end
+  local contents = file:read("*all"):gsub("%s+", "")
+  file:close()
+  return contents ~= "" and contents or nil
+end
+
+local function ensure_base46_cache()
+  local theme = require("nvconfig").base46.theme
+
+  if vim.fn.isdirectory(vim.g.base46_cache) == 1 and read_trimmed(theme_marker) == theme then
+    return
+  end
+
+  require("base46").load_all_highlights()
+
+  local file = io.open(theme_marker, "w")
+  if file then
+    file:write(theme)
+    file:close()
+  end
+end
+
+-- base46 paints highlights directly with nvim_set_hl from the compiled cache; it
+-- never goes through `:colorscheme`. Any `:colorscheme` call therefore wipes it,
+-- and LazyVim issues one at startup (from themes/current/neovim.lua). Re-applying
+-- on ColorScheme lets both coexist: LazyVim's colorscheme still fires the hook in
+-- init.lua that syncs Herdr, and base46 wins the repaint.
 local function apply_base46()
   local cache = vim.g.base46_cache
   if not cache or vim.fn.isdirectory(cache) == 0 then
@@ -38,12 +69,9 @@ return {
     -- must be on the rtp before either is required.
     dependencies = { "nvchad/base46", "nvzone/volt" },
     config = function()
-      -- On a fresh install the `build` step may not have run yet.
-      if vim.fn.isdirectory(vim.g.base46_cache) == 0 then
-        require("base46").load_all_highlights()
-      end
-
+      ensure_base46_cache()
       apply_base46()
+
       vim.api.nvim_create_autocmd("ColorScheme", {
         group = vim.api.nvim_create_augroup("base46_reapply", { clear = true }),
         callback = vim.schedule_wrap(apply_base46),
