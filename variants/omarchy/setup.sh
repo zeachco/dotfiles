@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 source "$HOME/dotfiles/utils.sh"
 
+# Linux metrics collector for the system graphs in the Omarchy bar.
+install_pkg python
+
 # Omarchy look and feel configs
 stow_link hypr
 stow_link omarchy

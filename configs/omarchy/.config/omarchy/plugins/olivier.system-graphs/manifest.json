@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "olivier.system-graphs",
+  "name": "System graphs",
+  "version": "1.0.0",
+  "author": "olivier",
+  "description": "CPU, memory, disk throughput, CPU temperature and GPU load history",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "Widget.qml" },
+  "barWidget": {
+    "displayName": "System graphs",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

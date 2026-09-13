@@ -32,6 +32,9 @@
       ],
       "right": [
         {
+          "id": "olivier.system-graphs"
+        },
+        {
           "id": "omarchy.tray",
           "pinned": [
             "Slack_status_icon_1",
