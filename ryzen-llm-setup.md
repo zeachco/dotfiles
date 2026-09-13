@@ -98,8 +98,8 @@ somewhere else.
 ## Routing work between models (pi)
 
 `configs/pi/.pi/agent/` carries the client-side half of this setup, stowed to `~/.pi/agent/`:
-agent definitions with a pinned `model:` (`worker`, `scout` on GLM-4.7-Flash; `planner`,
-`reviewer` on qwen3.8), `/preset think|build` for switching the main session, `/implement`,
+agent definitions with a pinned `model:` (`worker`, `scout`, `code`, `completion` on GLM-4.7-Flash;
+`planner`, `reviewer`, `coder` on qwen3.8), `/preset think|build` for switching the main session, `/implement`,
 `/build`, `/review` workflows, and a global `AGENTS.md` telling the slow model when to delegate.
 Two hot models on purpose — the LRU eviction described below has no pinning.
 
