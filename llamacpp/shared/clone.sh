@@ -47,18 +47,42 @@ clone_llama_cpp() {
     git clone https://github.com/ggml-org/llama.cpp.git "$target" || return 1
   fi
 
-  if [[ -e "$HOME/models" || -L "$HOME/models" ]]; then
-    echo "llama.cpp: found $HOME/models; skipping model downloads"
+  # Gate on CONTENT, not on the directory existing. The Arch install.sh mkdir -p's
+  # ~/models/{light,cheap,heavy} for the systemd units, so on any box where it has run
+  # once an existence test is always true and the download never starts -- which is
+  # exactly what happened on the 2026-09-14 reinstall: three empty tier dirs, three
+  # routers advertising light.ini names with no --model, every load spinning forever.
+  # Same directory logic as fetch-initial-models.sh, which is what gets launched.
+  local models="$HOME/models/light"
+  [[ "$(uname -s)" == Darwin ]] && models="${LOS_MODELS_DIR:-$HOME/models}"
+  if [[ -n "$(find "$models" -name '*.gguf' -print -quit 2>/dev/null)" ]]; then
+    echo "llama.cpp: found models under $models; skipping model downloads"
     return 0
   fi
 
   local log_dir="${XDG_CACHE_HOME:-$HOME/.cache}"
-  mkdir -p "$log_dir" || return 1
-  # Create synchronously so another setup cannot start a second download job.
-  # Presence is the only guard; interrupted downloads can be resumed manually.
-  mkdir "$HOME/models" || return 1
-  nohup bash "$SCRIPT_DIR/fetch-initial-models.sh" \
+  mkdir -p "$log_dir" "$HOME/models" || return 1
+
+  # mkdir ~/models used to be the lock; it cannot be once the dir may pre-exist. A pid
+  # file under ~/models, created with noclobber so two concurrent setups cannot both win,
+  # and checked for liveness so a crashed job does not block the next run forever.
+  local lock="$HOME/models/.initial-downloads.pid" pid
+  if pid="$(cat "$lock" 2>/dev/null)" && [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+    echo "llama.cpp: model download already running (PID $pid); skipping"
+    echo "llama.cpp: download log: $log_dir/llamacpp-model-download.log"
+    return 0
+  fi
+  rm -f "$lock"
+  if ! ( set -C; echo $$ >"$lock" ) 2>/dev/null; then
+    echo "llama.cpp: another setup is starting the model download; skipping"
+    return 0
+  fi
+
+  # The wrapper owns the lock: it is removed when fetch-initial-models.sh exits, however
+  # it exits, so a finished or failed job never reads as "already running".
+  nohup bash -c 'trap "rm -f \"$1\"" EXIT; bash "$2"' _ "$lock" "$SCRIPT_DIR/fetch-initial-models.sh" \
     >"$log_dir/llamacpp-model-download.log" 2>&1 </dev/null &
+  echo $! >"$lock"
   echo "llama.cpp: model downloads started (PID $!)"
   echo "llama.cpp: download log: $log_dir/llamacpp-model-download.log"
 }

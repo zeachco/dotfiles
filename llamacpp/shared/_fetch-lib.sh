@@ -18,23 +18,39 @@ fetch() {
   local repo="$1" file="$2" dest="$3"
   local out="$dest/${file##*/}"
   local url="$HF/$repo/resolve/main/$file"
-  local remote local_size
+  local remote local_size remote_meta remote_sha
 
   mkdir -p "$dest"
 
   # HF sets x-linked-size for LFS objects, which is the true object size;
   # content-length on the redirect chain is the fallback. tolower($1) rather than
   # gawk's IGNORECASE, which BSD awk does not have.
-  remote="$(curl -sIL --fail --max-time 30 "$url" 2>/dev/null \
+  #
+  # x-linked-etag comes off the SAME HEAD and is the object's SHA-256 -- the only
+  # thing that can later prove the bytes on disk are the bytes upstream shipped.
+  # It is emitted ONLY on the huggingface.co 302. Do not reach for the `etag` on the
+  # final CDN 200: that is the xet hash, identical in shape (64 hex chars) and
+  # completely different in value, so mixing them up fails silently forever.
+  # Verified 2026-09-14 against unsloth/gemma-4-E2B-it-GGUF: x-linked-etag and the
+  # tree API's .lfs.oid both equal `sha256sum` of the downloaded file; the CDN etag
+  # does not. Emitted as "<size>\t<sha256>" so one HEAD yields both.
+  remote_meta="$(curl -sIL --fail --max-time 30 "$url" 2>/dev/null \
     | tr -d '\r' \
     | awk 'tolower($1) == "x-linked-size:" { x = $2 }
            tolower($1) == "content-length:" { c = $2 }
-           END { if (x != "") print x; else print c }')"
+           tolower($1) == "x-linked-etag:"  { e = $2; gsub(/"/, "", e) }
+           END { if (x != "") printf "%s", x; else printf "%s", c
+                 printf "\t%s\n", e }')"
+  remote="${remote_meta%%$'\t'*}"
+  remote_sha="${remote_meta#*$'\t'}"
 
   if [ -f "$out" ] && [ -n "$remote" ]; then
     local_size="$(wc -c <"$out" | tr -d ' ')"
     if [ "$local_size" = "$remote" ]; then
       echo "==> $repo :: ${file##*/} (complete, skipping)"
+      # Backfill on the skip path too, so re-running a fetch gives models that were
+      # already on disk a provenance record without re-downloading them.
+      record_provenance "$dest" "${file##*/}" "$repo" "$file" "$remote_sha" "$remote"
       return 0
     fi
   fi
@@ -59,6 +75,35 @@ fetch() {
     FETCH_FAILURES=$((FETCH_FAILURES + 1))
     return 1
   fi
+  record_provenance "$dest" "${file##*/}" "$repo" "$file" "$remote_sha" "$remote"
+}
+
+# record_provenance <destdir> <basename> <repo> <remote_path> <sha256> <size>
+#
+# Appends to <destdir>/.provenance, the TSV that verify-models.sh checks against:
+#   basename <TAB> repo <TAB> remote_path <TAB> sha256 <TAB> size
+#
+# Keyed on basename WITHIN a directory, never globally: mmproj-F16.gguf ships from
+# three different repos in fetch-models.sh (gemma-4-E2B, gemma-4-E4B, gemma-4-26B) and
+# mmproj-BF16.gguf from three more on the Mac, so a global basename index would check a
+# gemma projector against qwen's digest and report a bogus mismatch.
+#
+# Rewrite-then-rename rather than >> so a re-download replaces its old row instead of
+# leaving two rows for one file. awk (not grep -v) because a basename may contain
+# regex metacharacters -- `gpt-oss-120b-MXFP4.gguf` has dots that would match anything.
+record_provenance() {
+  local dest="$1" base="$2" repo="$3" path="$4" sha="$5" size="$6"
+  # No digest means the HEAD failed or the object is not LFS-backed. Record nothing
+  # rather than a row that would later read as "verified" against an empty digest.
+  [ -n "$sha" ] || return 0
+  local sidecar="$dest/.provenance" tmp="$dest/.provenance.$$"
+  if [ -f "$sidecar" ]; then
+    awk -F '\t' -v b="$base" '$1 != b' "$sidecar" >"$tmp" || return 0
+  else
+    : >"$tmp"
+  fi
+  printf '%s\t%s\t%s\t%s\t%s\n' "$base" "$repo" "$path" "$sha" "$size" >>"$tmp"
+  mv "$tmp" "$sidecar"
 }
 
 # List what a repo actually ships. A wrong filename is the single biggest source of a
@@ -117,5 +162,79 @@ fetch_dir_model() {
 
   for file in "$@"; do
     fetch "$repo" "$file" "$dest" || return 1
+  done
+}
+
+# provenance_move <srcdir> <dstdir> <basename>
+#
+# For scripts that download into a STAGING directory and then mv a single file out
+# (fetch-initial-models.sh does this for GLM): the file moves, its .provenance row
+# does not. Carry the row along so verify-models.sh can still find it.
+provenance_move() {
+  local src="$1" dst="$2" base="$3" line
+  line="$(awk -F '\t' -v b="$base" '$1 == b { print; exit }' "$src/.provenance" 2>/dev/null)"
+  [ -n "$line" ] || return 0
+  record_provenance "$dst" "$base" \
+    "$(echo "$line" | cut -f2)" "$(echo "$line" | cut -f3)" \
+    "$(echo "$line" | cut -f4)" "$(echo "$line" | cut -f5)"
+  awk -F '\t' -v b="$base" '$1 != b' "$src/.provenance" >"$src/.provenance.$$" &&
+    mv "$src/.provenance.$$" "$src/.provenance"
+}
+
+# fetch_verify <dir> [dir...]
+#
+# Full SHA-256 verification of everything under each dir against the digests recorded
+# at fetch time. Runs at the END of a fetch, when the read is worth its cost: this is
+# the only check that catches a `curl -C -` resume landing the right SIZE with the
+# wrong BYTES, which the size pre-check in fetch() cannot see and which then fails at
+# load as if the model were at fault (llamacpp-audit's GLM-at-1.10-of-16.32-GiB case
+# was the truncated flavour of this; the same-size flavour has no other detector).
+# A failure counts as a fetch failure, so fetch_report exits non-zero.
+fetch_verify() {
+  local verify dir
+  verify="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/verify-models.sh"
+  for dir in "$@"; do
+    [ -d "$dir" ] || continue
+    [ -n "$(find "$dir" -name '*.gguf' -print 2>/dev/null | head -1)" ] || continue
+    echo
+    echo "==> verifying $dir against upstream digests"
+    if ! bash "$verify" --full --dir "$dir"; then
+      echo "VERIFY FAILED under $dir -- delete the file(s) named above and re-run this script" >&2
+      FETCH_FAILURES=$((FETCH_FAILURES + 1))
+    fi
+  done
+}
+
+# link_cheap_tier
+#
+# Arch only. cheap.ini serves gemma-4-E2B-it from ~/models/cheap, as a SYMLINK to the
+# light tier's weights (text only, no mmproj -- see cheap.ini for why). Nothing used
+# to create it: install.sh printed the ln -s and left it to the operator, and on the
+# 2026-09-14 reinstall the cheap router came up advertising a model it could not load.
+# Idempotent and silent when the source is not on disk yet.
+link_cheap_tier() {
+  [ "$(uname -s)" = Darwin ] && return 0
+  local src="$HOME/models/light/gemma-4-E2B-it-GGUF/gemma-4-E2B-it-Q4_K_M.gguf"
+  local dir="$HOME/models/cheap/gemma-4-E2B-it"
+  [ -f "$src" ] || return 0
+  [ -e "$dir/${src##*/}" ] && return 0
+  mkdir -p "$dir" && ln -s "$src" "$dir/" &&
+    echo "==> cheap tier: linked ${src##*/} into $dir"
+}
+
+# routers_reload <port> [port...]
+#
+# Ask each running router to rescan --models-dir instead of restarting it: a restart
+# drops in-flight generation, a reload (server-models.cpp, GET /v1/models?reload=1)
+# only adds what is new and drops what is gone. Unreachable routers are reported, not
+# treated as errors -- on a first install they may not be up yet.
+routers_reload() {
+  local p
+  for p in "$@"; do
+    if curl -sf -m 5 "http://127.0.0.1:$p/v1/models?reload=1" >/dev/null 2>&1; then
+      echo "==> router :$p reloaded its model list"
+    else
+      echo "==> router :$p not reachable; it will pick the models up when it starts"
+    fi
   done
 }
