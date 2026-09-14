@@ -195,7 +195,10 @@ fetch_verify() {
   verify="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/verify-models.sh"
   for dir in "$@"; do
     [ -d "$dir" ] || continue
-    [ -n "$(find "$dir" -name '*.gguf' -print 2>/dev/null | head -1)" ] || continue
+    # -type f, matching verify-models.sh: the cheap tier holds only a symlink into
+    # light, whose target is verified there. Counting the link here would turn an
+    # empty verify run into a false failure.
+    [ -n "$(find "$dir" -type f -name '*.gguf' -print 2>/dev/null | head -1)" ] || continue
     echo
     echo "==> verifying $dir against upstream digests"
     if ! bash "$verify" --full --dir "$dir"; then

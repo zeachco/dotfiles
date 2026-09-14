@@ -31,9 +31,92 @@
           }
         },
         {
+          "id": "Ministral-3-3B-Instruct-2512-Q4_K_M",
+          "name": "Ministral-3-3B-Instruct-2512-Q4_K_M",
+          "contextWindow": 16384,
+          "maxTokens": 16384,
+          "input": [
+            "text"
+          ],
+          "reasoning": true,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "Qwen3-4B-Q4_K_M",
+          "name": "Qwen3-4B-Q4_K_M",
+          "contextWindow": 16384,
+          "maxTokens": 16384,
+          "input": [
+            "text"
+          ],
+          "reasoning": true,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "gemma-4-26B-A4B-it-GGUF",
+          "name": "gemma-4-26B-A4B-it-GGUF",
+          "contextWindow": 16384,
+          "maxTokens": 16384,
+          "input": [
+            "text",
+            "image"
+          ],
+          "reasoning": false,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "gemma-4-E2B-it-GGUF",
+          "name": "gemma-4-E2B-it-GGUF",
+          "contextWindow": 16384,
+          "maxTokens": 16384,
+          "input": [
+            "text",
+            "image"
+          ],
+          "reasoning": false,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
           "id": "gemma-4-E4B-it-GGUF",
           "name": "gemma-4-E4B-it-GGUF",
           "contextWindow": 32768,
+          "maxTokens": 16384,
+          "input": [
+            "text",
+            "image"
+          ],
+          "reasoning": false,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "qwen2.5-coder-0.5b-instruct-q4_k_m",
+          "name": "qwen2.5-coder-0.5b-instruct-q4_k_m",
+          "contextWindow": 16384,
           "maxTokens": 16384,
           "input": [
             "text"
@@ -52,7 +135,8 @@
           "contextWindow": 393216,
           "maxTokens": 32768,
           "input": [
-            "text"
+            "text",
+            "image"
           ],
           "reasoning": true,
           "thinkingLevelMap": {
