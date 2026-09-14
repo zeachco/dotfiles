@@ -118,46 +118,6 @@
           "attachment": false,
           "reasoning": true
         },
-        "Ministral-3-3B-Instruct-2512-Q4_K_M": {
-          "name": "Ministral-3-3B-Instruct-2512-Q4_K_M",
-          "limit": {
-            "context": 16384,
-            "output": 16384
-          },
-          "tool_call": true,
-          "attachment": false,
-          "reasoning": true
-        },
-        "Qwen3-4B-Q4_K_M": {
-          "name": "Qwen3-4B-Q4_K_M",
-          "limit": {
-            "context": 16384,
-            "output": 16384
-          },
-          "tool_call": true,
-          "attachment": false,
-          "reasoning": true
-        },
-        "gemma-4-26B-A4B-it-GGUF": {
-          "name": "gemma-4-26B-A4B-it-GGUF",
-          "limit": {
-            "context": 16384,
-            "output": 16384
-          },
-          "tool_call": true,
-          "attachment": true,
-          "reasoning": false
-        },
-        "gemma-4-E2B-it-GGUF": {
-          "name": "gemma-4-E2B-it-GGUF",
-          "limit": {
-            "context": 16384,
-            "output": 16384
-          },
-          "tool_call": true,
-          "attachment": true,
-          "reasoning": false
-        },
         "gemma-4-E4B-it-GGUF": {
           "name": "gemma-4-E4B-it-GGUF",
           "limit": {
@@ -166,16 +126,6 @@
           },
           "tool_call": true,
           "attachment": true,
-          "reasoning": false
-        },
-        "qwen2.5-coder-0.5b-instruct-q4_k_m": {
-          "name": "qwen2.5-coder-0.5b-instruct-q4_k_m",
-          "limit": {
-            "context": 16384,
-            "output": 16384
-          },
-          "tool_call": true,
-          "attachment": false,
           "reasoning": false
         }
       }
