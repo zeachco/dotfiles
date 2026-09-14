@@ -67,6 +67,7 @@ stow_link alacritty
 stow_link alacritty-osx
 stow_link herdr
 stow_link nvim
+install nvtop # per-process GPU/VRAM usage (supports AMDGPU)
 
 # The shared profile already ran herdr-config, but that was before the Stow
 # link existed; re-apply so the keymap and theme land in the linked file.
