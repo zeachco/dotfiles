@@ -112,3 +112,6 @@ fi
 } || {
   echo -e "${PASS}found ${NORM}~/dev folder"
 }
+
+bash "$DOT_DIR/llamacpp/shared/clone.sh" ||
+  echo -e "${FAIL}llama.cpp clone failed${NORM}"
