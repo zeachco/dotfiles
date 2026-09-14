@@ -150,7 +150,9 @@ say "rebuilding: $REASON"
 # inside a -j16 stream nobody read, and the router kept serving the Aug 19 binary for
 # two weeks. Fail here, loudly, with the fix, before spending any CPU.
 MISSING=()
+command -v cmake >/dev/null 2>&1 || MISSING+=(cmake)
 [[ -f /usr/include/vulkan/vulkan_core.h ]] || MISSING+=(vulkan-headers)
+[[ -f /usr/include/spirv/unified1/spirv.hpp ]] || MISSING+=(spirv-headers)
 command -v glslc >/dev/null 2>&1 || MISSING+=(shaderc)
 if ((${#MISSING[@]} > 0)); then
   bad "cannot build: missing ${MISSING[*]}"
@@ -175,8 +177,12 @@ if command -v ccache >/dev/null 2>&1; then
   CMAKE_ARGS+=(-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
 fi
 
-if ! cmake "${CMAKE_ARGS[@]}" >/dev/null; then
+CONFIGURE_LOG="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles-llamacpp-configure.log"
+mkdir -p "$(dirname "$CONFIGURE_LOG")"
+if ! cmake "${CMAKE_ARGS[@]}" >"$CONFIGURE_LOG" 2>&1; then
   bad "cmake configure failed -- build/ left as-is, stamp untouched"
+  cat "$CONFIGURE_LOG"
+  bad "full log: $CONFIGURE_LOG"
   exit 1
 fi
 

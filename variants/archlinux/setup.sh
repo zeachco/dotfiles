@@ -8,6 +8,7 @@ install unzip
 install curl
 install gcc
 install make
+install cmake # llama.cpp configure/build
 install zsh
 install s-tui # cli tool for CPU benchmarks
 install nvtop # per-process GPU/VRAM usage (supports AMDGPU)
@@ -17,6 +18,7 @@ install nvtop # per-process GPU/VRAM usage (supports AMDGPU)
 # install_pkg, not install: neither ships a binary of its own name (shaderc provides
 # glslc), so the command-based check re-ran pacman on every dotfiles_update.
 install_pkg vulkan-headers
+install_pkg spirv-headers
 install_pkg shaderc # glslc
 
 # Check neovim version and install/update if needed
