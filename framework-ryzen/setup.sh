@@ -6,6 +6,15 @@ USER_UNIT_DIR="$HOME/.config/systemd/user"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST="$SCRIPT_DIR/framework-rgb/Cargo.toml"
 
+# framework_tool is the daemon's only external dependency. Install it through the
+# shared helper (pacman/apt/brew/termux) when missing; the re-check below still
+# skips gracefully on distros where the package is not available.
+if ! command -v framework_tool >/dev/null 2>&1; then
+  # shellcheck source=../utils.sh
+  source "$SCRIPT_DIR/../utils.sh"
+  sudo pacman -S framework-system
+fi
+
 if ! command -v framework_tool >/dev/null 2>&1; then
   echo "Framework RGB daemon skipped: framework-tools is not installed"
   exit 0
