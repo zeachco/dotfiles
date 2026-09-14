@@ -172,10 +172,22 @@ if [[ -z "$(ls -A "$HOME/models/light" 2>/dev/null || true)" ]]; then
   echo "              bash ${DOT_DIR:-$HOME/dotfiles}/llamacpp/archlinux/fetch-models.sh"
 fi
 
+# Shared with the fetch scripts: the cheap-tier symlink and the model verifier.
+. "$SCRIPT_DIR/../shared/_fetch-lib.sh"
+
+# Wire the cheap tier whenever its source weights exist -- idempotent, so every
+# dotfiles_update heals a missing link. Only when the source is absent is there
+# anything left for the operator to do.
+link_cheap_tier || true
 if [[ -z "$(ls -A "$HOME/models/cheap" 2>/dev/null || true)" ]]; then
-  echo "llama router: ~/models/cheap is empty. The cheap tier expects a small model, e.g."
-  echo "              mkdir -p ~/models/cheap/gemma-4-E2B-it && ln -s \\"
-  echo "                ~/models/light/gemma-4-E2B-it-GGUF/gemma-4-E2B-it-Q4_K_M.gguf \\"
-  echo "                ~/models/cheap/gemma-4-E2B-it/"
-  echo "              (symlink, not a copy; the mmproj is deliberately left out -- see cheap.ini)"
+  echo "llama router: ~/models/cheap is empty. It is populated automatically once"
+  echo "              ~/models/light/gemma-4-E2B-it-GGUF/ is fetched (see cheap.ini)."
+fi
+
+# Cheap integrity pass on every setup run: header + size of each GGUF against the
+# digest row recorded at fetch time. Seconds, no full read -- that is --full, run by
+# the fetch scripts after each download and by hand for a bitrot sweep (--offline).
+if [[ -n "$(find "$HOME/models" -name '*.gguf' -print -quit 2>/dev/null)" ]]; then
+  bash "$SCRIPT_DIR/../shared/verify-models.sh" --quick --dir "$HOME/models" ||
+    echo "llama router: model verification FAILED -- see above; re-fetch the named file(s)"
 fi

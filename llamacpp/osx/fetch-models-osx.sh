@@ -56,9 +56,14 @@ echo
 echo "Layout on disk:"
 find "$MODELS" "$DRAFTS" -name '*.gguf' -print 2>/dev/null | sed "s#^$HOME/#  ~/#" | sort
 
+# Prove the bytes against the digests HF returned, then have the router rescan in
+# place (GET /v1/models?reload=1) instead of restarting it.
+fetch_verify "$MODELS" "$DRAFTS"
+routers_reload 7070
+
 echo
-echo "Restart the router, then confirm the ids the router actually assigned:"
-echo "  los-restart && los-models"
+echo "Confirm the ids the router actually assigned (restart with los-restart if it was down):"
+echo "  los-models"
 echo "They must be exactly: gemma-4-E2B-it, gemma-4-E4B-it, Qwen3.8-27B"
 echo "Cross-check them against llamacpp/osx/osx.ini with: los-check"
 

@@ -118,10 +118,15 @@ fetch Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF qwen2.5-coder-0.5b-instruct-q4_k_m.g
 # permanently occupied one of the five --models-max slots. Re-add a recipe here if you
 # ever want it back; do not re-add a client reference without one.
 
+# Prove the bytes, wire the cheap tier, and have the routers rescan -- no restart, so
+# nothing in flight is dropped. A verify failure makes fetch_report exit non-zero.
+fetch_verify "$HOME/models/light" "$HOME/models/heavy" "$HOME/models/drafts"
+link_cheap_tier
+routers_reload 7070 7071 7072
+
 echo
-echo "Done. Restart the router to pick up new models:"
-echo "  systemctl --user restart llama-router   # or: killport 7070 && los-server-light"
-echo "Then check nothing has drifted:"
+echo "Done. New models are live on the routers that were reachable above; a router that"
+echo "was down picks them up on start. Then check nothing has drifted:"
 echo "  bash $HOME/dotfiles/bin/llamacpp-audit"
 
 # Non-zero exit if any download failed, so a 404'd filename cannot pass as success.
