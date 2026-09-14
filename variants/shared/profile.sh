@@ -139,8 +139,18 @@ alias sniff_llms='cargo run --release --manifest-path "$HOME/dev/sniff_llms/Carg
 _set rr "cargo run --release --"
 _set bb "cargo build --release --no-default-features"
 alias lll="los"
-# list all the deamons (services) running on the machine
-_set deamons "systemctl list-units --type=service --state=running --no-pager"
+# fuzzy-search all systemd services; Enter follows the logs of the selected one (Ctrl+C quits)
+deamons() {
+  local svc
+  svc=$(
+    systemctl list-units --type=service --all --no-pager --no-legend \
+      | awk '{print $1, $3}' \
+      | fzf --delimiter=' ' --with-nth=1 --preview 'journalctl -u $1 -n 30 --no-pager' --preview-window=down:20 \
+      | awk '{print $1}'
+  )
+  [ -n "$svc" ] || return
+  journalctl -u "$svc" -f
+}
 
 killport() {
   lsof -i ":$1" | grep LISTEN | awk '{print $2}' | xargs kill -9
