@@ -136,9 +136,11 @@ alias llamacpp-audit="$DOT_DIR/bin/llamacpp-audit"
 # sniff_llms lives in its own repo (github.com/zeachco/sniff_llms), cloned at ~/dev/sniff_llms
 alias sniff_llms='cargo run --release --manifest-path "$HOME/dev/sniff_llms/Cargo.toml" --'
 # `rr --help` → `cargo run --release -- --help` (args go to the program, not cargo)
-alias rr="cargo run --release --"
-alias bb="cargo build --release --no-default-features"
+_set rr "cargo run --release --"
+_set bb "cargo build --release --no-default-features"
 alias lll="los"
+# list all the deamons (services) running on the machine
+_set deamons "systemctl list-units --type=service --state=running --no-pager"
 
 killport() {
   lsof -i ":$1" | grep LISTEN | awk '{print $2}' | xargs kill -9
