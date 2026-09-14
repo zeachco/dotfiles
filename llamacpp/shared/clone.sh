@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Clone only; platform setup remains responsible for builds and router services.
+# Clone and start initial model downloads; platform setup handles builds/services.
 # Run with bash explicitly, including when the user's login shell is zsh.
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,24 +29,38 @@ llama_memory_sizes() {
 
 clone_llama_cpp() {
   local target="$HOME/dev/llama.cpp"
-  if [[ -e "$target" || -L "$target" ]]; then
-    echo "llama.cpp: found $target; skipping clone"
-    return 0
-  fi
-
   # Decimal 16 GB accommodates memory reserved by GPU drivers on 16 GiB cards.
   # Require one qualifying device/pool; do not sum unrelated GPUs or CPU RAM.
   if ! llama_memory_sizes | awk '
     /^[0-9]+$/ && $1 >= 16000000000 { enough = 1 }
     END { exit !enough }
   '; then
-    echo "llama.cpp: skipping clone (no detected VRAM/unified memory pool >= 16 GB)"
+    echo "llama.cpp: skipping clone/downloads (no detected VRAM/unified memory pool >= 16 GB)"
     return 0
   fi
 
-  echo "llama.cpp: cloning into $target"
-  mkdir -p "$HOME/dev" || return 1
-  git clone https://github.com/ggml-org/llama.cpp.git "$target"
+  if [[ -e "$target" || -L "$target" ]]; then
+    echo "llama.cpp: found $target; skipping clone"
+  else
+    echo "llama.cpp: cloning into $target"
+    mkdir -p "$HOME/dev" || return 1
+    git clone https://github.com/ggml-org/llama.cpp.git "$target" || return 1
+  fi
+
+  if [[ -e "$HOME/models" || -L "$HOME/models" ]]; then
+    echo "llama.cpp: found $HOME/models; skipping model downloads"
+    return 0
+  fi
+
+  local log_dir="${XDG_CACHE_HOME:-$HOME/.cache}"
+  mkdir -p "$log_dir" || return 1
+  # Create synchronously so another setup cannot start a second download job.
+  # Presence is the only guard; interrupted downloads can be resumed manually.
+  mkdir "$HOME/models" || return 1
+  nohup bash "$SCRIPT_DIR/fetch-initial-models.sh" \
+    >"$log_dir/llamacpp-model-download.log" 2>&1 </dev/null &
+  echo "llama.cpp: model downloads started (PID $!)"
+  echo "llama.cpp: download log: $log_dir/llamacpp-model-download.log"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
