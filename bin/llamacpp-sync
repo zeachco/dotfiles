@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """llamacpp-sync -- rebuild the local clients' llama.cpp model defs from the live routers.
 
-Two clients, one pass. For every `llamacpp*` provider in
+Rewrites pi's llama.cpp model definitions from the live routers. For every `llamacpp*`
+provider in
 
   * pi        ~/.pi/agent/models.json           providers.<name>.models  (JSON array)
-  * opencode  ~/.config/opencode/opencode.json  provider.<name>.models   (JSON object)
 
 it:
 
@@ -21,6 +21,11 @@ it:
   * models the router no longer serves are dropped
   * unreachable servers, empty model lists, or non-llama.cpp responses are
     skipped with a warning -- existing defs are kept
+
+opencode is NOT synced by default: its llamacpp* providers are filled in at startup, in
+memory, by configs/opencode/.config/opencode/plugins/llamacpp-model-sync.ts, so its
+Stow-linked config keeps only the provider definition and never a model list. Pass
+`--client opencode` to write the list into the file anyway.
 
 Providers whose name does not start with `llamacpp` are left untouched. Each config is
 rewritten through its real path, so the dotfiles symlinks in ~/.pi/agent/ and
@@ -483,7 +488,7 @@ def main():
         "--client",
         action="append",
         choices=("pi", "opencode"),
-        help="client to sync; repeatable (default: both)",
+        help="client to sync; repeatable (default: pi -- opencode self-discovers)",
     )
     ap.add_argument(
         "--models-json",
@@ -505,7 +510,12 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="show what would change")
     args = ap.parse_args()
 
-    clients = args.client or ["pi", "opencode"]
+    # pi only by default. opencode discovers its llamacpp* models at startup, in memory,
+    # via configs/opencode/.config/opencode/plugins/llamacpp-model-sync.ts -- writing them
+    # into opencode.json here would put the catalogue back into a Stow-linked file and
+    # turn every model added or removed on the box into a tracked diff. Still reachable as
+    # `--client opencode` for the rare case of freezing the list into the config.
+    clients = args.client or ["pi"]
     paths = {"pi": args.models_json, "opencode": args.opencode_json}
     syncs = {"pi": sync_pi, "opencode": sync_opencode}
 

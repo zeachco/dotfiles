@@ -67,28 +67,7 @@
         "baseURL": "http://oli-llms.local:7072/v1",
         "timeout": false
       },
-      "models": {
-        "gpt-oss-120b-MXFP4": {
-          "name": "gpt-oss-120b MXFP4 + EAGLE3 (heavy tier)",
-          "limit": {
-            "context": 131072,
-            "output": 16384
-          },
-          "tool_call": true,
-          "attachment": false,
-          "reasoning": true
-        },
-        "DeepSeek-V4-Flash-chat-v2": {
-          "name": "DeepSeek-V4-Flash-chat-v2",
-          "limit": {
-            "context": 32768,
-            "output": 16384
-          },
-          "tool_call": true,
-          "attachment": false,
-          "reasoning": true
-        }
-      }
+      "models": {}
     },
     "llamacpp": {
       "npm": "@ai-sdk/openai-compatible",
@@ -97,88 +76,7 @@
         "baseURL": "http://oli-llms.local:7070/v1",
         "timeout": false
       },
-      "models": {
-        "qwen3.8": {
-          "name": "Qwen3.8 27B (light tier)",
-          "limit": {
-            "context": 393216,
-            "output": 32768
-          },
-          "tool_call": true,
-          "attachment": true,
-          "reasoning": true
-        },
-        "GLM-4.7-Flash-UD-Q4_K_XL": {
-          "name": "GLM-4.7 Flash (light tier, fan-out)",
-          "limit": {
-            "context": 202752,
-            "output": 16384
-          },
-          "tool_call": true,
-          "attachment": false,
-          "reasoning": true
-        },
-        "gemma-4-E4B-it-GGUF": {
-          "name": "gemma-4-E4B-it-GGUF",
-          "limit": {
-            "context": 32768,
-            "output": 16384
-          },
-          "tool_call": true,
-          "attachment": true,
-          "reasoning": false
-        },
-        "Ministral-3-3B-Instruct-2512-Q4_K_M": {
-          "name": "Ministral-3-3B-Instruct-2512-Q4_K_M",
-          "limit": {
-            "context": 16384,
-            "output": 16384
-          },
-          "tool_call": true,
-          "attachment": false,
-          "reasoning": true
-        },
-        "Qwen3-4B-Q4_K_M": {
-          "name": "Qwen3-4B-Q4_K_M",
-          "limit": {
-            "context": 16384,
-            "output": 16384
-          },
-          "tool_call": true,
-          "attachment": false,
-          "reasoning": true
-        },
-        "gemma-4-26B-A4B-it-GGUF": {
-          "name": "gemma-4-26B-A4B-it-GGUF",
-          "limit": {
-            "context": 16384,
-            "output": 16384
-          },
-          "tool_call": true,
-          "attachment": true,
-          "reasoning": false
-        },
-        "gemma-4-E2B-it-GGUF": {
-          "name": "gemma-4-E2B-it-GGUF",
-          "limit": {
-            "context": 16384,
-            "output": 16384
-          },
-          "tool_call": true,
-          "attachment": true,
-          "reasoning": false
-        },
-        "qwen2.5-coder-0.5b-instruct-q4_k_m": {
-          "name": "qwen2.5-coder-0.5b-instruct-q4_k_m",
-          "limit": {
-            "context": 16384,
-            "output": 16384
-          },
-          "tool_call": true,
-          "attachment": false,
-          "reasoning": false
-        }
-      }
+      "models": {}
     }
   },
   "model": "llamacpp/qwen3.8",

@@ -238,16 +238,20 @@ emit("%slogs%s              %sfollow a router's journal%s" % (BOLD, OFF, DIM, OF
      "  a Vulkan/GGML allocation error in the router's log while the client just sees a\n"
      "  400. Ctrl-C to stop following.\n")
 
-emit("%ssync-models%s       %spush the routers' model list into pi and opencode%s" % (BOLD, OFF, DIM, OFF),
+emit("%ssync-models%s       %spush the routers' model list into pi%s" % (BOLD, OFF, DIM, OFF),
      "sync-models",
      "sync-models\n\n"
-     "  Rewrites the llamacpp* model lists of the two clients from what the routers\n"
-     "  serve right now, and leaves the change as a git diff in ~/dotfiles to review:\n\n"
-     "    pi        configs/pi/.pi/agent/models.json\n"
-     "    opencode  configs/opencode/.config/opencode/opencode.json\n\n"
-     "  Both live paths (~/.pi/agent/, ~/.config/opencode/) are stowed symlinks, and the\n"
-     "  sync writes through to the real file, so what it changes is git-tracked -- `gd`\n"
-     "  after. Providers not named llamacpp* are never touched.\n\n"
+     "  Rewrites pi's llamacpp* model lists from what the routers serve right now, and\n"
+     "  leaves the change as a git diff in ~/dotfiles to review:\n\n"
+     "    pi        configs/pi/.pi/agent/models.json\n\n"
+     "  The live path (~/.pi/agent/) is a stowed symlink and the sync writes through to\n"
+     "  the real file, so what it changes is git-tracked -- `gd` after. Providers not\n"
+     "  named llamacpp* are never touched.\n\n"
+     "  opencode is NOT synced here and needs nothing: its llamacpp* providers are\n"
+     "  filled in from the same /v1/models at every startup, in memory, by the plugin\n"
+     "  configs/opencode/.config/opencode/plugins/llamacpp-model-sync.ts. Its config\n"
+     "  keeps only the provider definition, so a model added to the models directory\n"
+     "  shows up on the next launch with no edit and no diff.\n\n"
      "  Refreshed: membership (models a router dropped go away) and the facts only the\n"
      "  router knows -- PER-SLOT context (--ctx-size divided by --parallel unless\n"
      "  --kv-unified, which is the number a chat can actually fill) and image input.\n"
@@ -255,8 +259,7 @@ emit("%ssync-models%s       %spush the routers' model list into pi and opencode%
      "  maxTokens, cost. New models arrive with guessed defaults worth a look.\n\n"
      "  Loads nothing: /v1/models reports unloaded models too, so a fully idle box\n"
      "  still syncs the complete set -- no need to load anything first.\n\n"
-     "  pi re-reads models.json the next time you open /model. opencode reads its\n"
-     "  config at startup, so restart it.\n\n"
+     "  pi re-reads models.json the next time you open /model.\n\n"
      "  Same thing as `llamacpp-sync` in a shell, and what dotfiles_update runs.\n")
 
 emit("%s%s%s" % (DIM, "─" * 58, OFF), "sep", "(separator -- pick a model below, or an action above)")
@@ -470,7 +473,10 @@ los() {
   trap 'rm -rf "$dir"' RETURN 2>/dev/null
 
   while :; do
-    rm -f "$dir"/*.txt "$dir"/*.tsv 2>/dev/null
+    # find, not a glob: zsh aborts the whole command with "no matches found" when a
+    # pattern matches nothing (the first pass, and any pass where a tier went away),
+    # and that happens before the redirect can swallow it.
+    find "$dir" -mindepth 1 -delete 2>/dev/null
     _los_menu_snapshot "$dir" "$LOS_MENU_TIERS" || { rm -rf "$dir"; return 1; }
     [[ -s "$dir/index.tsv" ]] || { echo "los: no routers reachable ($LOS_MENU_TIERS)" >&2; rm -rf "$dir"; return 1; }
 
