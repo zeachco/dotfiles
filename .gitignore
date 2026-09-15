@@ -9,3 +9,9 @@ configs/opencode/.config/opencode/plugins/herdr-agent-state.js
 
 # Live OAuth credentials (access + refresh tokens) written by pi on login/refresh
 configs/pi/.pi/agent/auth.json
+
+# Machine-local llama.cpp model list: every box serves different models (the mac
+# router has Qwen3.8-27B, the linux one qwen3.8/GLM-4.7-Flash), and `los` sync-models
+# deletes whatever the local router does not serve -- so a tracked copy flips on every
+# sync. Seeded from models.seed.json by setup, then filled in per machine.
+configs/pi/.pi/agent/models.json
