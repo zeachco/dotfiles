@@ -12,7 +12,7 @@ _wt_new_tab() {
 }
 
 # Open a Herdr workspace on a branch's worktree, with a tab per job: edit,
-# tests, ai and a throwaway setup tab (see the layout comment further down).
+# cmd and a throwaway setup tab (see the layout comment further down).
 # Usage: herdr_branch_repo <branch|PR url|JIRA url> [label] [--pr=N]
 # --pr=N labels the space "#N: <branch>" from the start and hands the number to
 # tab_autoname, so the space is identifiable before the async rename lands.
@@ -134,18 +134,17 @@ herdr_branch_repo() {
     return 2
   fi
 
-  # Four tabs on the worktree, one workspace. The sidebar row is drawn from the
+  # Three tabs on the worktree, one workspace. The sidebar row is drawn from the
   # *workspace* label, so that one keeps the branch/PR name and the tabs are
   # named after what you do in them instead:
   #
   #   edit     devbox shell that opens the editor on `e .` once it is ready
-  #   tests    devbox shell, empty
-  #   ai       devbox shell, empty
+  #   cmd      devbox shell, empty
   #   setup…   names the space, runs the repo's devbox setup, names it again
   #            now that a PR/commits may exist, then closes itself
   #
   # Only the setup tab runs the repo's init hook (DEVBOX_SETUP=1). Every other
-  # shell enters with 0, so the four panes don't each install the same
+  # shell enters with 0, so the three panes don't each install the same
   # dependencies on top of one another.
   herdr tab rename "$tab_id" "edit" >/dev/null 2>&1
   # The devbox shell runs `e .` itself, on its first prompt (DOTFILES_INIT_CMD,
@@ -160,11 +159,9 @@ herdr_branch_repo() {
     return 0
   fi
 
-  local label tab_pane
-  for label in tests ai; do
-    tab_pane=$(_wt_new_tab "$workspace_id" "$target_path" "$label" | cut -f2)
-    [ -n "$tab_pane" ] && herdr pane run "$tab_pane" "cd \"$target_path\" && DEVBOX_SETUP=0 ds"
-  done
+  local cmd_pane
+  cmd_pane=$(_wt_new_tab "$workspace_id" "$target_path" "cmd" | cut -f2)
+  [ -n "$cmd_pane" ] && herdr pane run "$cmd_pane" "cd \"$target_path\" && DEVBOX_SETUP=0 ds"
 
   local setup_out setup_tab setup_pane setup_cmd autoname_cmd=""
   setup_out=$(_wt_new_tab "$workspace_id" "$target_path" "setup...")
@@ -192,7 +189,7 @@ herdr_branch_repo() {
     herdr pane run "$setup_pane" "$setup_cmd"
   fi
 
-  echo "Space '$tab_name' ready at $target_path (tabs: edit, tests, ai, setup...)"
+  echo "Space '$tab_name' ready at $target_path (tabs: edit, cmd, setup...)"
 }
 _set wt "herdr_branch_repo"
 
@@ -222,7 +219,7 @@ all_my_prs() {
   fi
 
   # dedup on the *workspace* labels: wt's tabs are named after their job
-  # (edit/tests/ai), the space is what carries the PR/branch name
+  # (edit/cmd), the space is what carries the PR/branch name
   local open_spaces
   open_spaces=$(herdr workspace list 2>/dev/null | jq -r '.result.workspaces[].label')
 

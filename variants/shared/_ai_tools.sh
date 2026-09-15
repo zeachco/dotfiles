@@ -265,7 +265,7 @@ _git_base_ref() {
 #               as soon as anything else (all_my_prs) opens another tab while
 #               this pane boots.
 #   --no-tab    rename the workspace only and leave every tab alone. What wt
-#               wants: its tabs are named after their job (edit/tests/ai), so
+#               wants: its tabs are named after their job (edit/cmd), so
 #               the name belongs on the space they share. Needs --workspace-id
 #               unless a tab id is given to resolve it from.
 #   --workspace-id=W
