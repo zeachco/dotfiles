@@ -90,7 +90,7 @@ HERDR_PATH=$(which herdr 2>/dev/null || echo "$HOME/.local/bin/herdr")
 #
 # Both flags are load-bearing, and -i is the subtle one: zsh sources ~/.zshrc
 # only for *interactive* shells, and ~/.zshrc is where every PATH export lives
-# (bun, ~/.local/bin, lmstudio, gcloud) because ~/.zshenv is empty and there is
+# (bun, ~/.local/bin, gcloud) because ~/.zshenv is empty and there is
 # no ~/.zprofile. A plain `-l -c` therefore gets only path_helper's PATH, which
 # does carry /opt/homebrew/bin -- so `gh` and the brew binaries resolve and the
 # server looks fixed, while `bun` alone still fails and takes every PR Tracker
