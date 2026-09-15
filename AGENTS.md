@@ -56,6 +56,12 @@ management. This file keeps only the map and the gotchas.
 - **Neovim `.git`/`.github` visibility** is handled by
   `configs/nvim/.config/nvim/lua/plugins/git-visibility.lua` (Telescope `hidden=true` + Neo-tree
   `always_show`). Edit that file, not the docs.
+- **oh-my-opencode-slim rewrites its stowed config.** `configs/opencode/…/oh-my-opencode-slim.json`
+  is Stow-linked, and the plugin's `/preset` command (plus the installer with `--reset`) persists by
+  rewriting that file in place — through the symlink, i.e. in the dotfiles. A preset switch leaves a
+  repo diff: commit it or revert + re-stow. Keep the stowed file plain JSON (the rewrite drops
+  comments) and keep `companion` out of it — `companion.enabled: true` makes the plugin download the
+  companion binary at startup on any machine that lacks one; companion settings stay machine-local.
 
 ## Testing
 

@@ -15,3 +15,7 @@ configs/pi/.pi/agent/auth.json
 # deletes whatever the local router does not serve -- so a tracked copy flips on every
 # sync. Seeded from models.seed.json by setup, then filled in per machine.
 configs/pi/.pi/agent/models.json
+
+# BEGIN oh-my-opencode-slim clonedeps
+.slim/clonedeps/repos/
+# END oh-my-opencode-slim clonedeps
