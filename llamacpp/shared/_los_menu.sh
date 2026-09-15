@@ -429,7 +429,42 @@ except Exception: print(-1)' 2>/dev/null)
   return 0
 }
 
-# Rewrite pi's and opencode's model definitions from the live routers.
+# Point pi's llamacpp* providers at loopback when THIS box serves the models.
+#
+# ~/models present means the routers are local. The configured host names the OTHER box
+# (oli-llms.local), which from here resolves to a different machine or, as on the mac, to
+# nothing -- so pi would sync from, and then talk to, a router that is not the one running.
+#
+# opencode needs no equivalent: its plugin rewrites the host in memory at startup. pi has
+# no hook that can reach the endpoint (before_provider_request carries only the payload),
+# so for pi the URL has to be in models.json, and this is what puts it there.
+_los_menu_localize_pi() {
+  local models_json="${1:-$HOME/.pi/agent/models.json}"
+  [[ -d "$HOME/models" ]] || return 0
+  [[ -f "$models_json" ]] || return 0
+  command -v jq >/dev/null 2>&1 || { echo "los: jq missing; left pi pointing at the remote host" >&2; return 0; }
+
+  local real tmp mode
+  # Follow the stow symlink: the file to edit is the one in ~/dotfiles, so the change is
+  # git-tracked and reviewable like the model list itself.
+  real=$(realpath "$models_json") || return 0
+  tmp=$(mktemp "${real}.los.XXXXXX") || return 0
+
+  if jq '.providers |= with_entries(
+           if (.key | startswith("llamacpp")) and (.value.baseUrl? // "" | test("^https?://"))
+           then .value.baseUrl |= sub("^(?<s>https?://)[^:/]+"; "\(.s)127.0.0.1")
+           else . end)' "$real" >"$tmp" && [[ -s "$tmp" ]]; then
+    # stat is not portable; try BSD then GNU, and just keep the default on neither.
+    mode=$(stat -f '%Lp' "$real" 2>/dev/null || stat -c '%a' "$real" 2>/dev/null) && chmod "$mode" "$tmp"
+    mv "$tmp" "$real"
+  else
+    rm -f "$tmp"
+    echo "los: could not rewrite pi's baseUrl; left it pointing at the remote host" >&2
+  fi
+  return 0
+}
+
+# Rewrite pi's model definitions from the live routers.
 #
 # The pause matters: the menu loop redraws fzf over the full terminal height the moment
 # this returns, and the list of added/removed models -- the only output worth reading --
@@ -437,6 +472,7 @@ except Exception: print(-1)' 2>/dev/null)
 _los_menu_sync_models() {
   local sync="${DOT_DIR:-$HOME/dotfiles}/bin/llamacpp-sync"
   [[ -x "$sync" ]] || { echo "los: no llamacpp-sync at $sync" >&2; return 1; }
+  _los_menu_localize_pi
   "$sync" "$@"
   local rc=$?
   printf '\n%s' "[enter] back to the menu "
