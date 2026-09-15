@@ -53,7 +53,7 @@ Alt chords need `option_as_alt` on macOS (configs/alacritty-osx) and CSI-u Enter
 
 ## Herdr plugins
 
-`herdr plugin install <owner/repo>`; installed globally under `~/.config/herdr/plugins`, so nothing to Stow. Installed: `jakekroon/herdr-pr-tracker` (open-PR widget, `prefix+m`/`prefix+i`/`prefix+shift+i` and the `$pr` sidebar token, both in configs/herdr).
+`herdr plugin install <owner/repo>`; installed globally under `~/.config/herdr/plugins`, so nothing to Stow. None installed right now (`jakekroon/herdr-pr-tracker` was removed, along with its `prefix+m`/`prefix+i`/`prefix+shift+i` bindings and the `$pr` sidebar row override in configs/herdr).
 
 Plugin commands and `[[keys.command]]` entries are spawned by the Herdr **server**, which inherits its environment from whatever launched it -- Alacritty from launchd, i.e. `PATH=/usr/bin:/bin:/usr/sbin:/sbin`. variants/osx/setup.sh therefore launches Herdr through `$SHELL -l -i -c`; without that, anything outside those four directories fails to spawn and only `herdr plugin log` says why (`No such file or directory (os error 2)`). `-i` is load-bearing: zsh reads `~/.zshrc` only when interactive, and that is where the PATH exports live, so a plain `-l -c` still resolves `gh` and brew (path_helper supplies `/opt/homebrew/bin`) while `bun` alone fails. Pane shells never saw this -- they are interactive login shells already. A PATH change reaches the server only when **Alacritty** is relaunched; stopping the server alone respawns it from the client's stale environment.
 
