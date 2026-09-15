@@ -3,7 +3,7 @@
 # The CHEAP tier. This is an isolation boundary, not a performance tier: it keeps
 # high-frequency shell traffic (summarize/tab_autoname in variants/shared/_ai_tools.sh)
 # off the light router, whose eviction is pure LRU with no way to pin a model. See
-# cheap.ini's header and ryzen-llm-setup.md "The cheap tier" for the full argument.
+# cheap.ini's header and docs/ryzen-llm-setup.md "The cheap tier" for the full argument.
 #
 # %h is systemd's own user-unit specifier for $HOME -- no install-time substitution
 # needed for paths. Only @CHEAP_CPU_QUOTA@ and @CHEAP_THREADS@ are rendered by install.sh.
@@ -12,7 +12,7 @@
 
 [Unit]
 Description=llama.cpp router (cheap tier) on :7071
-Documentation=file:///home/olivier/dotfiles/ryzen-llm-setup.md
+Documentation=file:///home/olivier/dotfiles/docs/ryzen-llm-setup.md
 After=graphical-session.target
 
 [Service]

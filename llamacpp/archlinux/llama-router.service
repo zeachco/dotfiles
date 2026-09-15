@@ -11,7 +11,7 @@
 
 [Unit]
 Description=llama.cpp router (light tier) on :7070
-Documentation=file:///home/olivier/dotfiles/ryzen-llm-setup.md
+Documentation=file:///home/olivier/dotfiles/docs/ryzen-llm-setup.md
 After=graphical-session.target
 
 [Service]

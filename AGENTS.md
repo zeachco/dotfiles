@@ -1,67 +1,63 @@
 # AI Agent Guide: Dotfiles Architecture
 
-Cross-platform dotfiles using two-tier profiles (shared base + OS-specific overrides) and GNU Stow for config symlinks.
+Cross-platform dotfiles using two-tier profiles (shared base + OS-specific overrides) and GNU
+Stow for config symlinks.
 
-## Flow: setup.sh → OS detection → install_profile("shared") → install_profile(OS_variant)
+**Start here, then read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — it documents the key
+concepts: the setup flow, OS detection, variants, the Stow system, shell profile inheritance,
+package-manager abstraction, utilities, themes, the llama.cpp subsystem, and per-OS service
+management. This file keeps only the map and the gotchas.
 
-**Core files**: `setup.sh` (orchestrator), `utils.sh` (install/stow_link/install_profile), `variants/*/setup.sh` (packages), `variants/*/profile.sh` (shell config)
+## Repository map
 
-## OS Detection (setup.sh:17-36)
+| Path                | What lives there                                                    |
+| ------------------- | ------------------------------------------------------------------- |
+| `setup.sh`          | Orchestrator: OS detection → `install_profile shared` → `install_profile <variant>` → extras |
+| `utils.sh`          | `install_profile`, `stow_link`, `install`/`install_pkg`, `clean_imports`, theme seeding |
+| `variants/`         | One dir per OS (+ shared base): `setup.sh` (packages) + `profile.sh` (shell state), partials in `_*.sh` |
+| `configs/`          | Stow packages, mirroring `$HOME`: `configs/nvim/.config/nvim/…` → `~/.config/nvim/…` |
+| `llamacpp/`         | Local model serving: shared launchers/menu/fetch lib, osx (launchd) + archlinux (systemd) — see [llamacpp/README.md](llamacpp/README.md) |
+| `bin/`              | Helper scripts, invoked by absolute path — see [bin/README.md](bin/README.md) |
+| `themes/`           | Per-app themes; `themes/current` is machine state (gitignored)       |
+| `framework-ryzen/`  | Rust RGB dashboard for the Framework Desktop, installed as a root systemd daemon |
+| `docs/`             | [Architecture](docs/ARCHITECTURE.md) · [Strix Halo LLM runbook](docs/ryzen-llm-setup.md) |
+| `todos/`            | Scratch notes, not part of the system                                |
 
-Linux → /etc/arch-release or pacman → archlinux | else → debian  
-Overrides: $TERMUX_VERSION → termux | lsb_release=Ubuntu → ubuntu  
-Darwin → osx
+## Gotchas (each one was paid for)
 
-## Variants (variants/*)
-
-**Inheritance**: shared sourced FIRST → OS-specific (allows function shadowing)
-
-| Variant   | PM         | Stow Configs                        | Notes                                        |
-| --------- | ---------- | ----------------------------------- | -------------------------------------------- |
-| shared    | agnostic   | alacritty, tmux, pi                 | Base: git, rg, fd, gh, fzf, tmux, pi         |
-| debian    | apt        | claude, alacritty-debian, nvim      | Core tools                                   |
-| ubuntu    | apt        | Same as debian                      | + devbox, shortcuts.sh (GNOME keys)          |
-| osx       | brew       | 6 pkgs (aerospace, sketchybar, herdr) | Generates herdr os.toml, option_as_alt     |
-| archlinux | pacman+yay | wireplumber                         | AUR helper, 20+ pac*/yay* functions          |
-| termux    | pkg        | None                                | Android-specific, redefined killport/network |
-| omarchy   | pacman     | hypr, foot, alacritty-omarchy       | Setup-only, modifies Hypr bindings           |
-
-## Stow System (configs/ → ~/)
-
-16 packages mirror home structure: `configs/nvim/.config/nvim/`, `configs/alacritty/.config/alacritty/`  
-**stow_link()** (utils.sh:124-148): auto-removes conflicts, uses --restow fallback  
-**Override pattern**: base (alacritty, tmux) + OS variants (alacritty-osx, alacritty-omarchy)
-
-## install_profile() (utils.sh:29-44)
-
-1. Run variants/$variant/setup.sh
-2. Copy profile.sh → ~/.dotfiles_$variant
-3. Source in shell: `[[ -f ~/.dotfiles_$variant ]] && source ~/.dotfiles_$variant # zeachco-dotfiles`
-
-**clean_imports()**: strips old `# zeachco-dotfiles` lines before reinstall
-
-## Key Functions (variants/shared/profile.sh)
-
-**clone [repo]**: GitHub shorthand | **killport [port]**: kill process | **check_for_devbox()**: auto-enters devbox shell  
-**Git**: gco, gs, gd, gci, gp (via `_set` - prints before exec) | **\_worktrees.sh**: jira_claude, Herdr integration  
-**OS-specific**: archlinux (pacup, yayin), osx (docker wrapper, dark mode), termux (battery, notify)
-
-## Keybindings
-
-`configs/tmux/.config/tmux/tmux.conf` is a copy of Omarchy's tmux config; `bin/herdr-config ensure-keys` mirrors that keymap into `~/.config/herdr/config.toml` (Stow-linked from `configs/herdr` on macOS only; patched key-by-key in place because Herdr's server writes to the same file).
-Alt chords need `option_as_alt` on macOS (configs/alacritty-osx) and CSI-u Enter bindings (configs/alacritty, configs/foot). Validate with `herdr config check`.
-
-## Herdr plugins
-
-`herdr plugin install <owner/repo>`; installed globally under `~/.config/herdr/plugins`, so nothing to Stow. None installed right now (`jakekroon/herdr-pr-tracker` was removed, along with its `prefix+m`/`prefix+i`/`prefix+shift+i` bindings and the `$pr` sidebar row override in configs/herdr).
-
-Plugin commands and `[[keys.command]]` entries are spawned by the Herdr **server**, which inherits its environment from whatever launched it -- Alacritty from launchd, i.e. `PATH=/usr/bin:/bin:/usr/sbin:/sbin`. variants/osx/setup.sh therefore launches Herdr through `$SHELL -l -i -c`; without that, anything outside those four directories fails to spawn and only `herdr plugin log` says why (`No such file or directory (os error 2)`). `-i` is load-bearing: zsh reads `~/.zshrc` only when interactive, and that is where the PATH exports live, so a plain `-l -c` still resolves `gh` and brew (path_helper supplies `/opt/homebrew/bin`) while `bun` alone fails. Pane shells never saw this -- they are interactive login shells already. A PATH change reaches the server only when **Alacritty** is relaunched; stopping the server alone respawns it from the client's stale environment.
+- **`~/.dotfiles_*` are copies, not links.** `install_profile` copies `profile.sh` at install
+  time. A profile change reaches a machine only after re-running `setup.sh` /
+  `dotfiles_update` — an already-open shell keeps the old values.
+- **Stow packages override per file.** Base (alacritty, tmux) + per-OS packages (alacritty-osx,
+  alacritty-omarchy); the last stowed package wins. `stow_link` deletes conflicting targets
+  first, so never rely on a stale untracked file in `configs/`.
+- **Machine-local state is gitignored**: `themes/current`, `configs/alacritty/…/theme.toml`, pi
+  `models.json` (seeded from `models.seed.json` **before** stow — without the seed pi comes up
+  with no llamacpp providers at all, which sync cannot repair), pi `auth.json`, herdr-agent-state
+  files.
+- **Herdr's server rewrites its own config.** `~/.config/herdr/config.toml` is Stow-linked on
+  macOS, but the server patches it in place (onboarding state, keys), so `bin/herdr-config`
+  patches single keys through the symlink — never retemplate the file. Alt chords need
+  `option_as_alt` (alacritty-osx) and CSI-u Enter bindings (alacritty, foot). Validate with
+  `herdr config check`.
+- **The Herdr server inherits a launchd environment on macOS** (Alacritty is started by launchd:
+  `PATH=/usr/bin:/bin:/usr/sbin:/sbin`), so plugin commands and `[[keys.command]]` entries can
+  only spawn things in those four directories unless the server was started with a real
+  environment. `variants/osx/setup.sh` therefore launches Herdr through `$SHELL -l -i -c`
+  (`-i` is load-bearing — zsh reads `~/.zshrc` only when interactive, and that is where the PATH
+  exports live). A PATH change reaches the server only when **Alacritty** is relaunched; stopping
+  the server alone respawns it from the client's stale environment. The only diagnostic is
+  `herdr plugin log` (`No such file or directory (os error 2)`).
+- **Alacritty live-reload races Stow.** `nudge_alacritty_reload()` (utils.sh) touches the
+  alacritty tomls at the end of a variant setup, after the last write — the full rationale is in
+  its comment.
+- **bash 3.2 on macOS.** Everything under `llamacpp/` that ships to the Mac (fetch lib, hw gate,
+  verify) must not use associative arrays, `${var,,}`, mapfile, globstar, or GNU sed/awk.
+- **Neovim `.git`/`.github` visibility** is handled by
+  `configs/nvim/.config/nvim/lua/plugins/git-visibility.lua` (Telescope `hidden=true` + Neo-tree
+  `always_show`). Edit that file, not the docs.
 
 ## Testing
 
-`bash ~/dotfiles/setup.sh` (full) | `dotfiles_update` (remote pull) | `source ~/.zshrc` (reload)
-
-## Neovim: `.git`/`.github` visibility
-
-Handled by `configs/nvim/.config/nvim/lua/plugins/git-visibility.lua` (Telescope `hidden=true`
-+ Neo-tree `always_show`). Edit that file, not AGENTS.md.
+`bash ~/dotfiles/setup.sh` (full, idempotent) · `dotfiles_update` (pull + reapply) ·
+`source ~/.zshrc` (reload shell state).

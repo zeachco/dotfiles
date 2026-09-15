@@ -27,7 +27,7 @@ _ai_debug() {
 # llama.cpp's common/arg.cpp), and every POST refreshes its target's timestamp. These
 # helpers POST on every herdr tab rename, which kept the small model freshest and made
 # the ~28 GiB qwen3.8 the eviction victim. Do not point them back at :7070.
-# See ryzen-llm-setup.md "The cheap tier".
+# See docs/ryzen-llm-setup.md "The cheap tier".
 _ai_url() {
   printf '%s' "${AI_LLAMA_URL:-${LOS_URL:-http://127.0.0.1:7070}}"
 }

@@ -54,7 +54,7 @@ _los_ncpu() {
 
 # Router mode: no -m, so llama-server loads nothing itself and forks one child
 # process per model, routed on the JSON body's "model" field. See
-# ryzen-llm-setup.md Phase 1 for the directory-split rationale (--models-max counts
+# docs/ryzen-llm-setup.md Phase 1 for the directory-split rationale (--models-max counts
 # models, not bytes, so the big DeepSeek-class weights live in a separate "heavy"
 # tier directory/preset that is never enumerated alongside the light tier).
 #
@@ -136,7 +136,7 @@ los-server-light() {
 # One model at a time, the big ones, on :7072 -- mirroring llama-router-heavy.service.
 # No longer mutually exclusive with `los` by PORT, but still by MEMORY: the routers do
 # not coordinate, so with qwen3.8 + GLM resident on :7070 an 87 GiB load here fails on
-# the GPU. `los-drain` first. See ryzen-llm-setup.md "The heavy tier".
+# the GPU. `los-drain` first. See docs/ryzen-llm-setup.md "The heavy tier".
 los-server-heavy() { LOS_PORT="${LOS_PORT:-7072}" _los_router heavy 1 --no-models-autoload "$@"; }
 
 # Load a heavy-tier model explicitly (the heavy router runs --no-models-autoload, so a

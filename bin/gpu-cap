@@ -12,7 +12,7 @@
 # This is GLOBAL to the GPU: it throttles llama.cpp, games and the compositor
 # alike. There is no per-process or per-request GPU quota on amdgpu; this
 # kernel exposes no DRM scheduling cgroup (only `dmem`, which accounts device
-# memory), and llama-server has no utilization flag. See ryzen-llm-setup.md.
+# memory), and llama-server has no utilization flag. See docs/ryzen-llm-setup.md.
 #
 # Writes need root and this box has no tty for a sudo prompt, so it goes
 # through pkexec (hyprpolkitagent answers it) -- one prompt per invocation.

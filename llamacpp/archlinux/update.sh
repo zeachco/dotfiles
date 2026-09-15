@@ -67,7 +67,7 @@ if ! is_strix_halo_omarchy; then
 fi
 
 command -v git >/dev/null 2>&1 || { warn "git not available, skipping"; exit 0; }
-[[ -d "$LLAMA_DIR/.git" ]] || { say "no checkout at $LLAMA_DIR, skipping (see ryzen-llm-setup.md)"; exit 0; }
+[[ -d "$LLAMA_DIR/.git" ]] || { say "no checkout at $LLAMA_DIR, skipping (see docs/ryzen-llm-setup.md)"; exit 0; }
 
 # ---- serialize ----------------------------------------------------------------------
 # A login shell and a manual run can collide; two concurrent cmake builds in one
@@ -162,7 +162,7 @@ if ((${#MISSING[@]} > 0)); then
 fi
 
 # ---- configure ----------------------------------------------------------------------
-# Vulkan only, matching ryzen-llm-setup.md; GGML_HIP stays OFF (Phase 4 uses a separate
+# Vulkan only, matching docs/ryzen-llm-setup.md; GGML_HIP stays OFF (Phase 4 uses a separate
 # build-hip/ tree). ccache is installed on this box but was never wired into the build
 # -- 0 hits out of 54 lookups -- which is most of why a routine rebuild was expensive
 # enough to put off. Setting the launcher on an existing cache is a re-configure, not a

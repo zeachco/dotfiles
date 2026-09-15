@@ -70,9 +70,27 @@ For ubuntu, it also installs [omakub](https://omakub.org/) it's just too good to
 
 - linux debian/arch based (with apt-get such as Ubuntu)
 - linux debian/arch based (with pacman such as Manjaroo)
-- maxos (with xcode)
+- macos (with xcode)
 - spin cloud debian-based server
 - extensible by profile
+
+# Repository layout
+
+```
+setup.sh           orchestrator: OS detection → shared profile → OS profile → extras
+utils.sh           install_profile / stow_link / install / install_pkg / clean_imports
+variants/<os>/     per-OS profile: setup.sh (packages) + profile.sh (shell state)
+configs/<pkg>/     Stow packages mirroring $HOME (nvim, alacritty, tmux, pi, herdr, …)
+llamacpp/          local model serving (launchd on macOS, systemd on Arch) — see its README
+bin/               helper scripts (theme-switch, herdr-config, llamacpp-sync/audit, voice) — see its README
+themes/            per-app themes; themes/current is machine state
+framework-ryzen/   Rust RGB dashboard for the Framework Desktop (systemd daemon)
+docs/              ARCHITECTURE.md (key concepts) + the Strix Halo LLM runbook
+```
+
+**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** documents the key concepts: the setup flow,
+the two-tier profile system, the Stow system, package-manager abstraction, shell profile
+inheritance, themes, the llama.cpp subsystem, and per-OS service management.
 
 # Includes
 
@@ -81,7 +99,7 @@ For ubuntu, it also installs [omakub](https://omakub.org/) it's just too good to
 The repository uses a profile-based approach for different environments. When you run `setup.sh`:
 
 1. It automatically detects your operating system and environment (macOS, Arch, Debian, Ubuntu, Termux, etc.).
-2. It first runs the `common` profile which installs the base set of tools and configurations using `stow` for symlinking `configs/` into your `$HOME`.
+2. It first runs the `shared` profile which installs the base set of tools and configurations using `stow` for symlinking `configs/` into your `$HOME`.
 3. It then runs the specific profile for your OS (e.g. `variants/osx`, `variants/ubuntu`).
 4. Profiles use a helper script (`utils.sh`) to intelligently manage dependencies across OS package managers (apt, pacman, brew, pkg).
 5. It safely injects a source hook into your shell's initialization file (`~/.bashrc`, `~/.zshrc`, etc.) to load aliases, variables, and bash functions from `.dotfiles_<variant>`.
@@ -93,14 +111,12 @@ Uses [mise](https://mise.jdx.dev/) and [devbox](https://www.jetify.com/devbox) t
 
 ## Tools
 
-- git config (auto config with email / name / rebase merge mode and vim editor)
+- git config (auto config with email / name / rebase merge mode and nvim editor)
 - git aliases (ie `gco` and `git co` for git checkout) git aliases print the real command
-- lunarvim (text editor)
 - neovim (text editor)
 - ligature nerd fonts
 - fzf (fast file searching)
 - tmux (terminal multiplexer, Omarchy keybindings shared across Linux and macOS)
-- g++ compiler
 
 ## bash functions
 

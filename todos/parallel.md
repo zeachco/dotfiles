@@ -25,7 +25,7 @@ parallelism:
 2. Router eviction is pure LRU on `last_used` with no way to pin a model, and every POST refreshes
    the target's timestamp — so `summarize`/`tab_autoname` firing on every tab rename kept evicting
    qwen3.8. Fixed by moving that traffic to `llama-router-cheap.service` on :8081. See
-   `ryzen-llm-setup.md` → "The cheap tier".
+   `docs/ryzen-llm-setup.md` → "The cheap tier".
 
 ## Still open
 

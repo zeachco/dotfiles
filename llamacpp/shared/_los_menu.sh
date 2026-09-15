@@ -13,7 +13,7 @@
 #
 # Resident GTT is read from the child's fdinfo rather than RSS: amdgpu pins GPU memory
 # outside any process's RSS, so `ps` shows ~42 MiB for a 91 GiB model. See
-# ryzen-llm-setup.md "Incident: the OOM of 2026-09-09".
+# docs/ryzen-llm-setup.md "Incident: the OOM of 2026-09-09".
 
 # tier:port:unit -- the three routers in llamacpp/archlinux. Override to add a box.
 LOS_MENU_TIERS="${LOS_MENU_TIERS:-light:7070:llama-router.service cheap:7071:llama-router-cheap.service heavy:7072:llama-router-heavy.service}"
@@ -203,7 +203,7 @@ emit("%sdrain idle%s        %sunload what nobody is generating on%s" % (BOLD, OF
      "  cached context, so check before draining a tier someone is parked on.\n\n"
      "  Caveat -- this is not a fence. --models-max autoload means the next request for\n"
      "  a model pulls it straight back. To keep a tier down for a heavy session, stop\n"
-     "  its unit instead. See ryzen-llm-setup.md \"Incident: the OOM of 2026-09-09\".\n"
+     "  its unit instead. See docs/ryzen-llm-setup.md \"Incident: the OOM of 2026-09-09\".\n"
      % (idle_n, len(loaded), gib(held)))
 
 emit("%sload%s              %spick from the models that are not resident%s" % (BOLD, OFF, DIM, OFF),
@@ -382,7 +382,7 @@ _los_menu_run_many() {
 # UNLOADS RUN FIRST, always. Marking "unload GLM" and "load qwen3.8" together is a swap,
 # and it only fits if the memory is freed before the load is attempted -- the routers do
 # not coordinate a budget, so doing it in selection order is exactly the OOM in
-# ryzen-llm-setup.md "Incident: the OOM of 2026-09-09".
+# docs/ryzen-llm-setup.md "Incident: the OOM of 2026-09-09".
 _los_menu_toggle_many() {
   local dir="$1" keys="$2" k unloads= loads=
   while IFS= read -r k; do

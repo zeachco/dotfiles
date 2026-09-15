@@ -83,4 +83,4 @@ sync. opencode reads its config at startup, so restart it.
   client provider: it exists for high-frequency shell calls, and adding it back as
   an agent-selectable model would reintroduce the LRU eviction problem it was
   split out to solve. No provider points at :7071, so the sync ignores it. See
-  ryzen-llm-setup.md "The cheap tier".
+  docs/ryzen-llm-setup.md "The cheap tier".

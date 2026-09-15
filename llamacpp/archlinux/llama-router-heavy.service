@@ -7,7 +7,7 @@
 # moment it comes back. Here it is an explicit step instead: `los-drain`, then load.
 #
 # What this does NOT provide is memory. The routers do not coordinate, so with the light
-# tier's models resident an 87 GiB load here fails on the GPU. See ryzen-llm-setup.md
+# tier's models resident an 87 GiB load here fails on the GPU. See docs/ryzen-llm-setup.md
 # "The heavy tier".
 #
 # %h is systemd's own user-unit specifier for $HOME. Rendered by install.sh:
@@ -16,7 +16,7 @@
 
 [Unit]
 Description=llama.cpp router (heavy tier) on :7072
-Documentation=file:///home/olivier/dotfiles/ryzen-llm-setup.md
+Documentation=file:///home/olivier/dotfiles/docs/ryzen-llm-setup.md
 After=graphical-session.target
 
 [Service]

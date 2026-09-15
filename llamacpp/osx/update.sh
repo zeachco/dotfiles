@@ -22,7 +22,7 @@
 #
 # This one DOES clone, where the Arch updater refuses to. On the Strix Halo box the
 # checkout is a documented prerequisite with a hand-tuned Vulkan build behind it
-# (ryzen-llm-setup.md); here there is nothing to preserve and nothing to get wrong,
+# (docs/ryzen-llm-setup.md); here there is nothing to preserve and nothing to get wrong,
 # so a missing checkout is just a first run.
 #
 # INVOKE THIS WITH `bash`, NOT `$SHELL`: ${BASH_SOURCE[0]} below is unset under zsh

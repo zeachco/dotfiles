@@ -28,7 +28,7 @@ USER_UNIT_DIR="$HOME/.config/systemd/user"
 # the rendered ExecStart will use without needing to substitute it.
 if [[ ! -x "$HOME/dev/llama.cpp/build/bin/llama-server" ]]; then
   echo "llama router skipped: llama-server not built at $HOME/dev/llama.cpp/build/bin/llama-server"
-  echo "                      (see ryzen-llm-setup.md for the build steps)"
+  echo "                      (see docs/ryzen-llm-setup.md for the build steps)"
   exit 0
 fi
 

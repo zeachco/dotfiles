@@ -5,7 +5,7 @@
 # model fetch script if ~/models/light is empty.
 #
 # Skips itself when ~/dev/llama.cpp/build/bin/llama-server has not been built yet
-# (see ryzen-llm-setup.md), so this is harmless on an Arch box without that setup.
+# (see docs/ryzen-llm-setup.md), so this is harmless on an Arch box without that setup.
 #
 # Invoked with a literal `bash`, NOT "$SHELL": utils.sh runs variant setup.sh files
 # as `$SHELL <script>` and $SHELL is /bin/zsh on this box, so the shebang is
