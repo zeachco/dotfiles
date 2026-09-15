@@ -1,0 +1,29 @@
+{
+  "$schema": "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json",
+  "preset": "llamacpp",
+  "presets": {
+    "llamacpp": {
+      "orchestrator": {
+        "model": "llamacpp/qwen3.8"
+      },
+      "oracle": {
+        "model": "llamacpp/qwen3.8"
+      },
+      "librarian": {
+        "model": "llamacpp/qwen3.8"
+      },
+      "explorer": {
+        "model": "llamacpp/qwen3.8"
+      },
+      "designer": {
+        "model": "llamacpp/qwen3.8"
+      },
+      "fixer": {
+        "model": "llamacpp/qwen3.8"
+      },
+      "council": {
+        "model": "llamacpp/qwen3.8"
+      }
+    }
+  }
+}

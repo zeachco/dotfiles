@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "updatedAt": "2026-09-15T00:00:00.000Z",
+  "dependencies": [
+    {
+      "name": "oh-my-opencode-slim",
+      "resolvedVersion": "438776e312445f5102d7c98269abaa12edfae434",
+      "repoUrl": "https://github.com/alvinunreal/oh-my-opencode-slim.git",
+      "ref": "master@438776e312445f5102d7c98269abaa12edfae434",
+      "path": ".slim/clonedeps/repos/alvinunreal__oh-my-opencode-slim",
+      "reason": "oh-my-opencode-slim plugin source: config schema, model resolution, preset persistence, and companion behavior for tuning the stowed opencode config"
+    }
+  ]
+}
