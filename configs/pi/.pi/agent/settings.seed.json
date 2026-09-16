@@ -6,6 +6,5 @@
     "npm:@openlines/openpi-memory",
     "npm:@capyup/pi-goal"
   ],
-  "theme": "omarchy-system",
-  "lastChangelogVersion": "0.85.1"
+  "theme": "omarchy-system"
 }

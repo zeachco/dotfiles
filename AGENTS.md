@@ -33,8 +33,12 @@ management. This file keeps only the map and the gotchas.
   first, so never rely on a stale untracked file in `configs/`.
 - **Machine-local state is gitignored**: `themes/current`, `configs/alacritty/…/theme.toml`, pi
   `models.json` (seeded from `models.seed.json` **before** stow — without the seed pi comes up
-  with no llamacpp providers at all, which sync cannot repair), pi `auth.json`, herdr-agent-state
-  files.
+  with no llamacpp providers at all, which sync cannot repair), pi `settings.json` (seeded from
+  `settings.seed.json`; pi rewrites it in place — `defaultModel` is per-box) and
+  `models-store.json` (provider-catalog cache), pi `auth.json`, herdr-agent-state files.
+- **llamacpp model ids are `~/models` directory entry names**, not filenames — and they are
+  unified across boxes (`qwen3.8`, `GLM-4.7-Flash-UD-Q4_K_XL`): both fetch scripts must keep
+  naming the directories the same, or client configs silently need two model strings again.
 - **Herdr's server rewrites its own config.** `~/.config/herdr/config.toml` is Stow-linked on
   macOS, but the server patches it in place (onboarding state, keys), so `bin/herdr-config`
   patches single keys through the symlink — never retemplate the file. Alt chords need

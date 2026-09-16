@@ -9,7 +9,6 @@ main() {
   local models="$HOME/models/light" qwen_id=qwen3.8 projector=mmproj-F16.gguf
   if [[ "$(uname -s)" == Darwin ]]; then
     models="${LOS_MODELS_DIR:-$HOME/models}"
-    qwen_id=Qwen3.8-27B
     projector=mmproj-BF16.gguf
   fi
 

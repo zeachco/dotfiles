@@ -38,11 +38,15 @@ fetch unsloth/gemma-4-E2B-it-GGUF mmproj-BF16.gguf           "$MODELS/gemma-4-E2
 fetch unsloth/gemma-4-E4B-it-GGUF gemma-4-E4B-it-Q4_K_M.gguf "$MODELS/gemma-4-E4B-it"
 fetch unsloth/gemma-4-E4B-it-GGUF mmproj-BF16.gguf           "$MODELS/gemma-4-E4B-it"
 
-# --- id: Qwen3.8-27B ------- 16.46 + 0.93 GB. The "think hard" model. -------------
-# NOTE the id differs from the Ryzen box's `qwen3.8` (same model, different directory
-# name). Client configs that target both boxes need both strings.
-fetch unsloth/Qwen3.8-27B-GGUF Qwen3.8-27B-UD-Q4_K_M.gguf "$MODELS/Qwen3.8-27B"
-fetch unsloth/Qwen3.8-27B-GGUF mmproj-BF16.gguf           "$MODELS/Qwen3.8-27B"
+# --- id: qwen3.8 ----------- 16.46 + 0.93 GB. The "think hard" model. -------------
+# The id is the DIRECTORY name, and it is the same on both boxes (the Ryzen box
+# fetches to ~/models/light/qwen3.8) so client configs can use one string.
+fetch unsloth/Qwen3.8-27B-GGUF Qwen3.8-27B-UD-Q4_K_M.gguf "$MODELS/qwen3.8"
+fetch unsloth/Qwen3.8-27B-GGUF mmproj-BF16.gguf           "$MODELS/qwen3.8"
+
+# --- id: GLM-4.7-Flash-... - 16.32 GB. The fast fan-out tier (matches the Ryzen box).
+# Single top-level .gguf, so the id is the filename stem -- identical on both boxes.
+fetch unsloth/GLM-4.7-Flash-GGUF GLM-4.7-Flash-UD-Q4_K_XL.gguf "$MODELS"
 
 # --- MTP draft heads ------- 1.57 GB total. Optional speculative decode. ----------
 # Cheap enough to always have on disk; wiring them up is a commented-out block at the
@@ -64,7 +68,7 @@ routers_reload 7070
 echo
 echo "Confirm the ids the router actually assigned (restart with los-restart if it was down):"
 echo "  los-models"
-echo "They must be exactly: gemma-4-E2B-it, gemma-4-E4B-it, Qwen3.8-27B"
+echo "They must be exactly: gemma-4-E2B-it, gemma-4-E4B-it, qwen3.8, GLM-4.7-Flash-UD-Q4_K_XL"
 echo "Cross-check them against llamacpp/osx/osx.ini with: los-check"
 
 fetch_report

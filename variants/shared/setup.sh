@@ -79,15 +79,22 @@ stow_link tmux
 # packages declared in its settings.json (configs/pi/.pi/agent/settings.json) are
 # downloaded, since pi does not fetch user-level packages from that list on its own.
 #
-# models.json is git-ignored machine state: each box serves different models, and `los`
-# sync-models drops whatever the local router does not serve. Seed it from the tracked
-# template BEFORE stow, or there is no file for stow to link and pi comes up with no
-# llamacpp providers at all -- which sync cannot repair, since it fills in models but
-# never creates a provider. Only when absent: an existing one is this machine's state.
+# models.json and settings.json are git-ignored machine state: pi rewrites both in
+# place (models.json on sync-models, settings.json when the model/theme changes),
+# and the values are per-box. Seed both from their tracked templates BEFORE stow,
+# or there is no file for stow to link -- for models.json that means pi comes up
+# with no llamacpp providers at all, which sync cannot repair, since it fills in
+# models but never creates a provider. Only when absent: an existing one is this
+# machine's state.
 if [[ ! -f "$DOT_DIR/configs/pi/.pi/agent/models.json" ]]; then
   cp "$DOT_DIR/configs/pi/.pi/agent/models.seed.json" \
      "$DOT_DIR/configs/pi/.pi/agent/models.json"
   echo -e "${INFO}seeded ${NORM}pi models.json (run 'los' -> sync-models to fill it in)"
+fi
+if [[ ! -f "$DOT_DIR/configs/pi/.pi/agent/settings.json" ]]; then
+  cp "$DOT_DIR/configs/pi/.pi/agent/settings.seed.json" \
+     "$DOT_DIR/configs/pi/.pi/agent/settings.json"
+  echo -e "${INFO}seeded ${NORM}pi settings.json"
 fi
 stow_link pi
 "$DOT_DIR/configs/pi/setup.sh"

@@ -68,8 +68,10 @@ The last stowed package wins per file.
 
 **Machine-local state is gitignored, not stowed as tracked content**: `themes/current`,
 `configs/alacritty/…/theme.toml`, pi's `models.json` (seeded from `models.seed.json`), pi's
-`auth.json`, and the auto-generated herdr-agent-state files. Anything that differs per box
-belongs there — a tracked copy would flip on every sync.
+`settings.json` (seeded from `settings.seed.json` — pi rewrites it in place: `defaultModel`,
+theme, changelog version) and `models-store.json` (provider-catalog cache, etag/checkedAt),
+pi's `auth.json`, and the auto-generated herdr-agent-state files. Anything that differs per
+box belongs there — a tracked copy would flip on every sync.
 
 ## Shell profiles
 

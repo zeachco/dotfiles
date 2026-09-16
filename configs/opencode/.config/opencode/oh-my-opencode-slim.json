@@ -10,16 +10,16 @@
         "model": "llamacpp/qwen3.8"
       },
       "librarian": {
-        "model": "llamacpp/qwen3.8"
+        "model": "llamacpp/GLM-4.7-Flash-UD-Q4_K_XL"
       },
       "explorer": {
-        "model": "llamacpp/qwen3.8"
+        "model": "llamacpp/GLM-4.7-Flash-UD-Q4_K_XL"
       },
       "designer": {
         "model": "llamacpp/qwen3.8"
       },
       "fixer": {
-        "model": "llamacpp/qwen3.8"
+        "model": "llamacpp/GLM-4.7-Flash-UD-Q4_K_XL"
       },
       "council": {
         "model": "llamacpp/qwen3.8"

@@ -10,11 +10,21 @@ configs/opencode/.config/opencode/plugins/herdr-agent-state.js
 # Live OAuth credentials (access + refresh tokens) written by pi on login/refresh
 configs/pi/.pi/agent/auth.json
 
-# Machine-local llama.cpp model list: every box serves different models (the mac
-# router has Qwen3.8-27B, the linux one qwen3.8/GLM-4.7-Flash), and `los` sync-models
-# deletes whatever the local router does not serve -- so a tracked copy flips on every
-# sync. Seeded from models.seed.json by setup, then filled in per machine.
+# Machine-local llama.cpp model list: every box serves different models, and `los`
+# sync-models deletes whatever the local router does not serve -- so a tracked copy
+# flips on every sync. Seeded from models.seed.json by setup, then filled in per
+# machine. (Model ids are the ~/models directory entry names; both boxes now use
+# qwen3.8 + GLM-4.7-Flash-UD-Q4_K_XL.)
 configs/pi/.pi/agent/models.json
+
+# pi runtime state, rewritten by pi itself in place (through the stow link):
+# settings.json persists this machine's model choice (defaultModel), theme, and
+# changelog version; models-store.json is the provider-catalog cache (openai-codex,
+# anthropic) with etag/checkedAt timestamps. Seeded from settings.seed.json before
+# stow, like models.json -- the seed's packages list is what configs/pi/setup.sh
+# installs on a fresh machine.
+configs/pi/.pi/agent/settings.json
+configs/pi/.pi/agent/models-store.json
 
 # BEGIN oh-my-opencode-slim clonedeps
 .slim/clonedeps/repos/
