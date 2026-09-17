@@ -61,7 +61,8 @@
         },
         "compat": {
           "supportsOpenAIGrammarTools": true,
-          "supportsToolSearch": true
+          "supportsToolSearch": true,
+          "supportsMidConvoSystemMessages": true
         }
       },
       {
@@ -100,7 +101,8 @@
         "compat": {
           "supportsOpenAIGrammarTools": true,
           "supportsAdditionalTools": true,
-          "supportsToolSearch": true
+          "supportsToolSearch": true,
+          "supportsMidConvoSystemMessages": true
         }
       },
       {
@@ -139,7 +141,8 @@
         "compat": {
           "supportsOpenAIGrammarTools": true,
           "supportsAdditionalTools": true,
-          "supportsToolSearch": true
+          "supportsToolSearch": true,
+          "supportsMidConvoSystemMessages": true
         }
       },
       {
@@ -178,7 +181,8 @@
         "compat": {
           "supportsOpenAIGrammarTools": true,
           "supportsAdditionalTools": true,
-          "supportsToolSearch": true
+          "supportsToolSearch": true,
+          "supportsMidConvoSystemMessages": true
         }
       },
       {
@@ -221,12 +225,13 @@
         "compat": {
           "supportsOpenAIGrammarTools": true,
           "supportsAdditionalTools": true,
-          "supportsToolSearch": true
+          "supportsToolSearch": true,
+          "supportsMidConvoSystemMessages": true
         }
       }
     ],
-    "checkedAt": 1789509321913,
-    "lastModified": 1789389620000,
-    "etag": "W/\"70d0125796d9c9e1f7b38bbf967d0bc7\""
+    "checkedAt": 1789660220112,
+    "lastModified": 1789648056000,
+    "etag": "W/\"611b646eb8fe726a315a1544235fa980\""
   }
 }
