@@ -3,8 +3,7 @@
   "defaultProvider": "llamacpp",
   "defaultThinkingLevel": "high",
   "packages": [
-    "npm:@openlines/openpi-memory",
-    "npm:@capyup/pi-goal"
+    "npm:@openlines/openpi-memory"
   ],
   "theme": "omarchy-system",
   "lastChangelogVersion": "0.85.1"
