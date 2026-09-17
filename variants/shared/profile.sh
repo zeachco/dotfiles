@@ -139,6 +139,7 @@ alias sniff_llms='cargo run --release --manifest-path "$HOME/dev/sniff_llms/Carg
 _set rr "cargo run --release --"
 _set bb "cargo build --release --no-default-features"
 alias lll="los"
+alias secrets="bwload"
 # fuzzy-search all systemd services; Enter follows the logs of the selected one (Ctrl+C quits)
 deamons() {
   local svc
@@ -218,6 +219,7 @@ repos() {
     cd "$dev_dir" || return 1
     gh repo clone "$repo" || return 1
     cd "$dev_dir/$name" || return 1
+    secrets
   fi
 
   # auto-enter devbox shell if the repo has one
