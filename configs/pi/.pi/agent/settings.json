@@ -3,7 +3,10 @@
   "defaultProvider": "llamacpp",
   "defaultThinkingLevel": "high",
   "packages": [
-    "npm:@openlines/openpi-memory"
+    "npm:@openlines/openpi-memory",
+    "npm:pi-subagents",
+    "npm:pi-kanban",
+    "npm:@juicesharp/rpiv-todo"
   ],
   "theme": "omarchy-system",
   "lastChangelogVersion": "0.85.1"
