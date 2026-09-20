@@ -12,6 +12,17 @@
     "npm:pi-kanban",
     "npm:@juicesharp/rpiv-todo"
   ],
-  "theme": "omarchy-system",
-  "lastChangelogVersion": "0.86.1"
+  "theme": "light/dark",
+  "lastChangelogVersion": "0.86.1",
+  "editorPaddingX": 1,
+  "outputPad": 1,
+  "terminal": {
+    "showTerminalProgress": true
+  },
+  "steeringMode": "all",
+  "collapseChangelog": true,
+  "enableInstallTelemetry": false,
+  "defaultProjectTrust": "ask",
+  "treeFilterMode": "default",
+  "tuiMode": "fullscreen"
 }
