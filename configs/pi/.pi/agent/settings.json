@@ -1,7 +1,11 @@
 {
-  "defaultModel": "qwen3.8",
-  "defaultProvider": "llamacpp",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.6-luna",
   "defaultThinkingLevel": "high",
+  "enabledModels": [
+    "openai-codex/gpt-5.6-luna",
+    "llamacpp/qwen3.8"
+  ],
   "packages": [
     "npm:@openlines/openpi-memory",
     "npm:pi-subagents",
