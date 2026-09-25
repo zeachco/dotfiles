@@ -136,7 +136,7 @@ alias llamacpp-audit="$DOT_DIR/bin/llamacpp-audit"
 # sniff_llms lives in its own repo (github.com/zeachco/sniff_llms), cloned at ~/dev/sniff_llms
 alias sniff_llms='cargo run --release --manifest-path "$HOME/dev/sniff_llms/Cargo.toml" --'
 # `rr --help` → `cargo run --release -- --help` (args go to the program, not cargo)
-_set rr "cargo run --release --"
+_set rr "cargo run --release --no-default-features --"
 _set bb "cargo build --release --no-default-features"
 alias lll="los"
 alias secrets="bwload"
