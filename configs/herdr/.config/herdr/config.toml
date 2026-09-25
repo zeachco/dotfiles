@@ -6,7 +6,9 @@
 #   - bin/herdr-config, which patches `theme.name` on every `theme` switch and
 #     re-applies the Omarchy keymap on every setup run
 # Both patch keys in place rather than rewriting the file, so these comments
-# survive. A theme switch shows up as a one-line diff here; commit or discard.
+# survive. A theme switch never shows up as a diff: a git clean filter
+# (.gitattributes, registered by variants/shared/setup.sh) pins theme.name to
+# "terminal" in git, and setup's sync-theme restores the real one after clone.
 #
 # Keymap mirrors configs/tmux/.config/tmux/tmux.conf (Omarchy's). Validate any
 # edit with `herdr config check`.

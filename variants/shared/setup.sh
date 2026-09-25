@@ -95,6 +95,16 @@ stow_link pi
 # Herdr's config is Stow-linked on macOS (configs/herdr) but not on other
 # platforms, and its server writes to the file either way, so the keymap and
 # theme are patched in place rather than templated.
+#
+# theme.name in that file is machine state, but Herdr reads a single config.toml
+# (no include/override file), so it cannot be split out like alacritty's
+# theme.toml. Instead .gitattributes runs a clean filter that pins it to
+# "terminal" in git; the filter itself lives in .git/config, so register it on
+# every setup. Everything else in the file (keys, onboarding, channel) still
+# diffs normally.
+git -C "$DOT_DIR" config filter.herdr-theme.clean \
+  'sed -E "/^\[theme\]/,/^\[/ s/^name = \".*\"/name = \"terminal\"/"'
+
 if command -v herdr &>/dev/null; then
   "$DOT_DIR/bin/herdr-config" ensure-keys
   "$DOT_DIR/bin/herdr-config" sync-theme

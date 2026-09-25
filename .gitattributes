@@ -1,0 +1,4 @@
+# theme.name is machine state (bin/theme-switch patches it); the clean filter
+# pins it to "terminal" in git so a theme switch never shows up as a diff.
+# Registered per clone by variants/shared/setup.sh (filters live in .git/config).
+configs/herdr/.config/herdr/config.toml filter=herdr-theme
