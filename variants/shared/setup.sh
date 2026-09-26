@@ -89,6 +89,14 @@ if [[ ! -f "$DOT_DIR/configs/pi/.pi/agent/models.json" ]]; then
      "$DOT_DIR/configs/pi/.pi/agent/models.json"
   echo -e "${INFO}seeded ${NORM}pi models.json (run 'los' -> sync-models to fill it in)"
 fi
+
+# models-store.json is also machine-local pi cache. Keep a tracked seed so a fresh
+# clone has the model catalog available before pi rebuilds or updates its cache.
+if [[ ! -f "$DOT_DIR/configs/pi/.pi/agent/models-store.json" ]]; then
+  cp "$DOT_DIR/configs/pi/.pi/agent/models-store.seed.json" \
+     "$DOT_DIR/configs/pi/.pi/agent/models-store.json"
+  echo -e "${INFO}seeded ${NORM}pi models-store.json"
+fi
 stow_link pi
 "$DOT_DIR/configs/pi/setup.sh"
 
