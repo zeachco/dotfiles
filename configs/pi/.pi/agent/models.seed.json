@@ -202,6 +202,48 @@
             "cacheRead": 0,
             "cacheWrite": 0
           }
+        },
+        {
+          "id": "Qwen3.8-Flash-Next",
+          "name": "Qwen3.8-Flash-Next (heavy tier -- los-drain first)",
+          "contextWindow": 131072,
+          "maxTokens": 16384,
+          "input": [
+            "text"
+          ],
+          "reasoning": true,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "GLM-5.3-Flash",
+          "name": "GLM-5.3-Flash (heavy tier -- los-drain first)",
+          "contextWindow": 65536,
+          "maxTokens": 16384,
+          "input": [
+            "text",
+            "image"
+          ],
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "off": "none",
+            "minimal": "none",
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": null
+          },
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
         }
       ]
     }

@@ -17,7 +17,7 @@ it:
       context    <- launch args, per slot: --ctx-size, divided by
                     --parallel unless --kv-unified (see per_slot_context)
       input      <- architecture.input_modalities (text / text+image)
-      reasoning  <- heuristic (qwen3/deepseek/glm-4/gpt-oss/ministral/mistral)
+      reasoning  <- heuristic (qwen3/deepseek/glm-4/glm-5/gpt-oss/ministral/mistral)
   * models the router no longer serves are dropped
   * unreachable servers, empty model lists, or non-llama.cpp responses are
     skipped with a warning -- existing defs are kept
@@ -58,7 +58,7 @@ PREFIX = "llamacpp"
 DEFAULT_CONTEXT = 131072
 DEFAULT_MAX_TOKENS = 16384
 REASONING_HINT = re.compile(
-    r"(qwen3|deepseek|glm-4|gpt-oss|ministral|mistral|kimi)", re.I
+    r"(qwen3|deepseek|glm-[45]|gpt-oss|ministral|mistral|kimi)", re.I
 )
 
 

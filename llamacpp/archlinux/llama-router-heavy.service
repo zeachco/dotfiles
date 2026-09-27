@@ -2,12 +2,12 @@
 #
 # The HEAVY tier: ~/models/heavy, ONE model at a time, and nothing loaded until asked.
 # For models that cannot share the GPU with the daily set -- Qwen3.8-Flash-Next (~87 GiB),
-# DeepSeek-V4-Flash (90.9 GiB). On the light router such a load happens by LRU *eviction*
+# GLM-5.3-Flash (~101 GiB), and DeepSeek-V4-Flash (90.9 GiB). On the light router such a load happens by LRU *eviction*
 # of qwen3.8 and GLM, and every other live session then pays a multi-minute reload the
 # moment it comes back. Here it is an explicit step instead: `los-drain`, then load.
 #
 # What this does NOT provide is memory. The routers do not coordinate, so with the light
-# tier's models resident an 87 GiB load here fails on the GPU. See docs/ryzen-llm-setup.md
+# tier's models resident an 87--101 GiB load here fails on the GPU. See docs/ryzen-llm-setup.md
 # "The heavy tier".
 #
 # %h is systemd's own user-unit specifier for $HOME. Rendered by install.sh:

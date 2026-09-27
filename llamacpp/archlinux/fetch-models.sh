@@ -46,11 +46,9 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
 . "$SCRIPT_DIR/../shared/_fetch-lib.sh"
 
 # --- heavy tier: one at a time, OPT-IN ------------------------------------------
-# 64.2 GB, and NEITHER FILE IS CURRENTLY ON DISK -- heavy.ini's [gpt-oss-120b-MXFP4]
-# section and its model-draft both point at nothing right now. The recipe stays here so
-# the provenance is recorded, but it is gated: an unguarded `fetch` here means every
-# routine re-run of this script silently starts a 64 GB download, which is a nasty
-# surprise on a box whose light tier is the thing actually in use.
+# Heavy downloads are intentionally gated: enabling this block fetches roughly 250 GB
+# across gpt-oss, Qwen3.8-Flash-Next, and GLM-5.3-Flash. Routine setup runs must not
+# silently start that download on a box whose light tier is already usable.
 #
 # Same opt-in idiom as fetch-models-osx.sh's LOS_FETCH_MODELS.
 #   LOS_FETCH_HEAVY=1 bash fetch-models.sh
@@ -59,8 +57,23 @@ if [ "${LOS_FETCH_HEAVY:-0}" = "1" ]; then
   fetch ggml-org/gpt-oss-120b-GGUF gpt-oss-120b-MXFP4.gguf "$HOME/models/heavy"
   # 0.8 GB EAGLE3 draft for the above -> spec-type = draft-eagle3 in heavy.ini.
   fetch ggml-org/gpt-oss-120b-GGUF eagle3-gpt-oss-120b-Q8_0.gguf "$HOME/models/drafts"
+
+  # 87.3 GiB. Qwen3.8-Flash-Next: 125B + 51B n-gram embedding, 6B active.
+  # Three shards MUST share one subdirectory; the directory name is the model id.
+  # Plain fetch per shard keeps interrupted multi-shard downloads resumable.
+  fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf "$HOME/models/heavy/Qwen3.8-Flash-Next"
+  fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00002-of-00003.gguf "$HOME/models/heavy/Qwen3.8-Flash-Next"
+  fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00003-of-00003.gguf "$HOME/models/heavy/Qwen3.8-Flash-Next"
+
+  # ~101 GiB. GLM-5.3-Flash: use UD-Q2_K_XL so it fits the 128 GiB Ryzen box.
+  # It is a multimodal model, so keep the F16 projector beside the four shards.
+  fetch unsloth/GLM-5.3-Flash-GGUF UD-Q2_K_XL/GLM-5.3-Flash-UD-Q2_K_XL-00001-of-00004.gguf "$HOME/models/heavy/GLM-5.3-Flash"
+  fetch unsloth/GLM-5.3-Flash-GGUF UD-Q2_K_XL/GLM-5.3-Flash-UD-Q2_K_XL-00002-of-00004.gguf "$HOME/models/heavy/GLM-5.3-Flash"
+  fetch unsloth/GLM-5.3-Flash-GGUF UD-Q2_K_XL/GLM-5.3-Flash-UD-Q2_K_XL-00003-of-00004.gguf "$HOME/models/heavy/GLM-5.3-Flash"
+  fetch unsloth/GLM-5.3-Flash-GGUF UD-Q2_K_XL/GLM-5.3-Flash-UD-Q2_K_XL-00004-of-00004.gguf "$HOME/models/heavy/GLM-5.3-Flash"
+  fetch unsloth/GLM-5.3-Flash-GGUF mmproj-F16.gguf "$HOME/models/heavy/GLM-5.3-Flash"
 else
-  echo "==> heavy tier skipped (64 GB). Enable with: LOS_FETCH_HEAVY=1"
+  echo "==> heavy tier skipped (~250 GB). Enable with: LOS_FETCH_HEAVY=1"
 fi
 
 # --- light tier, subdirectory models (id = directory name) ---------------------

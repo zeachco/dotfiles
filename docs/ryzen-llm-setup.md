@@ -95,6 +95,19 @@ state rollback) that the PR branch never had. Get back onto `master` once a PR l
 `update.sh` will tell you it is skipping the pull for as long as you are parked
 somewhere else.
 
+GLM-5.3-Flash currently needs upstream PR #27754, whose branch is
+`unslothai/llama.cpp:glm5next/upstream`, until the PR merges. To build it deliberately:
+
+```bash
+git -C ~/dev/llama.cpp fetch https://github.com/unslothai/llama.cpp.git \
+  glm5next/upstream:glm5next
+git -C ~/dev/llama.cpp checkout glm5next
+LLAMACPP_REF=glm5next bash ~/dotfiles/llamacpp/archlinux/update.sh
+```
+
+Return to `master` after the PR lands; the normal update path is intentionally still pinned
+to upstream master.
+
 ## Routing work between models (pi)
 
 `configs/pi/.pi/agent/` carries the client-side half of this setup, stowed to `~/.pi/agent/`:
@@ -193,8 +206,9 @@ keep a tier down for a heavy session, stop its unit. See the incident below.
 `llama-router-heavy.service` on **:7072** serves `~/models/heavy` one model at a time and loads
 nothing until asked (`--no-models-autoload`; load with `/llama` in pi, or
 `curl -X POST localhost:7072/models/load -d '{"model":"Qwen3.8-Flash-Next"}'`). It exists for
-models that cannot share the GPU with the daily set: gpt-oss-120b (~63 GiB) and the
-90.9 GiB DeepSeek. On the light tier such a model would be loaded by LRU *eviction* of qwen3.8
+models that cannot share the GPU with the daily set: gpt-oss-120b (~63 GiB),
+Qwen3.8-Flash-Next (~87 GiB), GLM-5.3-Flash (~101 GiB), and the 90.9 GiB DeepSeek. On the
+light tier such a model would be loaded by LRU *eviction* of qwen3.8
 and GLM — every other live session then pays a multi-minute reload the moment it comes back.
 
 What a separate router does **not** buy is memory. The routers do not coordinate: with qwen3.8 +
@@ -238,17 +252,16 @@ the number that decides whether a heavy "brain" can drive light-tier workers.
 | model | GPU (GTT) | host RSS | gen tok/s | prompt tok/s | fits beside |
 |---|---|---|---|---|---|
 | gpt-oss-120b MXFP4 + EAGLE3 | ~63 + small KV | — | *unmeasured; ~55 expected* | — | **GLM (27)** |
-| ~~Qwen3.8-Flash-Next IQ4_XS~~ *retired, see below* | 67 | 28 (PLE table, mmapped) | 27 | 58 (cold) | a 4B-class model only |
+| Qwen3.8-Flash-Next IQ4_XS | 67 | 28 (PLE table, mmapped) | 27 | 58 (cold) | a 4B-class model only |
+| GLM-5.3-Flash UD-Q2_K_XL | *unmeasured; ~101 GiB weights* | *unmeasured* | TBD | TBD | none |
 | DeepSeek-V4-Flash chat-v2 | 91 | — | 16–17, flat | 107–144 | a 4B-class model only |
 
-**Retired 2026-09-09: Qwen3.8-Flash-Next.** Measured against the others it had no unique
-advantage to pay 95 GiB for: 27 tok/s is *slower* than GLM (29) on the light tier, which also
-gives 202k per chat with no drain; its 262k native window is matched by qwen3.8 for deep work;
-gpt-oss is expected to be ~2× faster on the same tier; and its 28 GiB in-RAM table made it the
-OOM killer's designated victim (see the incident above). Text-only as fetched (no mmproj).
-Config removed everywhere; the 88 GB of shards were MOVED to `~/models/archive/`, not deleted,
-so reinstating it is `mv` back + the three `fetch` lines from git history. Delete the archive
-when the decision has aged.
+**Re-enabled 2026-09-27: Qwen3.8-Flash-Next and GLM-5.3-Flash.** Both are configured in the
+heavy tier and are opt-in downloads because together they add roughly 190 GiB on disk. Qwen
+uses the previously measured UD-IQ4_XS setup. GLM uses UD-Q2_K_XL so its roughly 101 GiB of
+weights can fit on this 128 GiB box. Neither should be loaded beside the light tier; run
+`los-drain` before loading either one. GLM-5.3-Flash needs the upstream GLM-5-Next llama.cpp
+support PR until that support lands in master.
 
 Reading: for *agentic* work — an orchestrator that emits plans/briefs/tool calls and fans out
 to workers — generation speed and room for GLM dominate, which points at gpt-oss. Flash-Next
@@ -710,15 +723,17 @@ Two standing exceptions:
   against a custom imatrix, not a published artifact. It is the only file here a disk failure
   would lose permanently — back it up separately.
 
-The **heavy tier is opt-in** (`LOS_FETCH_HEAVY=1`), because neither of its two files is currently
-on disk and an unguarded `fetch` would make every routine re-run start a 64 GB download.
+The **heavy tier is opt-in** (`LOS_FETCH_HEAVY=1`), because its frontier model files are not
+necessarily on disk and an unguarded `fetch` would make every routine re-run start roughly a
+250 GB download.
 
 
 | Tier            | Model                                     | Quant                   | Size     | Expected                       | Role                                                                                                                                   |
 | --------------- | ----------------------------------------- | ----------------------- | -------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
 | **Workhorse**   | `gpt-oss-120b` (117B-A5.1B)               | MXFP4                   | ~63 GB   | ~55 t/s tg                     | Default chat + agentic coding; best capability-per-token-rate here. Goes in `heavy/`.                                                   |
 | ~~Loop engine~~ | ~~`unsloth/Qwen3-Coder-Next-GGUF`~~       | —                       | —        | —                              | **Removed.** `c901081` deleted the file and its `light.ini` section but left `generate-code` pointing at it; the router then held a child with `--alias` and no `--model`, stuck `loading` forever and — since `pick_victim()` skips models that are not ready — permanently holding one of five `--models-max` slots. `generate-code` now targets GLM-4.7-Flash. |
-| **Next arch**   | `unsloth/Qwen3.8-Flash-Next-GGUF` (125B+51B-A6B) | UD-IQ4_XS        | ~87 GiB  | TBD (6B active)                | Qwen4-preview arch: Gated DeltaNet + QSA hybrid attention, text-only (no mmproj). Needs llama.cpp PR #27742 before it loads.         |
+| **Next arch**   | `unsloth/Qwen3.8-Flash-Next-GGUF` (125B+51B-A6B) | UD-IQ4_XS        | ~87 GiB  | TBD (6B active)                | Qwen4-preview arch: Gated DeltaNet + QSA hybrid attention, text-only (no mmproj). Requires current llama.cpp qwen4exp support. |
+| **Frontier**    | `unsloth/GLM-5.3-Flash-GGUF` (320B-A18B)  | UD-Q2_K_XL              | ~101 GiB | TBD                            | Multimodal GLM-5 Next architecture; heavy tier only, requires upstream PR #27754 until merged. |
 | **Fan-out**     | `GLM-4.7-Flash` (30B class)               | UD-Q4_K_XL              | 16.32 GiB | 60–100 t/s                    | Cheap parallel subagents, quick tool calls; what opencode's `generate-code` subagent targets. Needs `kv-unified` — see below.           |
 | **Capability**  | existing DeepSeek V4 Flash 284B-A13B      | custom IQ2_XXS/Q4_K mix | 90.9 GiB | ~13 t/s, more with speculation | Hard planning/architecture steps only — ~155 t/s prefill means a 20k-token turn costs ~2 min before the first token. Not a loop engine. |
 
