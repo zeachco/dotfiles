@@ -4,6 +4,32 @@
 # vlc-plugin-chromecast, vlc-plugin-ffmpeg, and vlc-plugin-x264.
 # avahi-daemon must be running for Chromecast discovery.
 
+_cast_allow_firewall() {
+  local target_ip=$1
+
+  # VLC serves the movie on this port; the TV connects back to this machine.
+  # Omarchy enables UFW with a default-deny incoming policy.
+  if [ ! -f /etc/ufw/ufw.conf ] || ! grep -q '^ENABLED=yes$' /etc/ufw/ufw.conf; then
+    return 0
+  fi
+  if [ -r /etc/ufw/user.rules ] &&
+    awk -v ip="$target_ip" '
+      /^-A ufw-user-input / &&
+      index($0, "-p tcp ") &&
+      index($0, "--dport 8011 ") &&
+      index($0, "-s " ip " ") &&
+      index($0, "-j ACCEPT") { found = 1 }
+      END { exit !found }
+    ' /etc/ufw/user.rules; then
+    return 0
+  fi
+  if ! command -v sudo >/dev/null 2>&1 ||
+    ! sudo ufw allow in from "$target_ip" to any port 8011 proto tcp comment 'VLC Chromecast'; then
+    echo "cast: allow inbound TCP 8011 from $target_ip for VLC, then retry" >&2
+    return 1
+  fi
+}
+
 cast() {
   if ! command -v avahi-browse >/dev/null 2>&1; then
     echo "cast: avahi-browse is required to discover Cast devices" >&2
@@ -73,6 +99,7 @@ cast() {
   if [ -n "$subtitle_file" ]; then
     subtitle_file=$(realpath -- "$subtitle_file") || return 1
   fi
+  _cast_allow_firewall "$target_ip" || return 1
   echo "Casting $media_file to ${target%%$'\t'*} ($target_ip)"
   if [ -n "$subtitle_file" ]; then
     echo "Using subtitles $subtitle_file"
