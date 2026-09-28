@@ -53,12 +53,16 @@ and fail mid-conversation. `bin/llamacpp-audit` enforces this invariant.
 ## Model lifecycle
 
 ```
-fetch          llamacpp/<os>/fetch-models*.sh        resumable HF downloads into ~/models/<tier>
+fetch          llamacpp/<os>/fetch-models*.sh        resumable HF downloads into ~/models/<tier> (plus non-router models such as `~/models/laya`)
 verify         llamacpp/shared/verify-models.sh      SHA-256 vs the HF sidecar recorded at fetch
 serve          router autoloads from --models-dir    (LLAMA_CACHE per tier keeps tiers isolated)
 sync clients   bin/llamacpp-sync  (los → sync-models) rebuilds pi/opencode model defs from /v1/models
 audit          bin/llamacpp-audit                    ~/models vs INI presets vs client configs must agree
 ```
+
+Laya is kept outside the llama.cpp router tiers because it is a ggmlc decision/encoder model,
+not a text-generation model. On Arch, `fetch-models.sh` downloads and verifies the English Q8
+checkpoint to `~/models/laya`; run it with `bash ~/dotfiles/llamacpp/archlinux/fetch-models.sh`.
 
 **Every GGUF under `~/models` must have a line in the fetch script** — the audit exists because
 that invariant was broken silently before (the default model was a hardlink out of a retired

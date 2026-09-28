@@ -699,10 +699,12 @@ cmake --build ~/dev/llama.cpp/build-hip -j
 
 ## Phase 5 — Model set
 
-Download into the tier directories under `~/models/` with
-`llamacpp/archlinux/fetch-models.sh`.
+Download the router models into the tier directories under `~/models/` with
+`llamacpp/archlinux/fetch-models.sh`. The same recipe also keeps the non-router Laya
+encoder model at `~/models/laya`.
 
-**Every GGUF under `~/models` must have a line in that script.** It did not used to, and the
+**Every GGUF under `~/models` must have a line in that script.** This includes Laya, even
+though it is not loaded by llama.cpp. It did not used to, and the
 gap was invisible: `qwen3.8` — the default model for `opencode`'s `model`/`small_model`, four of
 its agents, and pi's `defaultModel` — existed only as a **hardlink out of the old daemon's blob
 store** (`find -links +1` shows the two shared inodes). Retiring that daemon would have left no

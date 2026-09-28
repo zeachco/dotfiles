@@ -76,6 +76,12 @@ else
   echo "==> heavy tier skipped (~250 GB). Enable with: LOS_FETCH_HEAVY=1"
 fi
 
+# --- Laya decision model (not served by llama.cpp) ------------------------------
+# Laya is a ggmlc encoder model, not an autoregressive llama.cpp model. Keep it in
+# its own directory so the llama routers do not advertise or try to load it; the
+# directory is still covered by provenance verification and the model audit.
+fetch mys/laya-GGUF laya_english_q8_0.gguf "$HOME/models/laya"
+
 # --- light tier, subdirectory models (id = directory name) ---------------------
 # 16.5 + 0.93 GB. THE DEFAULT MODEL: opencode's `model`/`small_model` and four of its
 # agents, plus pi's defaultModel, all resolve to `qwen3.8`. 27.3B, qwen35 arch, vision
@@ -133,7 +139,7 @@ fetch Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF qwen2.5-coder-0.5b-instruct-q4_k_m.g
 
 # Prove the bytes, wire the cheap tier, and have the routers rescan -- no restart, so
 # nothing in flight is dropped. A verify failure makes fetch_report exit non-zero.
-fetch_verify "$HOME/models/light" "$HOME/models/heavy" "$HOME/models/drafts"
+fetch_verify "$HOME/models/laya" "$HOME/models/light" "$HOME/models/heavy" "$HOME/models/drafts"
 link_cheap_tier
 routers_reload 7070 7071 7072
 
