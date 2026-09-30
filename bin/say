@@ -16,8 +16,6 @@ if [[ ! -x "$KOKORO_PYTHON" ]]; then
 fi
 
 if ! command -v pw-play >/dev/null 2>&1; then
-  echo "pw-play is required to play speech." >&2
-  exit 1
 fi
 
 if [[ $# -gt 0 ]]; then

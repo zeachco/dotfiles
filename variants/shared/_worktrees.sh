@@ -151,17 +151,25 @@ herdr_branch_repo() {
   # see profile.sh). Typing it into the pane instead raced the shell's and
   # devbox's startup and was regularly swallowed; appending it here with &&
   # would run it in the *outer* shell, after the devbox shell is exited.
-  herdr pane run "$root_pane" "cd \"$target_path\" && DOTFILES_INIT_CMD='e .' DEVBOX_SETUP=0 ds"
+  #
+  # The edit and cmd shells start a second late, and only once the setup tab is
+  # already running: on a fresh worktree all three would otherwise race to
+  # create the .devbox folder at the same moment. The setup tab's `devbox run`
+  # gets a head start so the folder exists by the time the two `ds` enter it.
+  local edit_cmd="sleep 1; cd \"$target_path\" && DOTFILES_INIT_CMD='e .' DEVBOX_SETUP=0 ds"
+  local cmd_cmd="sleep 1; cd \"$target_path\" && DEVBOX_SETUP=0 ds"
 
   if [ -z "$workspace_id" ]; then
+    herdr pane run "$root_pane" "$edit_cmd"
     echo "Warning: could not resolve the workspace; only the edit tab was opened"
     echo "Space '$tab_name' ready at $target_path"
     return 0
   fi
 
+  # Tabs are created in display order (edit, cmd, setup...) but their commands
+  # run setup-first — see above.
   local cmd_pane
   cmd_pane=$(_wt_new_tab "$workspace_id" "$target_path" "cmd" | cut -f2)
-  [ -n "$cmd_pane" ] && herdr pane run "$cmd_pane" "cd \"$target_path\" && DEVBOX_SETUP=0 ds"
 
   local setup_out setup_tab setup_pane setup_cmd autoname_cmd=""
   setup_out=$(_wt_new_tab "$workspace_id" "$target_path" "setup...")
@@ -188,6 +196,9 @@ herdr_branch_repo() {
     [ -n "$setup_tab" ] && setup_cmd="$setup_cmd; herdr tab close $setup_tab"
     herdr pane run "$setup_pane" "$setup_cmd"
   fi
+
+  herdr pane run "$root_pane" "$edit_cmd"
+  [ -n "$cmd_pane" ] && herdr pane run "$cmd_pane" "$cmd_cmd"
 
   echo "Space '$tab_name' ready at $target_path (tabs: edit, cmd, setup...)"
 }
