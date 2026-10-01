@@ -63,6 +63,8 @@ audit          bin/llamacpp-audit                    ~/models vs INI presets vs 
 Laya is kept outside the llama.cpp router tiers because it is a ggmlc decision/encoder model,
 not a text-generation model. On Arch, `fetch-models.sh` downloads and verifies the English Q8
 checkpoint to `~/models/laya`; run it with `bash ~/dotfiles/llamacpp/archlinux/fetch-models.sh`.
+Install the matching runner from the ggmlc release with the Linux Vulkan artifact. Use
+`/usr/bin/install`, not bare `install`: the dotfiles define `install()` as a package helper.
 
 **Every GGUF under `~/models` must have a line in the fetch script** — the audit exists because
 that invariant was broken silently before (the default model was a hardlink out of a retired

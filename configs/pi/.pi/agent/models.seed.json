@@ -132,7 +132,7 @@
         {
           "id": "qwen3.8",
           "name": "Qwen3.8 27B (light tier)",
-          "contextWindow": 393216,
+          "contextWindow": 262144,
           "maxTokens": 32768,
           "input": [
             "text",
