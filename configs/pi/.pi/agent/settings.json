@@ -4,7 +4,8 @@
   "defaultThinkingLevel": "high",
   "enabledModels": [
     "openai-codex/gpt-5.6-luna",
-    "llamacpp/qwen3.8"
+    "llamacpp/qwen3.8",
+    "openrouter/*"
   ],
   "packages": [
     "npm:@openlines/openpi-memory",

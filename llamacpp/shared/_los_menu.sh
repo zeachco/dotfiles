@@ -238,28 +238,22 @@ emit("%slogs%s              %sfollow a router's journal%s" % (BOLD, OFF, DIM, OF
      "  a Vulkan/GGML allocation error in the router's log while the client just sees a\n"
      "  400. Ctrl-C to stop following.\n")
 
-emit("%ssync-models%s       %spush the routers' model list into pi%s" % (BOLD, OFF, DIM, OFF),
+emit("%ssync-models%s       %spush model catalogs into pi and opencode%s" % (BOLD, OFF, DIM, OFF),
      "sync-models",
      "sync-models\n\n"
-     "  Rewrites pi's llamacpp* model lists from what the routers serve right now, and\n"
-     "  leaves the change as a git diff in ~/dotfiles to review:\n\n"
-     "    pi        configs/pi/.pi/agent/models.json\n\n"
-     "  The live path (~/.pi/agent/) is a stowed symlink and the sync writes through to\n"
-     "  the real file, so what it changes is git-tracked -- `gd` after. Providers not\n"
-     "  named llamacpp* are never touched.\n\n"
-     "  opencode is NOT synced here and needs nothing: its llamacpp* providers are\n"
-     "  filled in from the same /v1/models at every startup, in memory, by the plugin\n"
-     "  configs/opencode/.config/opencode/plugins/llamacpp-model-sync.ts. Its config\n"
-     "  keeps only the provider definition, so a model added to the models directory\n"
-     "  shows up on the next launch with no edit and no diff.\n\n"
-     "  Refreshed: membership (models a router dropped go away) and the facts only the\n"
-     "  router knows -- PER-SLOT context (--ctx-size divided by --parallel unless\n"
-     "  --kv-unified, which is the number a chat can actually fill) and image input.\n"
-     "  Preserved: every hand-tuning -- display names, thinkingLevelMap, tool_call,\n"
-     "  maxTokens, cost. New models arrive with guessed defaults worth a look.\n\n"
-     "  Loads nothing: /v1/models reports unloaded models too, so a fully idle box\n"
-     "  still syncs the complete set -- no need to load anything first.\n\n"
-     "  pi re-reads models.json the next time you open /model.\n\n"
+     "  Rewrites the llamacpp* and openrouter model lists for both clients from their\n"
+     "  live OpenAI-compatible /v1/models endpoints:\n\n"
+     "    pi        configs/pi/.pi/agent/models.json\n"
+     "    opencode  configs/opencode/.config/opencode/opencode.json\n\n"
+     "  The live paths are stowed symlinks, and the sync writes through to the real files,\n"
+     "  so changes are git-tracked -- `gd` after. Other providers are never touched.\n\n"
+     "  OpenRouter's catalog is filtered to text-output chat models; its public model list\n"
+     "  does not require a key. Requests use OPENROUTER_API_KEY (or Pi's /login auth).\n\n"
+     "  Refreshed: membership and endpoint metadata such as context, image input, reasoning,\n"
+     "  tool support, output limits, and pricing. Hand-tuning is preserved.\n\n"
+     "  Loads nothing: /v1/models reports unloaded local models too, so a fully idle box\n"
+     "  still syncs the complete set. pi reloads models.json on the next /model open;\n"
+     "  restart opencode after syncing.\n\n"
      "  Same thing as `llamacpp-sync` in a shell, and what dotfiles_update runs.\n")
 
 emit("%s%s%s" % (DIM, "─" * 58, OFF), "sep", "(separator -- pick a model below, or an action above)")
@@ -435,9 +429,9 @@ except Exception: print(-1)' 2>/dev/null)
 # (oli-llms.local), which from here resolves to a different machine or, as on the mac, to
 # nothing -- so pi would sync from, and then talk to, a router that is not the one running.
 #
-# opencode needs no equivalent: its plugin rewrites the host in memory at startup. pi has
-# no hook that can reach the endpoint (before_provider_request carries only the payload),
-# so for pi the URL has to be in models.json, and this is what puts it there.
+# opencode's llama.cpp plugin rewrites its host in memory at startup. Pi has no hook that
+# can reach the endpoint (before_provider_request carries only the payload), so for pi the
+# URL has to be in models.json, and this is what puts it there. OpenRouter is not localized.
 _los_menu_localize_pi() {
   local models_json="${1:-$HOME/.pi/agent/models.json}"
   [[ -d "$HOME/models" ]] || return 0
