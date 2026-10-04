@@ -14,7 +14,7 @@
     "npm:@juicesharp/rpiv-todo"
   ],
   "theme": "light/dark",
-  "lastChangelogVersion": "1.0.0",
+  "lastChangelogVersion": "1.0.2",
   "editorPaddingX": 1,
   "outputPad": 1,
   "terminal": {
