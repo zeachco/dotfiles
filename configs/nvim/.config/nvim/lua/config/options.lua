@@ -11,6 +11,13 @@
 -- instead of jumping to git root or other project markers
 vim.g.root_spec = { "cwd" }
 
+-- Soft-wrap long lines by default (LazyVim sets `wrap = false`). LazyVim already
+-- sets `linebreak`, so lines break at word boundaries; `breakindent` keeps the
+-- continuation lines aligned with the original indent. Markdown is the one
+-- exception -- see the `markdown_nowrap` autocmd in autocmds.lua.
+vim.opt.wrap = true
+vim.opt.breakindent = true
+
 -- Show relative numbers while navigating, but keep absolute numbers in Insert mode.
 vim.opt.number = true
 vim.opt.relativenumber = true

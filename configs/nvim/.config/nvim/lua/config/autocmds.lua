@@ -79,10 +79,11 @@ end, { nargs = 1, desc = "Change to apps/<name> workspace", complete = function(
 end })
 
 -- render-markdown draws table borders as virtual text on a single screen line,
--- so a row that wraps gets shredded into unaligned pipes. LazyVim's
--- `wrap_spell` autocmd forces wrap on for markdown, which breaks every table
--- wider than the window. This file loads after LazyVim's, so setting it here
--- wins. Use `<leader>uw` (Snacks "Toggle Wrap") when reading long prose.
+-- so a row that wraps gets shredded into unaligned pipes. `wrap` is on
+-- globally (options.lua) and LazyVim's `wrap_spell` autocmd also forces it on
+-- for markdown, which breaks every table wider than the window. This file
+-- loads after LazyVim's, so setting it here wins. Use `<leader>uw` (Snacks
+-- "Toggle Wrap") when reading long prose.
 vim.api.nvim_create_autocmd("FileType", {
   group = vim.api.nvim_create_augroup("markdown_nowrap", { clear = true }),
   pattern = { "markdown", "markdown.mdx" },
