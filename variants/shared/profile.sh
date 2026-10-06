@@ -325,7 +325,7 @@ ai() {
 # `DEVBOX_SETUP=1 ds`.
 ds() {
   local setup="${DEVBOX_SETUP:-0}"
-  use "DEVBOX_SETUP=$setup devbox shell"
+  use "devbox shell"
   DEVBOX_SETUP="$setup" devbox shell "$@"
   # Nothing to enter here, so no new shell ever reached a prompt and a pending
   # DOTFILES_INIT_CMD (see the end of this file) would be dropped. Run it here.
