@@ -1,7 +1,7 @@
 ---
 name: code
-description: "Small-brief code writer (GLM-4.7-Flash, thinking off). Implements a short, self-contained coding brief: one file, one function, a small script. Use for mechanical implementation once everything is decided; not for design or multi-file refactors."
-model: llamacpp/GLM-4.7-Flash-UD-Q4_K_XL:off
+description: "Small-brief code writer (GLM-5.3 Flash via OpenRouter, thinking off). Implements a short, self-contained coding brief: one file, one function, a small script. Use for mechanical implementation once everything is decided; not for design or multi-file refactors."
+model: openrouter/z-ai/glm-5.3-flash:off
 tools: read, edit, write, grep, find, ls, bash
 ---
 

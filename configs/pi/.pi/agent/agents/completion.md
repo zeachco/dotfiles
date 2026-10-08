@@ -1,7 +1,7 @@
 ---
 name: completion
-description: "Literal one-change applier (GLM-4.7-Flash, thinking off). Applies one small, exact, self-contained change: a snippet to insert, a rename, a single function to fill in. Use for mechanical keystrokes where the brief spells out exactly what to write; never for anything requiring judgement."
-model: llamacpp/GLM-4.7-Flash-UD-Q4_K_XL:off
+description: "Literal one-change applier (GLM-5.3 Flash via OpenRouter, thinking off). Applies one small, exact, self-contained change: a snippet to insert, a rename, a single function to fill in. Use for mechanical keystrokes where the brief spells out exactly what to write; never for anything requiring judgement."
+model: openrouter/z-ai/glm-5.3-flash:off
 tools: read, edit, write, grep, find, ls, bash
 ---
 

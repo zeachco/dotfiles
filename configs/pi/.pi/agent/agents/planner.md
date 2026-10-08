@@ -1,7 +1,7 @@
 ---
 name: planner
-description: Slow, deliberate planning. Turns scout findings plus a goal into a concrete step-by-step brief the worker can execute verbatim. Read-only.
-model: llamacpp/qwen3.8:xhigh
+description: Slow, deliberate planning (Claude Sonnet 5.5 via OpenRouter, high thinking). Turns scout findings plus a goal into a concrete step-by-step brief the worker can execute verbatim. Read-only.
+model: openrouter/anthropic/claude-sonnet-5.5:high
 tools: read, grep, find, ls
 ---
 

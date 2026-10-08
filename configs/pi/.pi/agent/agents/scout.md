@@ -1,7 +1,7 @@
 ---
 name: scout
-description: Fast read-only codebase recon. Returns compressed, exact-line-range findings so a slower model does not have to read files itself. Use before planning, or whenever a question needs several files read.
-model: llamacpp/GLM-4.7-Flash-UD-Q4_K_XL:off
+description: Fast read-only codebase recon (GLM-5.3 Flash via OpenRouter, thinking off). Returns compressed, exact-line-range findings so a slower model does not have to read files itself. Use before planning, or whenever a question needs several files read.
+model: openrouter/z-ai/glm-5.3-flash:off
 tools: read, grep, find, ls, bash
 ---
 

@@ -382,22 +382,6 @@
             "cacheWrite": 0
           }
         },
-        "stealth/space-bunny-alpha": {
-          "name": "Space Bunny Alpha",
-          "limit": {
-            "context": 1000000,
-            "output": 524288
-          },
-          "tool_call": true,
-          "attachment": true,
-          "reasoning": true,
-          "cost": {
-            "input": 0.0,
-            "output": 0.0,
-            "cacheRead": 0,
-            "cacheWrite": 0
-          }
-        },
         "aion-labs/aion-3.5-mini": {
           "name": "AionLabs: Aion 3.5 Mini",
           "limit": {
@@ -1468,22 +1452,6 @@
             "output": 2.5500000000000003,
             "cacheRead": 0.08499999999999999,
             "cacheWrite": 0.53125
-          }
-        },
-        "qwen/qwen3.8-27b:free": {
-          "name": "Qwen: Qwen3.8 27B (free)",
-          "limit": {
-            "context": 262144,
-            "output": 235929
-          },
-          "tool_call": true,
-          "attachment": true,
-          "reasoning": true,
-          "cost": {
-            "input": 0.0,
-            "output": 0.0,
-            "cacheRead": 0,
-            "cacheWrite": 0
           }
         },
         "dots-studio/dots-3-note-preview:free": {
@@ -5761,7 +5729,7 @@
         "qwen/qwen3-30b-a3b-instruct-2507": {
           "name": "Qwen: Qwen3 30B A3B Instruct 2507",
           "limit": {
-            "context": 128000,
+            "context": 262144,
             "output": 32000
           },
           "tool_call": true,
@@ -6481,7 +6449,7 @@
         "deepseek/deepseek-chat-v3-0324": {
           "name": "DeepSeek: DeepSeek V3 0324",
           "limit": {
-            "context": 163840,
+            "context": 128000,
             "output": 147456
           },
           "tool_call": true,
@@ -7643,6 +7611,38 @@
             "input": 30.0,
             "output": 60.0,
             "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        "google/gemini-nano-banana-2.1": {
+          "name": "Google: Nano Banana 2.1",
+          "limit": {
+            "context": 65536,
+            "output": 58982
+          },
+          "tool_call": true,
+          "attachment": true,
+          "reasoning": true,
+          "cost": {
+            "input": 1.5,
+            "output": 7.5,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        "mistralai/mistral-large-4-0": {
+          "name": "Mistral: Mistral Large 4",
+          "limit": {
+            "context": 524288,
+            "output": 262144
+          },
+          "tool_call": true,
+          "attachment": true,
+          "reasoning": true,
+          "cost": {
+            "input": 0.6799999999999999,
+            "output": 2.09,
+            "cacheRead": 0.07,
             "cacheWrite": 0
           }
         }
