@@ -10,7 +10,6 @@
   "packages": [
     "npm:@openlines/openpi-memory",
     "npm:pi-subagents",
-    "npm:pi-kanban",
     "npm:@juicesharp/rpiv-todo"
   ],
   "theme": "light/dark",
