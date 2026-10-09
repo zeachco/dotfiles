@@ -562,8 +562,8 @@ def main():
     args = ap.parse_args()
 
     # Sync both clients by default. OpenRouter and llama.cpp are intentionally written to
-    # their configs so both clients use the same catalog; the llama.cpp plugin may still
-    # discover those models at startup when opencode is launched between syncs.
+    # their configs so both clients use the same catalog. Nothing discovers models at
+    # opencode startup any more: this sync is what fills its llamacpp* lists.
     clients = args.client or ["pi", "opencode"]
     paths = {"pi": args.models_json, "opencode": args.opencode_json}
     syncs = {"pi": sync_pi, "opencode": sync_opencode}

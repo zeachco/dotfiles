@@ -429,9 +429,10 @@ except Exception: print(-1)' 2>/dev/null)
 # (oli-llms.local), which from here resolves to a different machine or, as on the mac, to
 # nothing -- so pi would sync from, and then talk to, a router that is not the one running.
 #
-# opencode's llama.cpp plugin rewrites its host in memory at startup. Pi has no hook that
-# can reach the endpoint (before_provider_request carries only the payload), so for pi the
-# URL has to be in models.json, and this is what puts it there. OpenRouter is not localized.
+# Pi has no hook that can reach the endpoint (before_provider_request carries only the
+# payload), so the URL has to be in models.json, and this is what puts it there. opencode is
+# left alone: its config is only stowed on the router box, where the name resolves to the box
+# itself. OpenRouter is not localized.
 _los_menu_localize_pi() {
   local models_json="${1:-$HOME/.pi/agent/models.json}"
   [[ -d "$HOME/models" ]] || return 0

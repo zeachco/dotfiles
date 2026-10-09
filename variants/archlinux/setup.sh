@@ -87,7 +87,6 @@ stow_link alacritty
 stow_link alacritty-archlinux
 stow_link nvim
 stow_link opencode
-"$DOT_DIR/configs/opencode/setup-plugins.sh"
 
 # All llama.cpp setup (router install, model fetch check) lives in llamacpp/.
 bash "$DOT_DIR/llamacpp/archlinux/setup.sh"
