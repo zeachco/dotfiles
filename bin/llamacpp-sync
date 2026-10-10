@@ -92,6 +92,20 @@ def is_llamacpp(entry):
     return isinstance(entry.get("status"), dict) and "architecture" in entry
 
 
+def is_llamacpp_chat(entry):
+    """False for a decision model -- output_modalities == ["decisions"].
+
+    llama.cpp reports decision models in every router (GGUF metadata read without
+    loading), and pi's built-in llama.cpp extension lists them natively as classifiers
+    (llama.cpp's /v1/systemone, the `typesafe-system-one` API). They are NOT chat
+    models: emitting one here would put it in opencode's provider models and pi's
+    /model, where a request would fail. The extension discovers them from the router
+    itself, so dropping them from the client defs does not hide them from classification.
+    """
+    modalities = (entry.get("architecture") or {}).get("output_modalities") or []
+    return "decisions" not in modalities
+
+
 def is_openrouter_chat(entry):
     architecture = entry.get("architecture") or {}
     output = architecture.get("output_modalities") or []
@@ -118,14 +132,23 @@ def live_models(base_url, timeout, kind):
         result = (None, f"{base_url} unreachable ({e}); keeping existing models")
     else:
         live = [m for m in data if isinstance(m, dict) and m.get("id")]
+        decisions = []
         if kind == OPENROUTER:
             live = [m for m in live if is_openrouter_chat(m)]
+        else:
+            decisions = [m["id"] for m in live if not is_llamacpp_chat(m)]
+            live = [m for m in live if is_llamacpp_chat(m)]
         if not live:
             result = (None, f"{base_url} returned no supported models; keeping existing defs")
         elif kind == PREFIX and not all(is_llamacpp(m) for m in live):
             result = (None, f"{base_url} is not a llama.cpp router; skipped")
         else:
             result = (live, None)
+            if decisions:
+                warn(
+                    f"{base_url}: kept {len(decisions)} decision/classifier model(s) out "
+                    f"of the chat defs: {', '.join(decisions)}"
+                )
     _LIVE_CACHE[cache_key] = result
     return result
 

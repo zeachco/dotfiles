@@ -128,6 +128,20 @@ fetch unsloth/Qwen3-4B-GGUF Qwen3-4B-Q4_K_M.gguf "$HOME/models/light"
 # which is also the model id. Tiny; useful as a draft/spec model or a smoke test.
 fetch Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF qwen2.5-coder-0.5b-instruct-q4_k_m.gguf "$HOME/models/light"
 
+# 6.32 GiB. DECISION MODEL (Qwen3.5-9B base) -- not a chat model. llama.cpp reports it
+# with `architecture.output_modalities = ["decisions"]`, and pi's built-in llama.cpp
+# provider then lists it ONLY as a classifier (llama.cpp's /v1/systemone endpoint, the
+# `typesafe-system-one` API), never in /model. It is the local counterpart to the
+# OpenRouter Jev/Clef/Laya classifiers.
+#
+# It lives in the light tier because that is the router pi's classifier discovery
+# reads; that also means it shares the light router's --models-max count and pure-LRU
+# eviction with qwen3.8, so a classify call that loads it can evict the default model.
+# Keep classifier traffic off a busy coding session; if it ever bites, the fix is a
+# dedicated router (cheap.ini's isolation argument), not a bigger --models-max.
+# Single file, so it sits at the top level and its id is the filename stem.
+fetch ggml-org/Bespoke-Nimble-9B-v3-GGUF Bespoke-Nimble-9B-v3-Q4_K_M.gguf "$HOME/models/light"
+
 # --- removed ------------------------------------------------------------------
 # Qwen3-Coder-Next-UD-IQ4_XS (38.4 GB) was dropped by `c901081 clean unusable models`,
 # which deleted the file and its light.ini section but left opencode's generate-code

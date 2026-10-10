@@ -66,6 +66,18 @@ checkpoint to `~/models/laya`; run it with `bash ~/dotfiles/llamacpp/archlinux/f
 Install the matching runner from the ggmlc release with the Linux Vulkan artifact. Use
 `/usr/bin/install`, not bare `install`: the dotfiles define `install()` as a package helper.
 
+**Decision models are a different case.** `Bespoke-Nimble-9B-v3` (fetched into the light tier)
+is a real llama.cpp model whose GGUF carries `<arch>.decision.type = nimble`. The router reports
+it in `/v1/models` with `architecture.output_modalities = ["decisions"]` without loading it, so
+pi's built-in llama.cpp provider lists it **only** as a classifier — llama.cpp's `/v1/systemone`
+endpoint, the `typesafe-system-one` API, and never in `/model`. `bin/llamacpp-sync` drops such
+models from the chat defs it writes (pi re-discovers them from the router; opencode has no
+classifier concept). To use a local classifier in pi you must be logged into the built-in
+`llama.cpp` provider (`/login llama.cpp`, or `LLAMA_BASE_URL=http://127.0.0.1:7070`) — the
+custom `llamacpp` provider in `models.json` only serves chat. It shares the light router's
+`--models-max`/LRU budget, so its first load can evict `qwen3.8`; see `light.ini` and the fetch
+recipe note before pointing high-frequency traffic at it.
+
 **Every GGUF under `~/models` must have a line in the fetch script** — the audit exists because
 that invariant was broken silently before (the default model was a hardlink out of a retired
 daemon's blob store).
