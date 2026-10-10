@@ -1,105 +1,131 @@
 ---
 name: zeachco-code-review
 description: >
-  Review a pull request in zeachco's observed engineering style: evidence-first,
-  operationally cautious, scope-aware, and focused on readable contracts and real
-  behavior. Use when reviewing code, a diff, or an AI-generated PR review.
+  Review code in Zeachco's style: make it readable, simple, clear, precise, fast,
+  resilient, and pleasant to change. Use for pull-request and diff reviews.
 ---
 
-# Zeachco code-review profile
+# Code review runbook
 
-This is a calibration profile, not a rule that every PR must look the same. It was
-inferred from 556 non-owned PRs reviewed by `zeachco` during 2025-10-09—2026-10-09:
-1,338 non-empty comments across 382 PRs. Counts below are overlapping thematic
-approximations; the source inventory is
-`docs/pr-review-audit-2025-10-09--2026-10-09.md`.
+Review for the code that should exist, not only whether the current diff works.
+Optimize for code that is easy to understand, hard to misuse, fast enough in real
+conditions, resilient to failure, and cheap to change later.
 
-## Review stance
+## 1. Establish the frame
 
-- Prefer **evidence over assumption**: reproduce, measure, inspect CI, or ask for
-  the missing evidence.
-- Review behavior and operational consequences, not only local code style.
-- Treat reviewability as quality: clear names, typed boundaries, focused modules,
-  and a diff whose scope is easy to understand.
-- Match rigor to lifecycle and risk. A sunset or experimental service may justify
-  a pragmatic fix, but record deferred debt instead of pretending it is ideal.
-- Be direct without being adversarial. Acknowledge good catches and explain the
-  constraint behind a disagreement.
+Before commenting, understand:
 
-## Procedure
+- the user or system problem;
+- the intended behavior and the existing behavior;
+- the affected apps, packages, APIs, data, and environments;
+- whether this is new code, a migration, a refactor, a temporary bridge, or legacy
+  code scheduled for removal;
+- whether the component is deliberately blackboxed or isolated.
 
-1. **Reconstruct intent and context**
-   - What problem, user, service, or failure is this solving?
-   - Which apps, packages, environments, owners, and lifecycle stage are involved?
-   - Separate the requested behavior change from refactoring, migration, generated
-     output, and unrelated cleanup.
-2. **Check the contract**
-   - Inputs, outputs, types, schemas, defaults, names, and compatibility.
-   - Null, empty, malformed, unexpected, duplicate, and partially migrated data.
-   - Fallbacks, error propagation, timeouts, retries, idempotency, ordering, and
-     race/concurrency behavior.
-   - Browser, mobile, client/server, and cross-environment differences where relevant.
-3. **Check production behavior**
-   - Dependency and lockfile drift, CI/build/deploy configuration, Docker/Kubernetes,
-     feature flags, migrations, secrets, permissions, and rollback.
-   - Request volume, latency, memory, bundle size, cost, capacity ceilings, and
-     silent data loss.
-   - Logs, metrics, traces, alerts, and an explicit off-switch for risky behavior.
-4. **Check evidence**
-   - Does the test exercise the regression and realistic fixtures, or merely execute?
-   - Ask for fresh-install, smoke, browser/device, baseline-vs-branch, or real-edge
-     evidence when the claim cannot be established statically.
-   - Treat passing CI as evidence for the tested path, not proof of every environment.
-5. **Check review shape**
-   - Request separate PRs or commits when refactor, behavior, migration, or
-     infrastructure changes make rollback and review ambiguous.
-   - Prefer intention-revealing names and explicit code over clever indirection or
-     hidden state.
-6. **Check automation and security**
-   - Validate inputs early; look for SSRF/allowlist, auth, secret, permission,
-     destructive-command, auditability, and production-credential risks.
-   - For AI tooling, minimize untrusted context, protect destructive commands, and
-     retain a human owner.
+Do not impose a general architectural preference without understanding this frame.
 
-## Finding format
+## 2. Review in this order
 
-For each finding, state:
+### Correctness and precision
+
+- Are names, types, interfaces, schemas, defaults, and boundaries exact?
+- Is the behavior correct for normal, empty, null, malformed, duplicate, stale,
+  partial, and unexpected input?
+- Are errors propagated or handled intentionally?
+- Are timeout, retry, ordering, idempotency, and concurrency behaviors correct?
+- Does the implementation preserve compatibility where it must?
+
+### Readability and simplicity
+
+- Can a competent developer understand the code at first reading?
+- Do names explain intent instead of implementation history?
+- Is the control flow obvious, or hidden behind indirection, cleverness, or state?
+- Is the abstraction earning its existence, or would direct code be clearer?
+- Can related behavior be kept together without creating a large, mixed-purpose file?
+- Are comments explaining *why*, rather than narrating the code?
+
+Prefer the smallest design that makes the behavior obvious. Avoid both needless
+abstraction and needless duplication when either makes future changes harder.
+
+### Performance
+
+- Does this add unnecessary work, network calls, allocations, parsing, logging,
+  bundle size, latency, memory, or cost?
+- Does it change behavior at realistic scale, not only with a unit-test fixture?
+- Are caching, batching, lazy loading, and retry limits correct rather than merely
+  present?
+- Could a fallback, loop, polling path, or observer become expensive or unbounded?
+
+Ask for measurement when performance is important. Do not accept “should be fine”
+when a baseline, smoke test, metric, or simple benchmark is available.
+
+### Resilience and operability
+
+- What happens when a dependency, provider, browser, service, or configuration is
+  unavailable or returns an unexpected response?
+- Can failures be diagnosed through useful logs, metrics, or traces without leaking
+  secrets or creating noise?
+- Is there a safe rollout, feature flag, migration order, off-switch, and rollback?
+- Could the change silently lose data, corrupt state, or make recovery harder?
+- Are credentials, permissions, input validation, allowlists, and destructive
+  operations safe?
+
+### Maintainability and technical debt
+
+- Does this make the next change faster and safer, or add another special case?
+- Does it leave a clearer boundary, smaller module, better test, or better tool?
+- Does it preserve a workaround without naming the debt or exit path?
+- Is generated or unrelated cleanup obscuring the behavior under review?
+- Should refactor, migration, infrastructure, and behavior changes be split?
+
+## 3. Apply lifecycle exceptions deliberately
+
+The default is to improve clarity, simplicity, performance, resilience, and
+maintainability. Make an explicit exception when:
+
+- **The project will be superseded or passed through later:** do the minimum safe
+  change; do not gold-plate it, but document the debt and avoid adding new debt.
+- **The component is blackboxed or intentionally isolated:** protect the boundary
+  and its contract; do not refactor internals just to satisfy preferences.
+- **The code is legacy and scheduled for removal:** minimize blast radius, avoid
+  architectural investment, preserve behavior needed for the exit, and improve the
+  removal path rather than polishing the dead end.
+
+The exception must explain why the normal quality bar is being relaxed.
+
+## 4. Make useful comments
+
+Every non-trivial finding should include:
 
 1. **Location** — file, line, or behavior.
-2. **Risk** — what breaks, for whom, and under which condition.
-3. **Evidence** — reproduction, test, metric, link, or the missing fact.
-4. **Recommendation** — the smallest safe change.
-5. **Scope** — fix now, separate PR, ticket/cooldown, or acceptable as-is.
+2. **Problem** — what is unclear, slow, fragile, or incorrect.
+3. **Consequence** — who is affected and under what condition.
+4. **Smallest improvement** — a concrete change or verification.
+5. **Priority** — blocker, should-fix, question, or nit.
 
-Classify as blocking, should-fix, question, or nit. Do not turn every preference
-into a blocker. If the PR is safe, say so explicitly and list only useful follow-up
-nits.
+Prefer questions when intent is unclear. Separate correctness issues from design
+preferences. Acknowledge good work when it matters. Do not produce a long list of
+style opinions after the important risks are covered.
 
-Useful comment shapes:
+Useful forms:
 
-- “What happens when `<edge case>`? I would like a test or a short explanation of
-  the intended fallback.”
-- “Could we split the refactor from the behavior change? It would make rollback and
-  review easier.”
-- “I agree with the underlying concern, but this service is `<constraint>`; I would
-  keep the current behavior here and track the broader cleanup separately.”
-- “Can we verify this with `<command/metric/device>` rather than assume the behavior?”
+- “Can we make this direct/explicit? I have to navigate through `<abstraction>` to
+  understand `<behavior>`.”
+- “What happens when `<failure or edge case>`? Please add a test or explain the
+  intended fallback.”
+- “This adds `<cost>` per `<request/item>`; can we measure it or bound the work?”
+- “Can we split the refactor from the behavior change so rollback and review stay
+  clear?”
+- “I would normally prefer `<cleaner design>`, but given `<lifecycle/boundary>` the
+  smaller safe change is appropriate. Please record the follow-up.”
 
-## Likely AI blind spots (inference, not measured misses)
+## 5. Finish the review
 
-Use human judgment especially for:
+Before approving, confirm that:
 
-- traffic, capacity, cost, proxy/CDN, browser/device, and deployment behavior;
-- domain vocabulary, ownership, lifecycle, and whether a cleaner refactor is safe;
-- sequencing of refactor + migration + behavior changes and rollback boundaries;
-- silent failure, observability, production scripts, credentials, and auditability;
-- whether an AI recommendation invalidates the purpose of a test harness.
-
-AI findings are inputs to reproduce and triage, not automatic blockers.
-
-## Deliberate gap checks
-
-The corpus shows weaker explicit coverage of accessibility, privacy/data retention,
-dependency licensing/supply-chain risk, authorization threat modeling, success
-metrics, monitoring ownership, compatibility/breaking behavior, and “not tested”.
-Add a short pass for these even when the diff looks familiar.
+- the intent and scope are clear;
+- important behavior has evidence, not assumptions;
+- the code is understandable without unnecessary navigation;
+- failure, performance, rollout, and rollback paths are acceptable;
+- technical debt is reduced or consciously bounded;
+- every remaining concern has an owner, scope, or explicit acceptance.

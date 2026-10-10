@@ -1,85 +1,91 @@
 ---
 name: zeachco-pr-replies
 description: >
-  Reply to pull-request questions, objections, and requests in zeachco's observed
-  style: acknowledge, explain constraints, choose an action, provide evidence, and
-  make scope explicit. Use when answering review threads or PR requests.
+  Answer pull-request questions and requests with clear technical reasoning,
+  evidence, scope, and an explicit decision. Use when replying to review threads.
 ---
 
-# Zeachco PR-reply profile
+# PR reply runbook
 
-This profile was inferred from 836 threads containing zeachco comments during the
-same year. Of 1,182 user comments, 821 were classified as replies because another
-participant had spoken earlier in the thread. Median reply lag was about 30 minutes;
-96% were within 24 hours. Thread ordering is an approximation, not explicit reply
-metadata.
+A reply should move the review forward. It should make the code, tradeoff, or next
+step clearer—not merely acknowledge that a comment was seen.
 
 ## Reply sequence
 
-1. **Acknowledge the concern** — good catch, agreement, correction, or a short
-   explanation of what was misunderstood.
-2. **Assess the local context** — state the constraint: lifecycle, compatibility,
-   test purpose, ownership, migration boundary, or product behavior.
-3. **Make a decision** — fix now, keep as-is, reject, defer, or split into another
-   PR. Explain why; do not leave the reviewer guessing.
-4. **Give evidence** — commit hash, test/CI result, reproduction, browser/device
-   check, metric, link, or clearly state what remains unverified.
-5. **Close the loop** — name the next action, owner/ticket, or ask whether the
-   trade-off is acceptable.
+1. **Understand the request**
+   - Is the person asking about correctness, readability, simplicity, performance,
+     resilience, scope, or project context?
+   - Restate the concern briefly if it could be misunderstood.
+2. **Acknowledge the useful part**
+   - Agree, thank them, correct your mistake, or say what is unclear.
+   - Do not use politeness to avoid answering the technical question.
+3. **Explain the local context**
+   - State the relevant constraint: lifecycle, legacy status, blackbox boundary,
+     migration order, test purpose, compatibility, or product behavior.
+4. **Make the decision explicit**
+   - Fix now, keep as-is, reject, defer, or split into another PR.
+   - Explain why the decision preserves clarity, simplicity, precision, performance,
+     resilience, or maintainability.
+5. **Give evidence or name the unknown**
+   - Link the test, command, CI result, benchmark, reproduction, device check,
+     metric, commit, or relevant documentation.
+   - If it has not been verified, say so and name the next check.
+6. **Close the loop**
+   - State the commit/owner/ticket/follow-up, or ask whether the tradeoff is clear.
 
-## Reply template
+## Reply patterns
 
-```text
-Good catch / I agree with the underlying concern.
+### Straightforward fix
 
-In this codebase/context, the relevant constraint is <constraint>.
+> Good catch. I fixed `<behavior>` in `<commit>` and verified it with `<test>`.
 
-I will <fix it now / keep it as-is / reject it / split it> because <reason>.
+### Technical disagreement
 
-Verified by <test, CI, reproduction, device, metric, commit>, or: I have not
-verified <unknown> yet.
+> I agree with the underlying concern. In this component, `<constraint>` means
+> `<current choice>` is intentional because `<reason>`. I verified `<evidence>`.
+> I’ll keep the broader cleanup in `<separate PR/ticket>`.
 
-The broader cleanup belongs in <ticket/separate PR/cooldown work>.
-I’ll update it and report back / does that trade-off work for you?
-```
+### Lifecycle exception
 
-## Mode selection
+> I would normally prefer `<cleaner design>`, but this project is `<superseded /
+> blackboxed / legacy-to-be-removed>`. I’m keeping this change to `<minimum safe
+> scope>` so we do not add work to the exit path. The preserved contract is `<...>`.
 
-- **Simple correction:** acknowledge + “fixed in `<commit>`” + test result.
-- **Technical disagreement:** acknowledge the underlying concern, explain local
-  intent, offer the smallest safe compromise, and cite evidence.
-- **Scope request:** distinguish “must fix before merge” from a separate refactor,
-  migration, or cooldown item; attach a ticket/owner when deferred.
-- **Question:** answer directly, then add the missing context or reproduction steps.
-- **AI-generated finding:** reproduce and classify it before accepting. AI feedback
-  may be correct, irrelevant, or incompatible with the purpose of a harness.
-- **Mistake:** own it plainly (“my bad”, “forgot”, “fixed”) and state the correction.
-- **Social/low-risk response:** warmth or humor is fine, but do not let it replace
-  the technical decision when the thread affects safety or behavior.
+### Clarification request
 
-## What works well
+> Do you mean `<interpretation A>` or `<interpretation B>`? The behavior differs
+> when `<condition>`. I can check `<specific evidence>` once we confirm the intent.
 
-The corpus shows recurring strengths: explaining why rather than only what, tying
-choices to lifecycle and local constraints, turning accepted criticism into a
-commit/test/ticket, validating behavior, acknowledging good catches, and separating
-urgent correctness from cleanup.
+### Deferred work
+
+> This is worth doing, but it is separate from the correctness fix here. I’ll track
+> `<specific work>` in `<ticket/owner>` rather than expand this PR.
+
+### Mistake
+
+> You’re right; I missed `<fact>`. I corrected it in `<commit>` and added `<test /
+> guard>`.
 
 ## Avoid
 
-- “Probably”, “I think”, or “should be fine” when a quick verification is possible.
-- “Fixed”, “later”, or “not a blocker” without evidence, owner, or tracking.
-- Terse agreement when the trade-off is non-obvious.
-- Permanent workarounds (`ts-ignore`, test-only `any`, legacy behavior) without
-  naming the debt and exit plan.
-- Defensive or adversarial replies; explain the constraint instead.
-- Compressing several decisions into typo-heavy prose that future readers cannot
-  reconstruct.
+- “Fixed”, “later”, “not a blocker”, or “should be fine” without a decision and
+  evidence.
+- Defending a preference without explaining the codebase or lifecycle constraint.
+- Agreeing to a refactor that makes a focused fix harder to review or roll back.
+- Treating an AI suggestion as authoritative; reproduce it and check whether it
+  respects the purpose of the test, boundary, and production behavior.
+- Accepting `ts-ignore`, test-only `any`, silent fallback, or legacy workarounds
+  without naming the debt and its exit path.
+- Overexplaining a trivial nit while underexplaining a correctness or operational
+  risk.
 
-## AI blind spots (inference, not measured misses)
+## Final check
 
-AI often lacks the lifecycle, domain, test-harness intent, physical-device/runtime,
-organizational, and scope context needed to answer a thread correctly. It may offer
-cleaner code that violates the experiment, preserve a local abstraction that breaks
-production behavior, or recommend a refactor that is unsafe during a migration.
-Treat an AI answer as a proposal: reproduce, explain the local constraint, and make
-the decision explicit.
+Before posting, the reader should know:
+
+- what you understood;
+- whether you agree;
+- what will change or remain unchanged;
+- why that is the right tradeoff here;
+- what proves it, or what remains unverified;
+- who owns the next step.

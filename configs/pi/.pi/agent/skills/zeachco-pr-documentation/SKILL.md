@@ -1,115 +1,143 @@
 ---
 name: zeachco-pr-documentation
 description: >
-  Write or improve a pull-request description in zeachco's observed style: concrete
-  context, reviewer guidance, test evidence, impact, and release safety. Use when
-  opening, updating, or self-documenting a PR.
+  Document a pull request so another engineer can understand the intent, scope,
+  tradeoffs, evidence, risks, and safe rollout. Use when writing or updating a PR.
 ---
 
-# Zeachco self-documentation profile
+# PR self-documentation runbook
 
-This profile was inferred from 167 zeachco-authored PRs in the same year. There
-were 165 non-empty descriptions. Common sections were Description (92), Testing
-(82), Reviewer Focus (73), Release Safety (41), Impact (39), and Quality Checklist
-(39). Treat these as observed habits, not mandatory boilerplate.
+The description is part of the change. Make it precise enough that a reviewer can
+understand the behavior without reconstructing the whole history, while keeping it
+short enough to remain readable and current.
 
-## Writing principles
+## Write these answers
 
-- Explain **why**, not just what changed.
-- Name affected apps/packages/services and the behavior boundary.
-- Give reviewers concrete questions instead of asking for a generic review.
-- Report evidence honestly: commands, environments, results, limitations, and what
-  was not tested. Never invent a test result.
-- Keep the description current when review decisions change the implementation.
-- Separate urgent correctness work from refactor, migration, generated output, and
-  future cleanup.
-- Use lifecycle and risk to decide how much release detail is needed.
+### Context and intent
 
-## Required pass before opening or updating
+- What problem or request caused this change?
+- Who or what is affected?
+- What evidence shows the problem exists?
+- What is the desired behavior?
 
-1. **Context / problem** — failure, cost, user impact, request, evidence, and root cause.
-2. **Goal and non-goals** — what this PR will and will not do.
-3. **Change and scope** — affected projects, API/schema/config changes, dependencies,
-   flags, migration requirements, and compatibility.
-4. **Acceptance criteria** — observable “given/when/then” outcomes and success metric.
-5. **Testing** — automated commands/results, manual/browser/device/environment matrix,
-   before/after evidence, and known failures or untested paths.
-6. **Reviewer focus** — two to five specific risks or decisions to inspect.
-7. **Release safety** — rollout/flag, migration ordering, monitoring/alerts,
-   rollback, owner, and follow-up ticket when applicable.
-8. **Links** — issue, design/spec, related PRs, dashboards, screenshots, or demo.
+### Scope
 
-## Preferred template
+- What changed, and in which apps, packages, services, APIs, or environments?
+- What is deliberately not changing?
+- Are there migrations, dependencies, feature flags, compatibility constraints, or
+  generated files?
+- Is this a refactor, behavior change, temporary bridge, isolated component, or
+  legacy code on the way out?
+
+### Design and tradeoffs
+
+- Why this design instead of the obvious alternatives?
+- How does it preserve readability, simplicity, precision, performance, resilience,
+  and maintainability?
+- What tradeoff or technical debt is being accepted, and why is it appropriate now?
+
+### Evidence
+
+- Which commands, tests, CI jobs, benchmarks, browsers, devices, or environments
+  were used?
+- What were the results?
+- What was not tested, and what pre-existing failures remain?
+- What observable result proves the change works?
+
+### Safety
+
+- What can fail or degrade?
+- How is it rolled out, monitored, disabled, migrated, and rolled back?
+- Who owns the follow-up or remaining debt?
+
+### Reviewer focus
+
+Give reviewers a short list of the decisions or risks that deserve attention. Do not
+ask for a generic “please review”; point them to the difficult parts.
+
+## Preferred structure
 
 ```md
-## Context / Problem
-- What is broken, costly, risky, or requested?
-- Evidence and root cause:
+## Context
+- Problem/request:
+- Affected users or systems:
+- Evidence/root cause:
 
-## Goal and Non-goals
+## Goal and non-goals
 - This PR will:
 - This PR will not:
 
-## Change and Scope
+## Change and scope
 - Affected apps/packages/services:
-- Behavior/API/schema changes:
-- Compatibility or migration requirements:
-- Dependencies and feature flags:
+- Behavior/API/schema/config changes:
+- Dependencies, flags, migrations, compatibility:
 
-## Acceptance Criteria
-- Given [condition], expect [observable result].
+## Design and tradeoffs
+- Why this approach:
+- Alternatives rejected:
+- Intentional debt or lifecycle exception:
+
+## Acceptance criteria
+- Given [condition], [observable result] should happen.
 - Success metric:
-- Known limitations:
 
-## Testing
+## Testing and evidence
 - Automated commands and results:
-- Manual/browser/device/environment matrix:
-- Before/after evidence:
-- Not tested / pre-existing failures:
+- Manual/browser/device/environment checks:
+- Performance or before/after evidence:
+- Not tested / known failures:
 
-## Reviewer Focus
-1. [specific implementation or risk]
-2. [edge case, compatibility, or operational concern]
+## Reviewer focus
+1. [specific decision or risk]
+2. [edge case, performance, resilience, or compatibility concern]
 
-## Release Safety
-- Rollout/flag:
-- Migration:
+## Release safety
+- Rollout/feature flag:
+- Migration order:
 - Monitoring/alerts:
-- Rollback:
-- Owner/follow-up:
+- Rollback/off-switch:
+- Owner and follow-up:
 
 ## Links
 - Issue/spec/design:
-- Related PRs:
+- Related PRs/dashboards/demos:
 ```
 
-For meaningful updates, fold the decision back into the main description and add a
-small dated note only when useful:
+## Keep it current
+
+When review changes the design, update the main description so it describes the
+code that will actually merge. Add a small update note only when the history is
+useful:
 
 ```md
 ### Update — <date or commit>
-- Evidence:
 - Decision:
+- Evidence:
 - Remaining risk:
 - Follow-up:
 ```
 
-## Observed strengths to preserve
+Remove stale alternatives, abandoned plans, generated noise, and claims that are no
+longer true. Do not bury an important decision only in a comment.
 
-Descriptions became especially concrete after the PR-template work: affected
-projects, failure modes, commands, expected results, flags, rollback, and reviewer
-focus. Strong examples include monoco#1236 (impact, test matrix, rollback),
-monoco#2426 (experiment arms and untested arms), and monoco#2717 (error-volume
-evidence plus root-cause follow-up).
+## Lifecycle exceptions
 
-## Common omissions to correct
+If the project will be superseded, is deliberately blackboxed/isolated, or is
+legacy code scheduled for removal, say so explicitly. Document the minimum safe
+scope, the preserved contract, and the debt or exit path. Do not use lifecycle as an
+excuse to omit correctness, security, or operational risk.
 
-- Empty or changelog-only descriptions.
-- No explicit success criteria or “not tested” section.
-- Monitoring, ownership, rollback, compatibility, and follow-up left implicit.
-- Decisions remain buried in comments instead of the PR body.
-- Checklists become unchecked/checked boilerplate without evidence.
-- Generated deployment output makes a long PR harder to review.
+## Quality bar
 
-When an AI drafts the description, verify every factual claim against the diff,
-commands, CI, and actual rollout plan. Prefer “not verified” over plausible prose.
+The description should let a new reviewer answer:
+
+- What is this for?
+- What exactly changes?
+- Why is it simple and understandable enough?
+- What could be slow, fragile, or expensive?
+- How was it proven?
+- What remains unknown?
+- How do we undo or finish it safely?
+
+Never invent tests, metrics, approvals, links, or rollout details. If something is
+unknown, write that it is unknown and assign the next verification step.
