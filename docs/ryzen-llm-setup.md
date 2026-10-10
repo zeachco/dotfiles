@@ -701,7 +701,25 @@ cmake --build ~/dev/llama.cpp/build-hip -j
 
 Download the router models into the tier directories under `~/models/` with
 `llamacpp/archlinux/fetch-models.sh`. The same recipe also keeps the non-router Laya
-encoder model at `~/models/laya`.
+encoder model at `~/models/laya`, and the `Bespoke-Nimble-9B-v3` decision model in the
+light tier.
+
+**`Bespoke-Nimble-9B-v3` is a classifier, not a chat model.** It is a llama.cpp decision
+model (`ggml-org/Bespoke-Nimble-9B-v3-GGUF`, Q4_K_M, 6.32 GiB) whose GGUF carries
+`<arch>.decision.type = nimble`. The light router reports it in `/v1/models` with
+`architecture.output_modalities = ["decisions"]` straight from the GGUF metadata, and pi's
+built-in `llama.cpp` provider lists it **only** as a classifier — it answers through
+llama.cpp's `/v1/systemone` endpoint (the `typesafe-system-one` API) and never appears in
+`/model`. `bin/llamacpp-sync` therefore keeps decision models out of the chat defs it writes
+to `models.json` and `opencode.json`; pi discovers them from the router itself.
+
+Two consequences worth knowing. First, pi only sees local classifiers while it is logged
+into the built-in `llama.cpp` provider (`/login llama.cpp` pointed at `http://127.0.0.1:7070`,
+or `LLAMA_BASE_URL` in the environment) — the `llamacpp` provider in `models.json` is chat
+only. Second, because it shares the light router's `--models-max 5` and pure-LRU eviction, a
+classify call that has to load it can evict `qwen3.8` and cost a multi-minute reload of the
+default model. If that becomes a problem, the answer is a dedicated classifier router using
+the cheap tier's isolation pattern, not raising `--models-max`.
 
 **Every GGUF under `~/models` must have a line in that script.** This includes Laya, even
 though it is not loaded by llama.cpp. It did not used to, and the
