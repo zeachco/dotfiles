@@ -18,3 +18,6 @@ configs/pi/.pi/agent/models.json
 
 # Machine-local pi model-store cache
 configs/pi/.pi/agent/models-store.json
+
+# Machine-local opencode skills (installed per box, not part of the shared set)
+configs/opencode/.config/opencode/skills/use-railway/

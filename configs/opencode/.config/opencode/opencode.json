@@ -84,6 +84,26 @@
           "tool_call": true,
           "attachment": false,
           "reasoning": true
+        },
+        "GLM-5.3-Flash": {
+          "name": "GLM-5.3-Flash",
+          "limit": {
+            "context": 65536,
+            "output": 16384
+          },
+          "tool_call": true,
+          "attachment": false,
+          "reasoning": true
+        },
+        "Qwen3.8-Flash-Next": {
+          "name": "Qwen3.8-Flash-Next",
+          "limit": {
+            "context": 131072,
+            "output": 16384
+          },
+          "tool_call": true,
+          "attachment": false,
+          "reasoning": true
         }
       }
     },
@@ -5037,7 +5057,7 @@
         "z-ai/glm-4.6": {
           "name": "Z.ai: GLM 4.6",
           "limit": {
-            "context": 198000,
+            "context": 202752,
             "output": 16384
           },
           "tool_call": true,
