@@ -2,7 +2,7 @@
 source "$HOME/dotfiles/utils.sh"
 
 # Linux metrics collector for the system graphs in the Omarchy bar.
-install_pkg python
+install_pkg dropbox
 
 # Omarchy look and feel configs
 stow_link hypr
