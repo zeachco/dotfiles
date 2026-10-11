@@ -1441,7 +1441,7 @@
         "qwen/qwen3.8-27b": {
           "name": "Qwen: Qwen3.8 27B",
           "limit": {
-            "context": 1000000,
+            "context": 262144,
             "output": 131072
           },
           "tool_call": true,
@@ -2577,7 +2577,7 @@
         "nvidia/nemotron-3-ultra-550b-a55b": {
           "name": "NVIDIA: Nemotron 3 Ultra",
           "limit": {
-            "context": 262144,
+            "context": 202800,
             "output": 16384
           },
           "tool_call": true,
