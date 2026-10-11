@@ -10,7 +10,8 @@
   "packages": [
     "npm:@openlines/openpi-memory",
     "npm:pi-subagents",
-    "npm:@juicesharp/rpiv-todo"
+    "npm:@juicesharp/rpiv-todo",
+    "npm:@mjasnikovs/pi-task"
   ],
   "theme": "light/dark",
   "lastChangelogVersion": "1.1.0",
