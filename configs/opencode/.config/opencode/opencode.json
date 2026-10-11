@@ -118,7 +118,7 @@
         "GLM-4.7-Flash-UD-Q4_K_XL": {
           "name": "GLM-4.7-Flash-UD-Q4_K_XL",
           "limit": {
-            "context": 202752,
+            "context": 65536,
             "output": 16384
           },
           "tool_call": true,
@@ -188,7 +188,7 @@
         "qwen3.8": {
           "name": "qwen3.8",
           "limit": {
-            "context": 393216,
+            "context": 131072,
             "output": 16384
           },
           "tool_call": true,

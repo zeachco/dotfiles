@@ -250,15 +250,43 @@ fi
 echo "$HEAD_SHA" >"$STAMP"
 good "built $(git rev-parse --short "$HEAD_SHA")"
 
-# ---- report, never restart ----------------------------------------------------------
-# Deliberately does NOT restart the router: a restart drops in-flight generation, and
-# a long prompt ingest can be minutes of work. But do not stay quiet either -- an
-# un-restarted router is the exact state that hid the stale-build problem on Arch.
+# ---- restart? ------------------------------------------------------------------------
+# Same contract as llamacpp/archlinux/update.sh: never silently (a restart drops
+# in-flight generation, and a long prompt ingest is minutes of work), but never quiet
+# either, because an un-restarted router is the exact state that hid the stale-build
+# problem on Arch. The router forks a child per model, so once the dylibs are replaced a
+# NEWLY autoloaded child runs the new code under a parent still mapped to the old.
 #
-# The router forks a child per model, so once the dylibs are replaced a NEWLY
-# autoloaded child runs the new code under a parent still mapped to the old.
-if launchctl print "gui/$(id -u)/com.zeachco.llama-router" >/dev/null 2>&1; then
-  echo
-  warn "the router is still running the PREVIOUS binary -- restart when idle:"
-  warn "  los-restart"
-fi
+# Ask, default No, only with a terminal attached, and give up after two minutes so an
+# unattended `dotfiles_update` does not hang behind a build. The kickstart below is what
+# `los-restart` (variants/osx/profile.sh) does; that function is not in scope here.
+#   LLAMACPP_RESTART=1   restart without asking        LLAMACPP_RESTART=0   never ask
+# bash 3.2: no arrays needed, no `read -i`, no ${var,,}.
+LOS_TARGET="gui/$(id -u)/com.zeachco.llama-router"
+launchctl print "$LOS_TARGET" >/dev/null 2>&1 || exit 0
+
+echo
+warn "the router is still running the PREVIOUS binary"
+
+answer=
+case "${LLAMACPP_RESTART:-}" in
+  1|y|yes) answer=y ;;
+  0|n|no)  answer=n ;;
+  *)
+    if [[ -t 0 && -t 1 ]]; then
+      # read returns >128 on timeout and 1 on EOF; both mean No.
+      read -r -t 120 -p "$(echo -e "${INFO}llama.cpp:${NORM} restart it now? [y/N] ")" answer || { echo; answer=n; }
+    fi ;;
+esac
+
+case "$answer" in
+  y|Y|yes|YES)
+    if launchctl kickstart -k "$LOS_TARGET"; then
+      good "restarted $LOS_TARGET -- models reload on their next request"
+    else
+      bad "restart failed -- launchctl print $LOS_TARGET"
+      exit 1
+    fi ;;
+  *)
+    warn "not restarted -- when idle: los-restart" ;;
+esac

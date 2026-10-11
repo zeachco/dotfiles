@@ -70,11 +70,14 @@ Design consequences, each one paid for by that:
 - **Staleness is a stamp file** (`build/.dotfiles-build-commit`), written only after a
   build exits 0 — never an mtime comparison. An interrupted build leaves the stamp
   stale and the next run retries, which is exactly what mtime got wrong.
-- **It never restarts the routers.** A restart drops in-flight generation, and a long
-  prompt ingest is minutes of work. It reports which units still run the old binary
-  instead. Worth restarting at the next break rather than sitting on it: the router
-  forks a child per model, so after a relink a newly autoloaded child runs new code
-  under a parent still mapped to the old.
+- **It never restarts the routers on its own.** A restart drops in-flight generation, and
+  a long prompt ingest is minutes of work. After a successful build it lists the units
+  still on the old binary and, when a terminal is attached, asks `[y/N]` (default No,
+  after showing how many slots are generating; a prompt nobody answers in two minutes is
+  a No, so an unattended `dotfiles_update` cannot hang). `LLAMACPP_RESTART=1` answers yes
+  without asking, `0` never asks. Worth saying yes at the next break rather than sitting
+  on it: the router forks a child per model, so after a relink a newly autoloaded child
+  runs new code under a parent still mapped to the old.
 - **It never rewrites history.** Dirty tree, diverged branch, or a checkout parked on
   some other ref: it reports and declines. A deliberate PR-branch checkout still gets
   its *binary* rebuilt, so a pinned branch is never served by a stale build.

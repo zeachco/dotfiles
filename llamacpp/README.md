@@ -94,9 +94,12 @@ daemon's blob store).
 
 `update.sh` (per-OS) runs from the variant setup on every `dotfiles_update`: fast-forwards
 `~/dev/llama.cpp` and rebuilds when the build is stale, tracked by a **stamp file written only
-after a successful build** (never mtime comparison). It never restarts the routers and never
-rewrites history; on the Arch box it is additionally gated to Strix Halo hardware. Knobs:
-`LLAMACPP_SKIP_UPDATE`, `LLAMACPP_BUILD_FORCE`, `LLAMACPP_REF`, `LLAMACPP_BUILD_JOBS`.
+after a successful build** (never mtime comparison). It never restarts the routers on its own:
+after a successful build it asks `[y/N]` when a terminal is attached (showing how many slots are
+mid-generation first, and giving up after two minutes), and only prints the reminder otherwise. It
+never rewrites history; on the Arch box it is additionally gated to Strix Halo hardware. Knobs:
+`LLAMACPP_SKIP_UPDATE`, `LLAMACPP_BUILD_FORCE`, `LLAMACPP_REF`, `LLAMACPP_BUILD_JOBS`,
+`LLAMACPP_RESTART` (`1` restart without asking, `0` never ask).
 Why the stamp file exists: a half-finished rebuild once served a build six days older than the
 checkout, and only new-architecture models failed.
 

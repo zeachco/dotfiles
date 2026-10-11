@@ -213,25 +213,90 @@ fi
 echo "$HEAD_SHA" > "$STAMP"
 good "built $(git rev-parse --short "$HEAD_SHA")"
 
-# ---- report, never restart ----------------------------------------------------------
-# Deliberately does NOT restart the routers: a restart drops in-flight generation, and
-# a long prompt ingest can be minutes of work. But do not stay quiet about it either --
-# an un-restarted router is the exact state that hid the qwen4exp problem.
+# ---- restart? ------------------------------------------------------------------------
+# Never silently: a restart drops in-flight generation, and a long prompt ingest can be
+# minutes of work. But an un-restarted router is the exact state that hid the qwen4exp
+# problem, and the router forks a child per model, so once libllama.so is replaced a
+# NEWLY autoloaded child runs the new code under a parent still mapped to the old.
 #
-# Worth knowing while it is pending: the router forks a child per model, so once
-# libllama.so is replaced a NEWLY autoloaded child runs the new code under a parent
-# still mapped to the old. Restart at the next natural break rather than sitting on it.
+# So: ask, default No, and only when a human is on the terminal. A non-interactive run
+# (a herdr pane, cron, a pipe) gets the reminder and nothing else; so does a prompt
+# nobody answers within two minutes, because a build is long enough to walk away from
+# and dotfiles_update must not hang behind it.
+#   LLAMACPP_RESTART=1   restart without asking        LLAMACPP_RESTART=0   never ask
+#
+# The unit list is explicit, not a glob: it has to match install.sh, and a glob would
+# also catch a foreground los-server-* run that is not a unit at all.
+
+# Busy slots across the units about to be restarted, for the prompt. Best effort: any
+# failure reads as "?", never as idle. Probes only models that report "loaded" -- a
+# "sleeping" child (sleep-idle-seconds in the .ini) would be RELOADED by /slots.
+_busy_slots() {
+  local unit port n total=0 unknown=0
+  command -v python3 >/dev/null 2>&1 || { echo "?"; return; }
+  for unit in "$@"; do
+    case "$unit" in
+      llama-router.service)       port=7070 ;;
+      llama-router-cheap.service) port=7071 ;;
+      llama-router-heavy.service) port=7072 ;;
+      *) unknown=1; continue ;;
+    esac
+    n=$(curl -sf -m 3 "http://127.0.0.1:$port/v1/models" 2>/dev/null | python3 -c '
+import sys, json, urllib.request, urllib.parse
+port, busy = sys.argv[1], 0
+for m in json.load(sys.stdin).get("data", []):
+    if ((m.get("status") or {}).get("value")) != "loaded":
+        continue
+    url = "http://127.0.0.1:%s/slots?model=%s&autoload=false" % (port, urllib.parse.quote(m["id"]))
+    with urllib.request.urlopen(url, timeout=3) as r:
+        busy += sum(1 for s in json.load(r) if s.get("is_processing"))
+print(busy)' "$port" 2>/dev/null)
+    [[ "$n" =~ ^[0-9]+$ ]] || { unknown=1; continue; }
+    total=$((total + n))
+  done
+  ((unknown)) && echo "${total}+?" || echo "$total"
+}
+
 RESTART_NEEDED=()
-for unit in llama-router.service llama-router-cheap.service; do
+for unit in llama-router.service llama-router-cheap.service llama-router-heavy.service; do
   if systemctl --user is-active --quiet "$unit" 2>/dev/null; then
     RESTART_NEEDED+=("$unit")
   fi
 done
+((${#RESTART_NEEDED[@]} == 0)) && exit 0
 
-if ((${#RESTART_NEEDED[@]} > 0)); then
-  echo
-  warn "these are still running the PREVIOUS binary -- restart when idle:"
-  for unit in "${RESTART_NEEDED[@]}"; do
-    warn "  systemctl --user restart $unit"
-  done
-fi
+echo
+warn "these are still running the PREVIOUS binary:"
+for unit in "${RESTART_NEEDED[@]}"; do
+  warn "  $unit"
+done
+
+answer=
+case "${LLAMACPP_RESTART:-}" in
+  1|y|yes) answer=y ;;
+  0|n|no)  answer=n ;;
+  *)
+    if [[ -t 0 && -t 1 ]]; then
+      busy="$(_busy_slots "${RESTART_NEEDED[@]}")"
+      case "$busy" in
+        0) say "no slot is generating right now" ;;
+        *) warn "$busy slot(s) generating -- a restart kills those requests" ;;
+      esac
+      # read returns >128 on timeout and 1 on EOF; both mean No.
+      read -r -t 120 -p "$(echo -e "${INFO}llama.cpp:${NORM} restart them now? [y/N] ")" answer || { echo; answer=n; }
+    fi ;;
+esac
+
+case "$answer" in
+  y|Y|yes|YES)
+    say "restarting ${RESTART_NEEDED[*]}..."
+    if systemctl --user restart "${RESTART_NEEDED[@]}"; then
+      good "restarted -- light/cheap models autoload on their next request; the heavy tier loads only via los"
+    else
+      bad "restart failed -- systemctl --user status ${RESTART_NEEDED[*]}"
+      exit 1
+    fi ;;
+  *)
+    warn "not restarted -- when idle:"
+    warn "  systemctl --user restart ${RESTART_NEEDED[*]}" ;;
+esac
