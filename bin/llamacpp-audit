@@ -233,8 +233,8 @@ def check_context(rows):
     """Effective per-slot ctx is c under unified KV, else c/np.
 
     light.ini's [qwen3.8] block cites server-context.cpp:1211 (llama_n_ctx_seq):
-    under --kv-unified every slot's n_ctx_slot is the FULL c; otherwise c is split
-    across np slots. A client advertising more than that gets
+    under --kv-unified every slot's n_ctx_slot is the FULL c (or kv-unified-per-slot
+    when set, which caps it); otherwise c is split across np slots. A client advertising more than that gets
     ERROR_TYPE_EXCEED_CONTEXT_SIZE partway through a conversation.
     """
     def per_slot(keys):
@@ -244,7 +244,12 @@ def check_context(rows):
         np_ = keys.get("parallel") or keys.get("np")
         np_ = int(np_) if np_ else 1
         unified = str(keys.get("kv-unified", "")).lower() in ("true", "1", "on", "yes")
-        return int(c) if unified else int(c) // max(np_, 1)
+        if not unified:
+            return int(c) // max(np_, 1)
+        # kv-unified-per-slot caps a slot inside the shared pool; the cap is what a
+        # chat actually gets (same rule as llamacpp-sync's per_slot_context).
+        cap = str(keys.get("kv-unified-per-slot", "") or "")
+        return min(int(c), int(cap)) if cap.isdigit() and int(cap) > 0 else int(c)
 
     eff = {}
     for tier in TIERS:

@@ -143,6 +143,9 @@ for name, port, unit in tiers:
             "meta": m.get("meta") or {},
         })
 
+# A "sleeping" child (sleep-idle-seconds in the .ini) has released its weights and
+# KV; /slots is NOT in the set of endpoints that bypass sleep, so probing it would
+# RELOAD the model. Only ever probe what reports "loaded".
 for r in rows:
     r["slots"] = slots(r["port"], r["id"]) if r["state"] == "loaded" else None
     r["gtt"] = resident_gtt(r["id"]) if r["state"] == "loaded" else 0
@@ -171,8 +174,11 @@ for tot in glob.glob("/sys/class/drm/card*/device/mem_info_gtt_total"):
         pass
     break
 loaded = [r for r in rows if r["state"] == "loaded"]
+asleep = [r for r in rows if r["state"] == "sleeping"]
 if loaded:
     head.append("%d loaded (%s)" % (len(loaded), ", ".join(r["id"] for r in loaded)))
+if asleep:
+    head.append("%d asleep (%s)" % (len(asleep), ", ".join(r["id"] for r in asleep)))
 down = [n for n, ok in reachable.items() if not ok]
 if down:
     head.append("%sunreachable: %s%s" % (RED, " ".join(down), OFF))
@@ -259,11 +265,12 @@ emit("%ssync-models%s       %spush model catalogs into pi and opencode%s" % (BOL
 emit("%s%s%s" % (DIM, "─" * 58, OFF), "sep", "(separator -- pick a model below, or an action above)")
 
 wid = max([len(r["id"]) for r in rows] + [10])
-for r in sorted(rows, key=lambda r: (r["state"] != "loaded", r["tier"], r["id"])):
+for r in sorted(rows, key=lambda r: ({"loaded": 0, "sleeping": 1}.get(r["state"], 2), r["tier"], r["id"])):
     a = r["args"]
     ctx = arg(a, "--ctx-size") or r["meta"].get("n_ctx")
     par = arg(a, "--parallel") or "1"
     unified = "--kv-unified" in a
+    cap = arg(a, "--kv-unified-per-slot")
     ck, cv = arg(a, "--cache-type-k") or "f16", arg(a, "--cache-type-v") or "f16"
     ngl = arg(a, "--n-gpu-layers")
     mpath = arg(a, "--model") or ""
@@ -273,6 +280,9 @@ for r in sorted(rows, key=lambda r: (r["state"] != "loaded", r["tier"], r["id"])
         size = "%s%s GTT%s" % (DIM, gib(r["gtt"]) if r["gtt"] else gib(r["bytes"]), OFF)
         if r["slots"] and r["slots"][1]:
             badge = "%sbusy%s" % (YEL, OFF)
+    elif r["state"] == "sleeping":
+        badge = "%sasleep%s" % (DIM, OFF)
+        size = "%sno GTT, wakes on request%s" % (DIM, OFF)
     else:
         badge = "%sunloaded%s" % (DIM, OFF)
         size = "%s%s on disk%s" % (DIM, gib(r["bytes"]), OFF)
@@ -301,7 +311,9 @@ for r in sorted(rows, key=lambda r: (r["state"] != "loaded", r["tier"], r["id"])
         p.append("  params     %.1fB  %s" % (r["meta"]["n_params"] / 1e9, r["meta"].get("ftype", "")))
     p.append("")
     p.append("  context    %s tokens over %s slot(s)" % (ctx, par))
-    if unified:
+    if unified and cap:
+        p.append("  kv pool    %sshared%s -- one pool of %s, any single chat capped at %s" % (GRN, OFF, ctx, cap))
+    elif unified:
         p.append("  kv pool    %sshared%s -- one pool, any single chat can use all %s" % (GRN, OFF, ctx))
     else:
         try:
@@ -326,8 +338,12 @@ for r in sorted(rows, key=lambda r: (r["state"] != "loaded", r["tier"], r["id"])
         p.append("  %s---- %s.ini ----%s" % (DIM, r["tier"], OFF))
         for line in r["preset"].strip().splitlines():
             p.append("  %s%s%s" % (DIM, line, OFF))
+    if r["state"] == "sleeping":
+        p.append("")
+        p.append("  %sasleep (sleep-idle-seconds): weights and KV released, the child is still up.%s" % (DIM, OFF))
+        p.append("  %sThe first request reloads it (and re-ingests its chats). Enter stops the child.%s" % (DIM, OFF))
     p.append("")
-    p.append("  %s[enter] %s this model%s" % (BOLD, "unload" if r["state"] == "loaded" else "load", OFF))
+    p.append("  %s[enter] %s this model%s" % (BOLD, "unload" if r["state"] in ("loaded", "sleeping") else "load", OFF))
     emit(display, "model", "\n".join(p), r["tier"], r["port"], r["id"], r["state"])
 
 open(os.path.join(outdir, "index.tsv"), "w").write("\n".join(index) + "\n")
@@ -385,11 +401,11 @@ _los_menu_toggle_many() {
       echo "los: actions run one at a time -- select models only, or the action alone" >&2
       return 1
     fi
-    if [[ "$(_los_menu_meta "$dir" "$k" 6)" == loaded ]]; then
-      unloads="$unloads$k"$'\n'
-    else
-      loads="$loads$k"$'\n'
-    fi
+    # A sleeping child is resident (its process is up), so it belongs with the unloads.
+    case "$(_los_menu_meta "$dir" "$k" 6)" in
+      loaded|sleeping) unloads="$unloads$k"$'\n' ;;
+      *)               loads="$loads$k"$'\n' ;;
+    esac
   done <<< "$keys"
 
   [[ -n "$unloads" ]] && { _los_menu_run_many "$dir" "$unloads" unload || return 1; }
@@ -547,7 +563,7 @@ los() {
         # act on: unloaded models for `load`, loaded ones for `unload`.
         list=$(awk -F'\t' -v w="$want" '
                  NR == FNR { if ($2 == "model") state[$1] = $6; next }
-                 ($1 in state) && ((state[$1] == "loaded") == (w == "unload"))
+                 ($1 in state) && ((state[$1] == "loaded" || state[$1] == "sleeping") == (w == "unload"))
                ' "$dir/meta.tsv" "$dir/index.tsv")
         [[ -z "$list" ]] && { echo "los: nothing to $want"; continue; }
         sub=$(printf '%s\n' "$list" |
@@ -561,11 +577,10 @@ los() {
       logs) _los_menu_logs ;;
       sync-models) _los_menu_sync_models ;;
       model)
-        if [[ "$(_los_menu_meta "$dir" "$key" 6)" == loaded ]]; then
-          _los_menu_unload "$port" "$id"
-        else
-          _los_menu_load "$port" "$id"
-        fi ;;
+        case "$(_los_menu_meta "$dir" "$key" 6)" in
+          loaded|sleeping) _los_menu_unload "$port" "$id" ;;
+          *) _los_menu_load "$port" "$id" ;;
+        esac ;;
     esac
   done
   rm -rf "$dir"

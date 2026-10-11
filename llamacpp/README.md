@@ -46,6 +46,14 @@ matches nothing is ignored *without warning* and the model silently falls back t
 
 Three preset-only keys are not CLI args: `load-on-startup`, `stop-timeout`, `dedup-cache-models`.
 
+Two ordinary CLI args do most of the work of sharing one GPU between agents, and both are set
+per model in the Arch inis (2026-10-11): `sleep-idle-seconds` makes an idle child release its
+weights and KV and reload on the next request (so idle fan-out models stop pinning GTT; the
+router reports such a model as `sleeping`, which the `los` menu and `framework-rgb` must never
+probe with `/slots`, because that wakes it), and `kv-unified-per-slot` caps what one chat can
+take out of a shared KV pool (so one long conversation cannot starve the other slots).
+`light.ini`'s header comments carry the measured load and re-ingest costs behind the values.
+
 Per-slot context is `c / np` unless `kv-unified = true` — raising `np` without `kv-unified`
 silently quarters what a slot can actually hold, while clients keep advertising the full window
 and fail mid-conversation. `bin/llamacpp-audit` enforces this invariant.

@@ -185,6 +185,13 @@ def per_slot_context(args):
         return None
     ctx = int(ctx)
 
+    # --kv-unified-per-slot caps every slot inside the shared pool
+    # (server-context.cpp: n_ctx_capped = min(n_ctx_seq, kv_unified_per_slot)), and
+    # that cap, not the pool, is the honest contextWindow.
+    cap = arg_value(args, "--kv-unified-per-slot")
+    if isinstance(cap, str) and cap.isdigit() and int(cap) > 0:
+        ctx = min(ctx, int(cap))
+
     # --kv-unified and --no-kv-unified are both plain flags, so look for presence.
     if "--kv-unified" in args or "-kvu" in args:
         return ctx

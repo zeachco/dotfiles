@@ -163,6 +163,10 @@ for m in json.load(sys.stdin).get("data",[]):
   st=$(_los_status "$model")
   [[ -z "$st" ]] && { echo "los-load: no model '$model' on $url (los-load with no args lists them)" >&2; return 1; }
   [[ "$st" == "loaded" ]] && { echo "los-load: $model already loaded"; return 0; }
+  # sleep-idle-seconds (the .ini presets): the child is up but has released its
+  # weights; the router refuses a load ("not ready") and the first real request
+  # wakes it. Nothing to do here.
+  [[ "$st" == "sleeping" ]] && { echo "los-load: $model is resident but asleep -- the first request wakes it"; return 0; }
   # The router answers a load for an already-loading/loaded model with a non-2xx, so do
   # not treat the POST status as the verdict -- the poll below is.
   curl -s -m 30 -X POST "$url/models/load" -H 'content-type: application/json' \
@@ -171,6 +175,7 @@ for m in json.load(sys.stdin).get("data",[]):
     st=$(_los_status "$model")
     case "$st" in
       loaded) echo "los-load: $model loaded"; return 0 ;;
+      sleeping) echo "los-load: $model is resident but asleep -- the first request wakes it"; return 0 ;;
       failed|unloaded) [[ $i -gt 3 ]] && { echo "los-load: $model status '$st' -- see: journalctl --user -u llama-router-heavy.service -n 50" >&2; return 1; } ;;
     esac
     sleep 5
@@ -186,7 +191,7 @@ los-drain() {
   ids=$(curl -sf -m 5 "$url/v1/models" | python3 -c 'import sys,json
 for m in json.load(sys.stdin).get("data",[]):
     st=(m.get("status") or {}).get("value")
-    if st in ("loaded","loading"): print(m["id"])' 2>/dev/null) || { echo "los-drain: $url unreachable" >&2; return 1; }
+    if st in ("loaded","loading","sleeping"): print(m["id"])' 2>/dev/null) || { echo "los-drain: $url unreachable" >&2; return 1; }
   [[ -z "$ids" ]] && { echo "los-drain: nothing loaded on $url"; return 0; }
   local id; for id in $ids; do
     printf 'unload %s ... ' "$id"
