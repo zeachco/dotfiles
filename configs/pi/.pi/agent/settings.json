@@ -11,7 +11,8 @@
     "npm:@openlines/openpi-memory",
     "npm:pi-subagents",
     "npm:@juicesharp/rpiv-todo",
-    "npm:@mjasnikovs/pi-task"
+    "npm:@mjasnikovs/pi-task",
+    "npm:pi-session-summary"
   ],
   "theme": "light/dark",
   "lastChangelogVersion": "1.1.0",
