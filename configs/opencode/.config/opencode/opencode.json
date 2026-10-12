@@ -1281,7 +1281,7 @@
         "z-ai/glm-5.3-flash": {
           "name": "Z.ai: GLM 5.3 Flash",
           "limit": {
-            "context": 1048575,
+            "context": 1048576,
             "output": 943717
           },
           "tool_call": true,
@@ -6225,7 +6225,7 @@
         "meta-llama/llama-4-scout": {
           "name": "Meta: Llama 4 Scout",
           "limit": {
-            "context": 327680,
+            "context": 131072,
             "output": 16384
           },
           "tool_call": true,
@@ -7531,6 +7531,22 @@
             "input": 0.041999999999999996,
             "output": 0.12319999999999999,
             "cacheRead": 0.008400000000000001,
+            "cacheWrite": 0
+          }
+        },
+        "meta/muse-wonder": {
+          "name": "Meta: Muse Wonder",
+          "limit": {
+            "context": 1048576,
+            "output": 943718
+          },
+          "tool_call": true,
+          "attachment": true,
+          "reasoning": true,
+          "cost": {
+            "input": 4.0,
+            "output": 20.0,
+            "cacheRead": 0.19999999999999998,
             "cacheWrite": 0
           }
         }
