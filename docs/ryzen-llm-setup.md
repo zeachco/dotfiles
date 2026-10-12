@@ -114,10 +114,13 @@ to upstream master.
 ## Routing work between models (pi)
 
 `configs/pi/.pi/agent/` carries the client-side half of this setup, stowed to `~/.pi/agent/`:
-agent definitions with a pinned `model:` (`worker`, `scout`, `code`, `completion` on GLM-4.7-Flash;
-`planner`, `reviewer`, `coder` on qwen3.8), `/preset think|build` for switching the main session, `/implement`,
+agent definitions with a pinned `model:` (since 2026-10-08 the subagents -- `worker`, `scout`,
+`code`, `completion`, `coder`, `planner`, `reviewer` -- carry OpenRouter models; the main session
+runs on local qwen3.8), `/preset think|build` for switching the main session, `/implement`,
 `/build`, `/review` workflows, and a global `AGENTS.md` telling the slow model when to delegate.
-Two hot models on purpose — the LRU eviction described below has no pinning.
+One hot local model on purpose since GLM-4.7-Flash was retired on 2026-10-12 — the LRU
+eviction described below has no pinning, and a second resident did not fit (see "Incident:
+the OOM of 2026-10-11").
 
 One llama.cpp-specific detail lives in `models.json`: GLM's `thinkingLevelMap` maps `off` to
 `reasoning_effort: "none"`, the only value llama-server treats as "disable reasoning"
@@ -245,6 +248,43 @@ Two lessons, both load-bearing for how the tiers are used:
    happened. The routers are independent processes with no shared budget. Until a heavy
    session also fences the light tier (stop it, or make it refuse loads), the failure mode is
    a silent kill of the heavy model mid-conversation — not an error a client can react to.
+
+### Incident: the OOM of 2026-10-11 12:13
+
+Light tier only, no heavy model involved. Four children were resident (qwen3.8, gemma-4-E4B,
+gemma-4-E2B, Nimble -- the router was proxying the 2 s status probes to each) and at 12:12:41
+something autoloaded GLM-4.7-Flash as the fifth; most likely pi-session-summary, which had been
+pinned to it three minutes earlier. The kernel's OOM dump 13 s later shows the mechanism in one
+line: `gpu_active:65559424kB` -- the GPU had pinned exactly the 62.5 GiB cap -- next to
+`active_anon:0`, `zspages:61034356kB` and `Total swap = 262311356kB`. Every process' anonymous
+memory had already been pushed into zram, and zram is RAM: `/dev/zram0` is sized at 125.1 GiB
+(100 % of RAM, zstd), so the 58 GiB of compressed pages lived in the same 125 GiB the GPU was
+pinning. With nothing left to reclaim, a global OOM killed chromium, steamwebhelper, spotify
+and then the qwen3.8 child (`total-vm 70 GB`, `anon-rss 0`); the unit failed with `oom-kill`,
+systemd restarted it empty, and every pi session lost its context.
+
+Three lessons on top of the 2026-09-09 ones:
+
+1. **"Swap used" is not relief here.** The 125 GiB swapfile sits at priority 0 behind the
+   zram device, so under pressure the kernel compresses into RAM first and only reaches the
+   disk once zram is full -- which, at 100 % of RAM, is never before the OOM. Count
+   `zramctl` TOTAL as resident memory when budgeting.
+2. **`--models-max` is the only knob that bounds GTT, and it counts models.** Five light
+   children of this size is ~80 GiB demanded of 62.5. The unit now runs `--models-max 4`
+   (the daily set, ~55 GiB measured/estimated in `light.ini`) until Phase 0 is really in
+   effect.
+3. **Host RAM is the other half of the budget.** The GTT pin comes out of the same 125 GiB,
+   so with the GPU full there is ~60 GiB for the desktop, zram and every child's
+   `cache-ram`. qwen3.8's prompt cache went from 32 to 16 GiB for that reason (the child
+   measured 14.4 GiB RSS + 14.9 GiB swap the next day).
+
+Follow-ups on 2026-10-12: `amdgpu` logged `Not enough memory for command submission!` at
+12:25 and 13:08 with just qwen3.8 and GLM resident (32.5 + ~27 GiB) -- the same cap, one
+model short of an OOM -- so GLM-4.7-Flash and qwen3.8's projector were moved to
+`~/models/retired/` and the typing tier went to OpenRouter (`configs/pi`, `light.ini`).
+Moving files under a running router is its own hazard: a sleeping child reloads from the
+paths it was spawned with and aborts if they are gone (`server-context.cpp:1075`), so restart
+the router before, not after, retiring a model.
 
 ### Which heavy model for what
 
@@ -374,10 +414,13 @@ The two former false positives are fixed too: the pi web-search package is gone 
 
 ## Phase 0 — Unlock GTT (reboot; blocks everything)
 
-> **Status: STAGED, PENDING REBOOT.** `/etc/limine-entry-tool.d/amdgpu-gtt.conf` is in place and
-> the UKI has been verified to carry `amdgpu.gttsize=131072 ttm.pages_limit=31457280`. The running
-> kernel does **not** — `/proc/cmdline` has neither param and `mem_info_gtt_total` is still
-> 62.5 GiB. Nothing further is needed but a reboot.
+> **Status: NOT APPLIED (re-checked 2026-10-12).** The drop-in was staged on the previous
+> install; the 2026-09-14 reinstall wiped `/etc/limine-entry-tool.d/` (it now holds only the
+> installer's `resume.conf`/`rtc-alarm.conf` and omarchy-settings' two files), so the
+> 2026-09-18 boot has neither param: `/proc/cmdline` lacks both and `mem_info_gtt_total` is
+> 67151831040 (62.5 GiB). Every light-tier budget in this repo still runs against that cap --
+> it is what the 2026-10-11 OOM hit (see "Incident: the OOM of 2026-10-11"). Redo the
+> drop-in below, `limine-update`, verify the UKI, reboot, then raise `--models-max` back to 5.
 
 Cmdline is assembled by **limine-entry-tool**, not read from `/etc/kernel/cmdline`.
 
@@ -754,10 +797,10 @@ necessarily on disk and an unguarded `fetch` would make every routine re-run sta
 | Tier            | Model                                     | Quant                   | Size     | Expected                       | Role                                                                                                                                   |
 | --------------- | ----------------------------------------- | ----------------------- | -------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
 | **Workhorse**   | `gpt-oss-120b` (117B-A5.1B)               | MXFP4                   | ~63 GB   | ~55 t/s tg                     | Default chat + agentic coding; best capability-per-token-rate here. Goes in `heavy/`.                                                   |
-| ~~Loop engine~~ | ~~`unsloth/Qwen3-Coder-Next-GGUF`~~       | —                       | —        | —                              | **Removed.** `c901081` deleted the file and its `light.ini` section but left `generate-code` pointing at it; the router then held a child with `--alias` and no `--model`, stuck `loading` forever and — since `pick_victim()` skips models that are not ready — permanently holding one of five `--models-max` slots. `generate-code` now targets GLM-4.7-Flash. |
+| ~~Loop engine~~ | ~~`unsloth/Qwen3-Coder-Next-GGUF`~~       | —                       | —        | —                              | **Removed.** `c901081` deleted the file and its `light.ini` section but left `generate-code` pointing at it; the router then held a child with `--alias` and no `--model`, stuck `loading` forever and — since `pick_victim()` skips models that are not ready — permanently holding one of five `--models-max` slots. `generate-code` then targeted GLM-4.7-Flash until that was retired too (2026-10-12); it now targets qwen3.8. |
 | **Next arch**   | `unsloth/Qwen3.8-Flash-Next-GGUF` (125B+51B-A6B) | UD-IQ4_XS        | ~87 GiB  | TBD (6B active)                | Qwen4-preview arch: Gated DeltaNet + QSA hybrid attention, text-only (no mmproj). Requires current llama.cpp qwen4exp support. |
 | **Frontier**    | `unsloth/GLM-5.3-Flash-GGUF` (320B-A18B)  | UD-Q2_K_XL              | ~101 GiB | TBD                            | Multimodal GLM-5 Next architecture; heavy tier only, requires upstream PR #27754 until merged. |
-| **Fan-out**     | `GLM-4.7-Flash` (30B class)               | UD-Q4_K_XL              | 16.32 GiB | 60–100 t/s                    | Cheap parallel subagents, quick tool calls; what opencode's `generate-code` subagent targets. Needs `kv-unified` — see below.           |
+| ~~Fan-out~~     | ~~`GLM-4.7-Flash` (30B class)~~           | ~~UD-Q4_K_XL~~          | 16.32 GiB | —                              | **Retired 2026-10-12.** ~27 GiB resident (17 weights + 202752-token MLA KV) beside qwen3.8's 32.5 GiB overflows the 62.5 GiB GTT the running kernel allows: fifth child in the 2026-10-11 OOM, then `amdgpu` "Not enough memory for command submission" twice on 2026-10-12 with only the two resident. Parked in `~/models/retired/`; the typing tier is on OpenRouter and `Qwen3-4B` is the local candidate if one is wanted again. |
 | **Capability**  | existing DeepSeek V4 Flash 284B-A13B      | custom IQ2_XXS/Q4_K mix | 90.9 GiB | ~13 t/s, more with speculation | Hard planning/architecture steps only — ~155 t/s prefill means a 20k-token turn costs ~2 min before the first token. Not a loop engine. |
 
 Middle sizes are estimates from parameter count; DeepSeek and GLM are measured off disk.

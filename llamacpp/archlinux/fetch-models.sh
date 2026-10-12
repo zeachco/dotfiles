@@ -112,9 +112,11 @@ fetch unsloth/gemma-4-26B-A4B-it-GGUF gemma-4-26B-A4B-it-UD-Q4_K_M.gguf "$HOME/m
 fetch unsloth/gemma-4-26B-A4B-it-GGUF mmproj-F16.gguf                   "$HOME/models/light/gemma-4-26B-A4B-it-GGUF"
 
 # --- light tier, single-file models (id = filename stem) -----------------------
-# 16.32 GiB. Fan-out: cheap parallel subagents and quick tool calls, and what
-# opencode's generate-code subagent targets.
-fetch unsloth/GLM-4.7-Flash-GGUF GLM-4.7-Flash-UD-Q4_K_XL.gguf "$HOME/models/light"
+# GLM-4.7-Flash-UD-Q4_K_XL (16.32 GiB) was fetched here until 2026-10-12. Retired: its
+# ~27 GiB resident footprint does not fit beside qwen3.8 under the 62.5 GiB GTT cap
+# (light.ini, "Memory warning"). The file is parked in ~/models/retired/ -- do NOT
+# re-add a fetch line into ~/models/light, the router's --models-dir scan would serve
+# it again; reinstating is a `mv` back plus a light.ini section.
 
 # 2.00 GiB. Upstream also ships an mmproj for this one, which we deliberately do NOT
 # take: a projector would force it into a subdirectory per the layout rules above and

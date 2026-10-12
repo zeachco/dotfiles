@@ -20,7 +20,7 @@ through the user's shell, which would ignore the shebangs.
 
 | Port   | Tier  | Unit                      | Bind        | Models          | Notes                                            |
 | ------ | ----- | ------------------------- | ----------- | --------------- | ------------------------------------------------ |
-| `:7070` | light | `llama-router.service`    | `0.0.0.0` (LAN) | `~/models/light` | `--models-max 5`, several models coexist         |
+| `:7070` | light | `llama-router.service`    | `0.0.0.0` (LAN) | `~/models/light` | `--models-max 4` (5 after Phase 0), several models coexist |
 | `:7071` | cheap | `llama-router-cheap.service` | `127.0.0.1` | `~/models/cheap` | Isolation tier for high-frequency shell traffic (summarize/tab-autoname), one model, loopback only |
 | `:7072` | heavy | `llama-router-heavy.service` | `0.0.0.0` (LAN) | `~/models/heavy` | One model at a time, `--no-models-autoload`      |
 

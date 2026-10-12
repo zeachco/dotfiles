@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Initial Qwen + GLM download, also runnable manually to resume after a failure.
+# Initial Qwen download (+ GLM on the Mac), also runnable manually to resume after a failure.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,14 +27,20 @@ main() {
     fi
   fi
 
-  staging="$HOME/models/.initial-downloads/glm"
-  target="$models/GLM-4.7-Flash-UD-Q4_K_XL.gguf"
-  if [[ -e "$target" || -L "$target" ]]; then
-    echo "GLM: existing $target left untouched"
-  elif fetch unsloth/GLM-4.7-Flash-GGUF GLM-4.7-Flash-UD-Q4_K_XL.gguf "$staging"; then
-    mv "$staging/GLM-4.7-Flash-UD-Q4_K_XL.gguf" "$target" || return 1
-    # Only the file moved; its digest row has to follow for verification to find it.
-    provenance_move "$staging" "$models" GLM-4.7-Flash-UD-Q4_K_XL.gguf
+  # Mac only since 2026-10-12: on the Arch box GLM-4.7-Flash was retired from the light
+  # tier (it does not fit beside qwen3.8 under the 62.5 GiB GTT cap -- see
+  # llamacpp/archlinux/light.ini) and is parked in ~/models/retired/, where a fresh
+  # download into ~/models/light would put it straight back into the router's scan.
+  if [[ "$(uname -s)" == Darwin ]]; then
+    staging="$HOME/models/.initial-downloads/glm"
+    target="$models/GLM-4.7-Flash-UD-Q4_K_XL.gguf"
+    if [[ -e "$target" || -L "$target" ]]; then
+      echo "GLM: existing $target left untouched"
+    elif fetch unsloth/GLM-4.7-Flash-GGUF GLM-4.7-Flash-UD-Q4_K_XL.gguf "$staging"; then
+      mv "$staging/GLM-4.7-Flash-UD-Q4_K_XL.gguf" "$target" || return 1
+      # Only the file moved; its digest row has to follow for verification to find it.
+      provenance_move "$staging" "$models" GLM-4.7-Flash-UD-Q4_K_XL.gguf
+    fi
   fi
 
   # Arch only: cheap.ini's one model. 2.9 + 0.9 GB, so it costs the initial download

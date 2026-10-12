@@ -1,6 +1,7 @@
 # TEMPLATE -- installed to ~/.config/systemd/user by install.sh in this directory.
 # Reconciled against the unit already hand-installed and running on the Ryzen box
-# (host 0.0.0.0, models-max 5, graphical-session.target, TimeoutStartSec=0 for a cold
+# (host 0.0.0.0, models-max 5 -- 4 since 2026-10-12, see below -- graphical-session.target,
+# TimeoutStartSec=0 for a cold
 # multi-GiB load) rather than the other way around -- this file follows production,
 # CPUQuota/--threads are the only additions install.sh introduces.
 #
@@ -19,10 +20,14 @@ Type=simple
 # Per-tier cache: cached models are enumerated unconditionally, ahead of --models-dir,
 # so a shared cache would leak heavy models into the light tier.
 Environment=LLAMA_CACHE=%h/.cache/llama.cpp-light
+# --models-max counts models, not bytes. 4 is the daily light set (qwen3.8 + gemma-E4B +
+# gemma-E2B + Nimble, ~55 GiB of the 62.5 GiB GTT the running kernel allows -- light.ini,
+# "Memory warning"); a fifth child is the exact shape of the 2026-10-11 OOM kill. Raise
+# back to 5 once Phase 0 of docs/ryzen-llm-setup.md has actually taken effect.
 ExecStart=%h/dev/llama.cpp/build/bin/llama-server \
   --models-dir %h/models/light \
   --models-preset %h/dotfiles/llamacpp/archlinux/light.ini \
-  --models-max 5 \
+  --models-max 4 \
   --host 0.0.0.0 \
   --port 7070 \
   -to 3600 \

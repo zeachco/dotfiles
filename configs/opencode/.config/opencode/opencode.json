@@ -40,7 +40,7 @@
     "generate-code": {
       "description": "Sub agent used to generate large chunks of coded and keep the main orchestrer with lighter tokens, optimized for fast code generation",
       "mode": "subagent",
-      "model": "llamacpp/GLM-4.7-Flash-UD-Q4_K_XL",
+      "model": "llamacpp/qwen3.8",
       "permission": {
         "edit": "deny",
         "bash": "deny"
@@ -115,16 +115,6 @@
         "timeout": false
       },
       "models": {
-        "GLM-4.7-Flash-UD-Q4_K_XL": {
-          "name": "GLM-4.7-Flash-UD-Q4_K_XL",
-          "limit": {
-            "context": 65536,
-            "output": 16384
-          },
-          "tool_call": true,
-          "attachment": false,
-          "reasoning": true
-        },
         "Ministral-3-3B-Instruct-2512-Q4_K_M": {
           "name": "Ministral-3-3B-Instruct-2512-Q4_K_M",
           "limit": {

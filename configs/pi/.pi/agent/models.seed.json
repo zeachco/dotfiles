@@ -6,31 +6,6 @@
       "baseUrl": "http://oli-llms.local:7070/v1",
       "models": [
         {
-          "id": "GLM-4.7-Flash-UD-Q4_K_XL",
-          "name": "GLM-4.7 Flash (light tier, fan-out)",
-          "contextWindow": 202752,
-          "maxTokens": 16384,
-          "input": [
-            "text"
-          ],
-          "reasoning": true,
-          "thinkingLevelMap": {
-            "off": "none",
-            "minimal": "none",
-            "low": "low",
-            "medium": "medium",
-            "high": "high",
-            "xhigh": null,
-            "max": null
-          },
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cacheRead": 0,
-            "cacheWrite": 0
-          }
-        },
-        {
           "id": "Ministral-3-3B-Instruct-2512-Q4_K_M",
           "name": "Ministral-3-3B-Instruct-2512-Q4_K_M",
           "contextWindow": 16384,

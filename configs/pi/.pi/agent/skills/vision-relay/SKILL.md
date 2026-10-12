@@ -2,33 +2,37 @@
 name: vision-relay
 description: >
   Relayed image reading for non-vision models. Use when the active model
-  cannot see images (check $PI_MODEL — e.g. GLM-4.7-Flash) and the user
-  pasted an image, attached one, or asks about a screenshot/image the model
-  cannot view. Spawns a qwen3.8 subagent (planner) that reads the image and
-  returns a structured description. Do NOT use when $PI_MODEL is a
-  vision-capable model (qwen3.8) — just use the read tool directly then.
+  cannot see images (check $PI_MODEL — e.g. qwen3.8, text-only since its
+  projector was retired 2026-10-12) and the user pasted an image, attached
+  one, or asks about a screenshot/image the model cannot view. Spawns the
+  planner subagent (Claude Sonnet 5.5 via OpenRouter, vision-capable) that
+  reads the image and returns a structured description. Do NOT use when
+  $PI_MODEL is a vision-capable model (any model with "image" in its input
+  list in ~/.pi/agent/models.json) — just use the read tool directly then.
 ---
 
 # Vision relay
 
-The active model here may be text-only (`GLM-4.7-Flash-UD-Q4_K_XL` on the
-light router). It receives pasted images as a placeholder (typically
+The active model here is usually text-only (`qwen3.8` on the light router
+lost its vision projector on 2026-10-12 -- retired for prefix KV reuse, see
+light.ini). It receives pasted images as a placeholder (typically
 "Read image file [image/png]") with **no file path and no pixels**. This
-skill gets the image to a vision model (`qwen3.8`) and brings the
-description back.
+skill gets the image to a vision model (the `planner` subagent, Claude
+Sonnet 5.5 via OpenRouter) and brings the description back.
 
 ## When to use
 
 1. Check `$PI_MODEL`.
-   - Vision-capable (`qwen3.8`, or any model with `"image"` in `input` in
-     `~/.pi/agent/models.json`) → **stop, don't use this skill**; use the
-     `read` tool on the image file directly.
-   - Text-only (GLM tier, …) and the user pasted/attached an image or asks
-     about one → continue.
+   - Vision-capable (any model with `"image"` in `input` in
+     `~/.pi/agent/models.json` -- `qwen3.8` is NOT one since 2026-10-12) →
+     **stop, don't use this skill**; use the `read` tool on the image file
+     directly.
+   - Text-only (`qwen3.8`, Nimble, …) and the user pasted/attached an image
+     or asks about one → continue.
 2. Never route this to `gemma-4-E2B` or other light-tier vision models:
-   they are cold and 16k-context. `qwen3.8` is resident, 393k-context, and
-   far stronger. The `planner` agent already targets it
-   (`llamacpp/qwen3.8`).
+   they are cold and 16k-context. The `planner` agent targets Claude
+   Sonnet 5.5 via OpenRouter (`openrouter/anthropic/claude-sonnet-5.5`),
+   which reads images natively.
 
 ## Step 1 — locate the image bytes
 
@@ -92,11 +96,12 @@ user's most recent paste (or a `read` tool result of a path the user gave).
 - **No image found and no path** → ask the user to save the image to a file
   and share the path. Don't guess.
 
-## Step 2 — spawn the qwen3.8 subagent
+## Step 2 — spawn the planner subagent
 
 The subagent is a fresh process that has NOT seen this conversation. Its
 task must be self-contained: exact absolute path, the user's intent
-verbatim, and the output contract. Use the `planner` agent (qwen3.8):
+verbatim, and the output contract. Use the `planner` agent (Claude Sonnet 5.5
+via OpenRouter):
 
 ```
 agent: planner

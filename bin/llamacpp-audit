@@ -93,11 +93,14 @@ def tier_models(tier):
 
 def all_ggufs():
     for dirpath, dirnames, files in os.walk(MODELS):
-        # ~/models/archive is the parking lot for retired weights (Flash-Next, 2026-09-09):
-        # kept so reinstating is a `mv`, not an 87 GB download, and deliberately WITHOUT a
-        # fetch recipe. Auditing it would flag every retirement forever.
-        if dirpath == MODELS and "archive" in dirnames:
-            dirnames.remove("archive")
+        # ~/models/archive and ~/models/retired are the parking lots for retired weights
+        # (Flash-Next -> archive, 2026-09-09; GLM-4.7-Flash and qwen3.8's mmproj -> retired,
+        # 2026-10-12): kept so reinstating is a `mv`, not a 17-87 GB download, and
+        # deliberately WITHOUT a fetch recipe. Auditing them would flag every retirement forever.
+        if dirpath == MODELS:
+            for parked in ("archive", "retired"):
+                if parked in dirnames:
+                    dirnames.remove(parked)
         for f in files:
             if f.endswith(".gguf"):
                 yield os.path.join(dirpath, f)
