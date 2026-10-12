@@ -72,6 +72,39 @@ fi
 # script_install opencode "curl -fsSL https://opencode.ai/install | bash"
 script_install claude "curl -fsSL https://claude.ai/install.sh | bash && echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc"
 
+# Local text-to-speech behind `say`/`converse`. The runtime lives outside the repo
+# (~/.local/share) and pulls ~200 MB of CPU-only torch wheels, so it is installed
+# once and skipped on every later dotfiles_update. Python 3.11 specifically: torch
+# 2.5.1+cpu stops at cp312 and Arch ships only the current Python, hence mise/uv.
+KOKORO_VENV="$HOME/.local/share/kokoro-tts"
+if install_python_venv kokoro-tts 3.11; then
+  kokoro_fresh=0
+  if "$KOKORO_VENV/bin/python" -c 'import kokoro, soundfile' >/dev/null 2>&1; then
+    print_exists "kokoro-tts"
+  else
+    echo -e "${WARN}installing ${NORM}kokoro-tts (torch, kokoro, soundfile)..."
+    "$KOKORO_VENV/bin/pip" install 'torch==2.5.1+cpu' --index-url https://download.pytorch.org/whl/cpu
+    # kokoro leaves transformers unpinned; 5.x calls torch.accelerator (torch>=2.6)
+    # and breaks against the pinned torch 2.5.1+cpu, so stay on the 4.x line.
+    "$KOKORO_VENV/bin/pip" install kokoro soundfile 'transformers<4.50'
+    kokoro_fresh=1
+  fi
+
+  # `bin/say` exports HF_HUB_OFFLINE=1, so the Kokoro model, the af_heart voice
+  # and spaCy's en_core_web_sm must already be cached or the first run fails
+  # offline. Warm after a fresh install or a cleared HF cache; cached is ~8 s.
+  if { [ "$kokoro_fresh" = 1 ] || [ ! -d "$HOME/.cache/huggingface/hub/models--hexgrad--Kokoro-82M" ]; } &&
+     "$KOKORO_VENV/bin/python" -c 'import kokoro' >/dev/null 2>&1; then
+    echo -e "${WARN}downloading ${NORM}Kokoro-82M model and voice..."
+    "$KOKORO_VENV/bin/python" -c '
+from kokoro import KPipeline
+pipeline = KPipeline(lang_code="a", repo_id="hexgrad/Kokoro-82M")
+for _ in pipeline("ok", voice="af_heart"):
+    pass
+'
+  fi
+fi
+
 stow_link alacritty
 stow_link tmux
 

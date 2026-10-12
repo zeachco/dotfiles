@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Speak text locally with Kokoro TTS. Install the runtime once with:
+# Speak text locally with Kokoro TTS. `setup.sh` provisions the runtime; to do it
+# by hand (Python 3.11 + the venv under ~/.local/share/kokoro-tts):
 #   python3.11 -m venv ~/.local/share/kokoro-tts && \
 #     ~/.local/share/kokoro-tts/bin/pip install 'torch==2.5.1+cpu' --index-url https://download.pytorch.org/whl/cpu && \
-#     ~/.local/share/kokoro-tts/bin/pip install kokoro soundfile
+#     ~/.local/share/kokoro-tts/bin/pip install kokoro soundfile 'transformers<4.50'
+# The transformers pin matters: 5.x needs torch>=2.6 and breaks on the pinned CPU build.
 
 set -euo pipefail
 
@@ -10,12 +12,14 @@ KOKORO_PYTHON="${KOKORO_PYTHON:-$HOME/.local/share/kokoro-tts/bin/python}"
 VOICE="${KOKORO_VOICE:-af_heart}"
 
 if [[ ! -x "$KOKORO_PYTHON" ]]; then
-  echo "Kokoro is not installed. Run:" >&2
-  echo "  python3.11 -m venv ~/.local/share/kokoro-tts && ~/.local/share/kokoro-tts/bin/pip install 'torch==2.5.1+cpu' --index-url https://download.pytorch.org/whl/cpu && ~/.local/share/kokoro-tts/bin/pip install kokoro soundfile" >&2
+  echo "Kokoro is not installed. Run ~/dotfiles/setup.sh, or by hand:" >&2
+  echo "  python3.11 -m venv ~/.local/share/kokoro-tts && ~/.local/share/kokoro-tts/bin/pip install 'torch==2.5.1+cpu' --index-url https://download.pytorch.org/whl/cpu && ~/.local/share/kokoro-tts/bin/pip install kokoro soundfile 'transformers<4.50'" >&2
   exit 1
 fi
 
 if ! command -v pw-play >/dev/null 2>&1; then
+  echo "say: pw-play is required to play speech (PipeWire on Linux)" >&2
+  exit 1
 fi
 
 if [[ $# -gt 0 ]]; then

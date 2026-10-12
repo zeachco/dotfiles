@@ -18,11 +18,14 @@ absolute path (`$HOME/dotfiles/bin/…`), and a few are exposed as shell aliases
 | `bt-controller-refresh`| Power-cycles the MT7925 Bluetooth controller on earbud disconnect (watch mode, systemd service; `--now` = alias `btfix`) | Linux (the Framework) |
 | `phone`                | Uses an Android phone over USB adb as a webcam and/or second display (wlr-randr for the Hyprland gotchas)                  | Linux (Omarchy) |
 
-Voice pipeline install (one-time, per script header):
+Voice pipeline install (one-time, per script header). `~/dotfiles/setup.sh`
+provisions the `say` runtime itself (venv, wheels, and the offline Kokoro model
+cache) — the commands below are the manual equivalent when the setup cannot reach
+a version manager for Python 3.11:
 
 ```sh
 # listen
 python3.11 -m venv ~/.local/share/listen-stt && ~/.local/share/listen-stt/bin/pip install faster-whisper numpy
 # say
-python3.11 -m venv ~/.local/share/kokoro-tts && ~/.local/share/kokoro-tts/bin/pip install 'torch==2.5.1+cpu' --index-url https://download.pytorch.org/whl/cpu && ~/.local/share/kokoro-tts/bin/pip install kokoro soundfile
+python3.11 -m venv ~/.local/share/kokoro-tts && ~/.local/share/kokoro-tts/bin/pip install 'torch==2.5.1+cpu' --index-url https://download.pytorch.org/whl/cpu && ~/.local/share/kokoro-tts/bin/pip install kokoro soundfile 'transformers<4.50'
 ```

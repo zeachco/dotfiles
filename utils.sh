@@ -153,6 +153,36 @@ function script_install() {
   fi
 }
 
+# Create a Python venv under ~/.local/share for a bin/ runtime that needs an
+# interpreter the OS does not ship. The local speech runtimes (`say`, `listen`)
+# pin torch==2.5.1+cpu, whose last wheels are cp312, while Arch only ever ships
+# the current Python -- so the interpreter comes from a version manager instead:
+# mise (already this user's) or uv (which can fetch its own).
+# Idempotent: once the venv interpreter exists the caller decides what is missing.
+#   install_python_venv <name> <version>   ->  ~/.local/share/<name>/bin/python
+function install_python_venv() {
+  name="$1"
+  version="$2"
+  venv="$HOME/.local/share/$name"
+
+  if [[ -x "$venv/bin/python" ]]; then
+    return 0
+  fi
+
+  echo -e "${WARN}creating ${NORM}$venv (python$version)..."
+  if command -v mise >/dev/null 2>&1; then
+    mise x "python@$version" -- python -m venv "$venv"
+  elif command -v uv >/dev/null 2>&1; then
+    # --seed keeps pip in the venv; uv omits it by default
+    uv venv --python "$version" --seed "$venv"
+  elif command -v "python$version" >/dev/null 2>&1; then
+    "python$version" -m venv "$venv"
+  else
+    echo -e "${FAIL}no way to get python$version: install mise or uv first${NORM}"
+    return 1
+  fi
+}
+
 function ensure_current_theme() {
   local package="$1"
   local current_theme="$DOT_DIR/themes/current"
