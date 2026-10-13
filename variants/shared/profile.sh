@@ -282,6 +282,9 @@ _set gt "git_test"
 # Source worktree and Herdr utilities
 [[ -f "$DOT_DIR/variants/shared/_worktrees.sh" ]] && source "$DOT_DIR/variants/shared/_worktrees.sh"
 
+# Source work mode toggle (default browser + Slack)
+[[ -f "$DOT_DIR/variants/shared/_work.sh" ]] && source "$DOT_DIR/variants/shared/_work.sh"
+
 # Source media streaming utilities
 [[ -f "$DOT_DIR/variants/shared/_streaming.sh" ]] && source "$DOT_DIR/variants/shared/_streaming.sh"
 
