@@ -220,6 +220,9 @@ repos() {
     gh repo clone "$repo" || return 1
     cd "$dev_dir/$name" || return 1
     secrets
+    # fresh clone: install the toolchain and fetch the env; both are allowed to fail
+    mise install
+    bwload
   fi
 
   # auto-enter devbox shell if the repo has one
