@@ -3495,7 +3495,7 @@
         "minimax/minimax-m2.7": {
           "name": "MiniMax: MiniMax M2.7",
           "limit": {
-            "context": 196608,
+            "context": 204800,
             "output": 176947
           },
           "tool_call": true,
@@ -7537,6 +7537,38 @@
             "input": 4.0,
             "output": 20.0,
             "cacheRead": 0.19999999999999998,
+            "cacheWrite": 0
+          }
+        },
+        "scaledown/summarize": {
+          "name": "ScaleDown: Summarize",
+          "limit": {
+            "context": 1000000,
+            "output": 4000
+          },
+          "tool_call": false,
+          "attachment": true,
+          "reasoning": false,
+          "cost": {
+            "input": 0.04,
+            "output": 0.0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        "scaledown/extract": {
+          "name": "ScaleDown: Extract",
+          "limit": {
+            "context": 1000000,
+            "output": 900000
+          },
+          "tool_call": false,
+          "attachment": true,
+          "reasoning": false,
+          "cost": {
+            "input": 0.04,
+            "output": 0.0,
+            "cacheRead": 0,
             "cacheWrite": 0
           }
         }
