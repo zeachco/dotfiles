@@ -81,6 +81,7 @@ setup.sh           orchestrator: OS detection → shared profile → OS profile 
 utils.sh           install_profile / stow_link / install / install_pkg / clean_imports
 variants/<os>/     per-OS profile: setup.sh (packages) + profile.sh (shell state)
 configs/<pkg>/     Stow packages mirroring $HOME (nvim, alacritty, tmux, pi, herdr, …)
+skills/            agent skills shared by every harness (Claude Code, Codex, opencode, pi)
 llamacpp/          local model serving (launchd on macOS, systemd on Arch) — see its README
 bin/               helper scripts (theme-switch, herdr-config, llamacpp-sync/audit, voice) — see its README
 themes/            per-app themes; themes/current is machine state

@@ -86,6 +86,7 @@ stow_link wireplumber
 stow_link alacritty
 stow_link alacritty-archlinux
 stow_link nvim
+unfold_dir "$HOME/.config/opencode/skills"
 stow_link opencode
 
 # All llama.cpp setup (router install, model fetch check) lives in llamacpp/.

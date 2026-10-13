@@ -130,8 +130,19 @@ if [[ ! -f "$DOT_DIR/configs/pi/.pi/agent/models-store.json" ]]; then
      "$DOT_DIR/configs/pi/.pi/agent/models-store.json"
   echo -e "${INFO}seeded ${NORM}pi models-store.json"
 fi
+unfold_dir "$HOME/.pi/agent/skills"
 stow_link pi
 "$DOT_DIR/configs/pi/setup.sh"
+
+# Claude Code and Codex. Both packages carry the shared agent skills (skills/,
+# linked one skill at a time into the harness's own skills directory -- see
+# unfold_dir), and Claude's one carries settings.json. Everything else under
+# ~/.claude and ~/.codex is state the harness rewrites itself (sessions,
+# credentials, project trust, Codex's config.toml), so it stays untracked.
+unfold_dir "$HOME/.claude/skills"
+stow_link claude
+unfold_dir "$HOME/.codex/skills"
+stow_link codex
 
 # Herdr's config is Stow-linked on macOS (configs/herdr) but not on other
 # platforms, and its server writes to the file either way, so the keymap and
@@ -148,6 +159,13 @@ stow_link pi
 # diffs normally.
 git -C "$DOT_DIR" config filter.herdr-config.clean "\"$DOT_DIR/bin/herdr-config\" git-clean"
 git -C "$DOT_DIR" config --remove-section filter.herdr-theme 2>/dev/null || true
+
+# Claude Code reads a single settings.json too, and two of its keys are machine
+# state: "theme" (bin/theme-switch flips it with the terminal theme) and "hooks"
+# (the herdr integration registers its SessionStart hook there with an absolute
+# path -- for pi and opencode it drops a gitignored file instead). Same remedy:
+# a clean filter strips both in git, the working copy keeps them.
+git -C "$DOT_DIR" config filter.claude-settings.clean "jq 'del(.theme, .hooks)'"
 
 if command -v herdr &>/dev/null; then
   "$DOT_DIR/bin/herdr-config" ensure-keys

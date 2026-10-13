@@ -4,3 +4,8 @@
 # and strips the keys so neither ever shows up as a diff. Registered per clone
 # by variants/shared/setup.sh (filters live in .git/config).
 configs/herdr/.config/herdr/config.toml filter=herdr-config
+
+# Claude Code's settings.json carries two machine-state keys, "theme" and
+# "hooks" (see variants/shared/setup.sh, which registers the filter); the clean
+# filter strips them so neither ever shows up as a diff.
+configs/claude/.claude/settings.json filter=claude-settings

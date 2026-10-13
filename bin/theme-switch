@@ -110,20 +110,21 @@ if command -v btop &>/dev/null && [ -f "$CURRENT_THEME_PATH/btop.theme" ]; then
   cp -f "$CURRENT_THEME_PATH/btop.theme" "$HOME/.config/btop/themes/current.theme" 2>/dev/null || true
 fi
 
-# Update Claude
-if [ -f "$HOME/.claude/settings.json" ]; then
+# Update Claude. settings.json is Stow-linked into the dotfiles (configs/claude),
+# so write over it rather than replacing it: mv or sed -i would swap the link
+# for a plain file and silently un-stow it.
+CLAUDE_SETTINGS="$HOME/.claude/settings.json"
+if [ -f "$CLAUDE_SETTINGS" ]; then
   CLAUDE_THEME="$THEME_MODE"
   if command -v jq &>/dev/null; then
-    jq --arg theme "$CLAUDE_THEME" '. + {theme: $theme}' "$HOME/.claude/settings.json" >"$HOME/.claude/settings.json.tmp"
-    mv "$HOME/.claude/settings.json.tmp" "$HOME/.claude/settings.json"
+    jq --arg theme "$CLAUDE_THEME" '. + {theme: $theme}' "$CLAUDE_SETTINGS" >"$CLAUDE_SETTINGS.tmp"
+  elif grep -q '"theme"' "$CLAUDE_SETTINGS"; then
+    sed "s/\"theme\": \".*\"/\"theme\": \"$CLAUDE_THEME\"/g" "$CLAUDE_SETTINGS" >"$CLAUDE_SETTINGS.tmp"
   else
-    if grep -q '"theme"' "$HOME/.claude/settings.json"; then
-      sed -i.bak "s/\"theme\": \".*\"/\"theme\": \"$CLAUDE_THEME\"/g" "$HOME/.claude/settings.json"
-    else
-      sed -i.bak "s/}$/,\n  \"theme\": \"$CLAUDE_THEME\"\n}/g" "$HOME/.claude/settings.json"
-    fi
-    rm -f "$HOME/.claude/settings.json.bak"
+    sed "s/}$/,\n  \"theme\": \"$CLAUDE_THEME\"\n}/g" "$CLAUDE_SETTINGS" >"$CLAUDE_SETTINGS.tmp"
   fi
+  cat "$CLAUDE_SETTINGS.tmp" >"$CLAUDE_SETTINGS"
+  rm -f "$CLAUDE_SETTINGS.tmp"
 fi
 
 echo "✓ Theme '$THEME' applied successfully!"

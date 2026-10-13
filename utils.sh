@@ -205,6 +205,22 @@ function ensure_current_theme() {
   esac
 }
 
+# Make $1 a real directory before stowing the package that owns it. When a
+# target is missing, Stow "folds" it: one link to the package directory instead
+# of a directory of links. That is wrong for the harness homes (~/.claude,
+# ~/.codex, ~/.pi/agent hold sessions and credentials) and for their skills
+# directories: Claude Code writes .trash/ and synced/ there, Codex its .system/
+# bundle, omarchy links its own skills in, railway installs use-railway per box.
+# With the directory in place Stow links each tracked entry on its own (one
+# link per shared skill) and the machine-local ones stay beside them, out of
+# the repo. A folded link left by an earlier layout is replaced; anything
+# gitignored that landed in the repo through it has to be moved out by hand.
+function unfold_dir() {
+  local dir=$1
+  [[ -L "$dir" ]] && rm -f "$dir"
+  mkdir -p "$dir"
+}
+
 function stow_link() {
   local pkg=$1
 

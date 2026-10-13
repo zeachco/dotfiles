@@ -2,7 +2,10 @@
 name: zeachco-code-review
 description: >
   Review code in Zeachco's style: make it readable, simple, clear, precise, fast,
-  resilient, and pleasant to change. Use for pull-request and diff reviews.
+  resilient, and pleasant to change. Use for pull-request and diff reviews. Builds on
+  the review threads already on the PR instead of repeating them, and proposes a
+  simpler shape (as code or pseudo code) when the surrounding code is messy, even
+  outside the diff.
 ---
 
 # Code review runbook
@@ -23,6 +26,24 @@ Before commenting, understand:
 - whether the component is deliberately blackboxed or isolated.
 
 Do not impose a general architectural preference without understanding this frame.
+
+Then read what has already been said on the PR, so the review adds to it instead of
+repeating it:
+
+```bash
+# inline review threads: path:line, author, first line of the comment
+gh api "repos/$OWNER/$REPO/pulls/$N/comments" --paginate \
+  --jq '.[] | "\(.path):\(.line // .original_line) \(.user.login): \(.body | split("\n")[0])"'
+# conversation comments and review summaries
+gh api "repos/$OWNER/$REPO/issues/$N/comments" --paginate \
+  --jq '.[] | "\(.user.login): \(.body | split("\n")[0])"'
+gh api "repos/$OWNER/$REPO/pulls/$N/reviews" \
+  --jq '.[] | select(.body != "") | "\(.user.login): \(.body | split("\n")[0])"'
+```
+
+Keep that list of (file, line, concern) already raised — by humans or bots — and review
+around it. New comments go where nobody has looked yet; something to add to an existing
+thread is a reply in that thread, not a new comment beside it.
 
 ## 2. Review in this order
 
@@ -46,6 +67,12 @@ Do not impose a general architectural preference without understanding this fram
 
 Prefer the smallest design that makes the behavior obvious. Avoid both needless
 abstraction and needless duplication when either makes future changes harder.
+
+Look beyond the diff here. When the surrounding code is chaotic — tangled conditionals,
+state threaded through several helpers, one function that validates, looks up, filters
+and formats in a row — the diff is rarely where it gets fixed, but it is the moment to
+name a simpler shape. Sketch the shape (the composition form in §4) rather than only
+saying it is messy: a mess without a proposed alternative is not actionable.
 
 ### Performance
 
@@ -101,11 +128,13 @@ Every non-trivial finding should include:
 2. **Problem** — what is unclear, slow, fragile, or incorrect.
 3. **Consequence** — who is affected and under what condition.
 4. **Smallest improvement** — a concrete change or verification.
-5. **Priority** — blocker, should-fix, question, or nit.
+5. **Kind** — the comment prefix (§5): `blocking`, `non-blocking`, `preference`, `nit`,
+   `question`, or `praise`.
 
 Prefer questions when intent is unclear. Separate correctness issues from design
-preferences. Acknowledge good work when it matters. Do not produce a long list of
-style opinions after the important risks are covered.
+preferences. Praise is rare: reserve it for something not commonly seen in the field,
+not for ordinary good practice. Do not produce a long list of style opinions after the
+important risks are covered.
 
 Useful forms:
 
@@ -118,6 +147,22 @@ Useful forms:
   clear?”
 - “I would normally prefer `<cleaner design>`, but given `<lifecycle/boundary>` the
   smaller safe change is appropriate. Please record the follow-up.”
+- When the style is chaotic, do not stop at naming the mess: offer the simpler shape
+  you have in mind, as a few lines of code or pseudo code, and leave the decision open —
+  a question, not a verdict. The sketch only has to show the direction, not compile:
+
+  “I think it would be clearer if we extracted that part and composed what we need,
+  roughly:
+
+  ```ts
+  const result = await pipe(input, validate, applySettings, format)
+  ```
+
+  Would that fit here, or is there a constraint I'm not seeing?”
+
+  Scope it: in this PR when it is small and stays within the changed code, otherwise a
+  recorded follow-up. On its own it is a `question` or `preference`, never `blocking`,
+  and the lifecycle exceptions in §3 apply (no shape proposals on code leaving soon).
 
 ## 5. Deliver each finding on its diff line
 
@@ -125,7 +170,23 @@ Post findings as **inline PR review comments anchored to the exact line of the P
 head** — not only as a summary. The author should meet each concern where the code
 is. One review submission carries all of them.
 
-- Prefix every comment body with `self-review: `.
+- Prefix every comment body with its kind and the `ai-review` decoration, then the
+  finding — no other label inside the body (no bold “Should-fix.” after the prefix; the
+  prefix is the label):
+  - `blocking(ai-review): …` — must change before merge: incorrect behavior, data loss,
+    security, a broken rollout or rollback.
+  - `non-blocking(ai-review): …` — worth fixing but not a merge condition: a should-fix,
+    a readability problem, a recorded follow-up. When it matters, the first sentence
+    says so.
+  - `preference(ai-review): …` — a design or style preference the author may decline.
+    Only with the reasoning and why it is worth considering here; a preference without
+    its why is not posted.
+  - `nit(ai-review): …` — a small thing (naming, a typo, formatting, a stale usage
+    line). Same rule: say why it is worth the change, or leave it out.
+  - `question(ai-review): …?` — intent is unclear; the body ends with a question mark.
+  - `praise(ai-review): …` — rarely: only for something not commonly seen in the field.
+- The review body carries no kind prefix: it opens with the verdict and maps the inline
+  findings in a line. The `(ai-review)` decoration on each comment marks the origin.
 - Use the PR head commit: `gh pr view <n> --json headRefOid -q .headRefOid`.
 - Take the line number from the **PR head**, never the dirty working tree: when the
   branch has uncommitted edits, `git show HEAD:<path> | grep -n '<anchor>'`, and
@@ -134,6 +195,10 @@ is. One review submission carries all of them.
   line. Use `start_line`/`line` only when a multi-line span reads better whole.
 - Verify the anchors after posting: REST can report `line: null`; GraphQL is
   authoritative (`reviews(last:1){comments{nodes{path line}}}`).
+- Do not re-raise a concern that is already on the PR (the list from §1). Skip it, or
+  when there is evidence or a sharper fix to add, reply in that thread with the same
+  prefixes:
+  `gh api "repos/$OWNER/$REPO/pulls/$N/comments/$ID/replies" -f body='non-blocking(ai-review): …'`.
 
 ```bash
 SHA=$(gh pr view "$N" --json headRefOid -q .headRefOid)
@@ -141,10 +206,12 @@ gh api "repos/$OWNER/$REPO/pulls/$N/reviews" -X POST --input - <<JSON
 {
   "commit_id": "$SHA",
   "event": "COMMENT",
-  "body": "self-review: inline findings; verdict on the first line.",
+  "body": "<verdict>. <one line mapping the inline findings>",
   "comments": [
     { "path": "src/x.ts", "line": 53, "side": "RIGHT",
-      "body": "self-review: **Should-fix.** <problem / consequence / smallest improvement>" }
+      "body": "non-blocking(ai-review): <problem / consequence / smallest improvement>" },
+    { "path": "src/y.ts", "line": 12, "side": "RIGHT",
+      "body": "question(ai-review): <what is unclear, under which condition>?" }
   ]
 }
 JSON
@@ -162,4 +229,5 @@ Before approving, confirm that:
 - the code is understandable without unnecessary navigation;
 - failure, performance, rollout, and rollback paths are acceptable;
 - technical debt is reduced or consciously bounded;
-- every remaining concern has an owner, scope, or explicit acceptance.
+- every remaining concern has an owner, scope, or explicit acceptance;
+- nothing in the review repeats a thread that was already open.

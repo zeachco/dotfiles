@@ -39,11 +39,11 @@ setup.sh
 
 | Variant     | PM           | Stow configs                       | Notes                                             |
 | ----------- | ------------ | ---------------------------------- | ------------------------------------------------- |
-| shared      | agnostic     | alacritty, tmux, pi               | Base: git config, rg, fd, gh, fzf, tmux, pi, herdr keymap (`configs/herdr/keys.toml`) |
-| debian      | apt          | claude, alacritty-debian, nvim    | Core tools                                         |
+| shared      | agnostic     | alacritty, tmux, pi, claude, codex | Base: git config, rg, fd, gh, fzf, tmux, pi, Claude Code + Codex (shared skills), herdr keymap (`configs/herdr/keys.toml`) |
+| debian      | apt          | alacritty-debian, nvim            | Core tools                                         |
 | ubuntu      | apt          | same as debian                     | + omakub, devbox, GNOME shortcuts                  |
 | osx         | brew         | aerospace, sketchybar, herdr, …   | Generates herdr os.toml, `option_as_alt`, launches Herdr via `$SHELL -l -i -c` |
-| archlinux   | pacman + yay | wireplumber                        | AUR helpers, `pac*`/`yay*` functions, llama.cpp build sync |
+| archlinux   | pacman + yay | wireplumber, opencode              | AUR helpers, `pac*`/`yay*` functions, llama.cpp build sync |
 | termux      | pkg          | none                               | Android; redefines `killport`/network helpers     |
 | omarchy     | pacman       | hypr, foot, alacritty-omarchy     | Setup-only overlay on archlinux (Hyprland bindings), no shell profile |
 
@@ -66,10 +66,24 @@ Each entry in `configs/` is a Stow package that mirrors the home-directory struc
 e.g. `alacritty` (shared window padding) + `alacritty-osx` (Nerd Font family, `option_as_alt`).
 The last stowed package wins per file.
 
+**Shared agent skills** (`skills/`): one directory per skill (`<name>/SKILL.md`), used by
+every harness. Each harness package carries a relative symlink to it
+(`configs/claude/.claude/skills`, `configs/codex/.codex/skills`,
+`configs/opencode/.config/opencode/skills`, `configs/pi/.pi/agent/skills`), and `unfold_dir`
+(utils.sh) creates the harness's skills directory before the package is stowed, so Stow links
+each skill on its own (`~/.claude/skills/<name>` → `…/skills/<name>`) rather than folding the
+whole directory into the repo. The harness's own entries — Claude Code's `.trash/` and
+`synced/`, Codex's `.system/`, omarchy's skill links, per-box installs like `use-railway` —
+stay beside the links in `$HOME`. The same helper keeps `~/.claude`, `~/.codex` and
+`~/.pi/agent` (sessions, credentials) from ever being folded into the repo.
+
 **Machine-local state is gitignored, not stowed as tracked content**: `themes/current`,
 `configs/alacritty/…/theme.toml`, pi's `models.json` (seeded from `models.seed.json`), pi's
 `auth.json`, and the auto-generated herdr-agent-state files. Anything that differs per box
-belongs there — a tracked copy would flip on every sync.
+belongs there — a tracked copy would flip on every sync. Claude Code's `settings.json` is the
+one that cannot be split: its `theme` and `hooks` keys are machine state inside a tracked file,
+so a clean filter (`.gitattributes`, registered by `variants/shared/setup.sh`) strips them in
+git — the same remedy as herdr's config.
 
 ## Shell profiles
 

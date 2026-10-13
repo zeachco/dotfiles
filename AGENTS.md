@@ -16,6 +16,7 @@ management. This file keeps only the map and the gotchas.
 | `utils.sh`          | `install_profile`, `stow_link`, `install`/`install_pkg`, `clean_imports`, theme seeding |
 | `variants/`         | One dir per OS (+ shared base): `setup.sh` (packages) + `profile.sh` (shell state), partials in `_*.sh` |
 | `configs/`          | Stow packages, mirroring `$HOME`: `configs/nvim/.config/nvim/…` → `~/.config/nvim/…` |
+| `skills/`           | Agent skills shared by every harness (Claude Code, Codex, opencode, pi), one dir per skill; each `configs/<harness>` package links it in |
 | `llamacpp/`         | Local model serving: shared launchers/menu/fetch lib, osx (launchd) + archlinux (systemd) — see [llamacpp/README.md](llamacpp/README.md) |
 | `bin/`              | Helper scripts, invoked by absolute path — see [bin/README.md](bin/README.md) |
 | `themes/`           | Per-app themes; `themes/current` is machine state (gitignored)       |
@@ -35,6 +36,18 @@ management. This file keeps only the map and the gotchas.
   `models.json` (seeded from `models.seed.json` **before** stow — without the seed pi comes up
   with no llamacpp providers at all, which sync cannot repair), pi `auth.json`, herdr-agent-state
   files.
+- **Harness skill dirs are real directories, linked one skill at a time.** `unfold_dir`
+  (utils.sh) creates `~/.claude/skills`, `~/.codex/skills`, `~/.pi/agent/skills` and
+  `~/.config/opencode/skills` before their package is stowed, so Stow links each entry of
+  `skills/` on its own instead of folding the whole directory (or the whole `~/.claude`) into
+  the repo. Claude Code's `.trash/`/`synced/`, Codex's `.system/`, omarchy's skill links and
+  per-box installs like `use-railway` stay in `$HOME`. A new skill reaches a machine on the
+  next `dotfiles_update`.
+- **Claude Code's settings.json is stowed through a clean filter.** `theme` (bin/theme-switch)
+  and `hooks` (herdr's SessionStart hook, absolute path) are machine state and never reach
+  git — a hook added there by hand is not tracked either. On a box whose
+  `~/.claude/settings.json` predates the package, the first `stow_link claude` replaces it;
+  re-run herdr's Claude integration afterwards to get the hook back.
 - **Herdr's server rewrites its own config.** `~/.config/herdr/config.toml` is Stow-linked on
   macOS, but the server patches it in place (onboarding state, channel) and `herdr update`
   regenerates it wholesale, so `bin/herdr-config` patches keys through the symlink — never
