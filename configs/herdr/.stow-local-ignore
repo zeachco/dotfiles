@@ -1,0 +1,7 @@
+# Stow links everything at a package's top level into ~, so keep the keymap
+# data (read from the repo by bin/herdr-config) and this file out of $HOME.
+# A local ignore list replaces Stow's built-in one, hence the README/VCS rules.
+^/keys\.toml
+^/\.stow-local-ignore
+^/README.*
+\.git

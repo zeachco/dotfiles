@@ -39,7 +39,7 @@ setup.sh
 
 | Variant     | PM           | Stow configs                       | Notes                                             |
 | ----------- | ------------ | ---------------------------------- | ------------------------------------------------- |
-| shared      | agnostic     | alacritty, tmux, pi               | Base: git config, rg, fd, gh, fzf, tmux, pi, herdr keymap |
+| shared      | agnostic     | alacritty, tmux, pi               | Base: git config, rg, fd, gh, fzf, tmux, pi, herdr keymap (`configs/herdr/keys.toml`) |
 | debian      | apt          | claude, alacritty-debian, nvim    | Core tools                                         |
 | ubuntu      | apt          | same as debian                     | + omakub, devbox, GNOME shortcuts                  |
 | osx         | brew         | aerospace, sketchybar, herdr, …   | Generates herdr os.toml, `option_as_alt`, launches Herdr via `$SHELL -l -i -c` |

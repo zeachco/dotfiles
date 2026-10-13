@@ -8,7 +8,7 @@ absolute path (`$HOME/dotfiles/bin/…`), and a few are exposed as shell aliases
 | Script                 | What it does                                                                                                             | Platform        |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------- |
 | `theme-switch`         | Copies `themes/<name>` → `themes/current` and patches per-app settings (nvim, alacritty, herdr, btop, claude, codex, VS Code). `bin/theme-switch` or `theme <name>` | Cross-platform |
-| `herdr-config`         | Patches single keys in `~/.config/herdr/config.toml` in place (`ensure-keys`, `sync-theme`, `set`, …) — Herdr's server rewrites the file, so the whole file is never templated | Mostly macOS   |
+| `herdr-config`         | Patches `~/.config/herdr/config.toml` in place (`ensure-keys` copies the `[keys]` table from `configs/herdr/keys.toml`, `sync-theme`, `set`, …) — Herdr's server rewrites the file, so the whole file is never templated. `git-clean` is the clean filter for the stowed macOS copy | Cross-platform |
 | `llamacpp-sync`        | Rebuilds pi's / opencode's `llamacpp*` and `openrouter` provider model defs from live `/v1/models` endpoints, preserving per-model tuning. The `sync-models` action in `los` | Cross-platform |
 | `llamacpp-audit`       | Read-only cross-check of `~/models` vs the INI presets vs the client configs; `--remote` also parses every GGUF and compares it to HF sizes | Cross-platform |
 | `listen`               | Streaming speech-to-text to stdout (faster-whisper in a venv; `mock` provider for tests)                                   | Linux (pulse) / macOS |

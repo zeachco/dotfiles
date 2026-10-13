@@ -1,0 +1,66 @@
+# Herdr keymap -- the single source for every platform.
+#
+# `bin/herdr-config ensure-keys` copies this [keys] table into the live
+# ~/.config/herdr/config.toml (run by variants/shared/setup.sh on every setup,
+# and by variants/osx/setup.sh again after Stow relinks the file). Herdr's own
+# updater rewrites config.toml and drops the table, so re-run ensure-keys after
+# `herdr update`. This file is never read by Herdr itself and is not stowed
+# (.stow-local-ignore). Keep one key per line: ensure-keys copies the table
+# verbatim and the git clean filter strips it back out of the stowed macOS copy.
+#
+# Mirrors Omarchy's tmux keymap (configs/tmux/.config/tmux/tmux.conf, itself a
+# copy of basecamp/omarchy config/tmux/tmux.conf) so the same chords drive
+# panes, tabs and workspaces whether the multiplexer is Herdr or tmux. Herdr
+# takes a list per action, so its own prefix defaults stay intact and the
+# Omarchy chords are added on top. Validate the result with `herdr config check`.
+#
+# On macOS none of the alt chords arrive until Alacritty maps Option to Alt
+# (option_as_alt, see configs/alacritty-osx).
+
+[keys]
+# Omarchy's tmux prefix is C-Space (with C-b kept as prefix2), so Herdr takes
+# ctrl+space too. That also splits the nesting cleanly: a tmux running inside a
+# Herdr pane never sees ctrl+space, but its prefix2 ctrl+b passes straight
+# through. On macOS ctrl+space is the "select previous input source" system
+# shortcut -- harmless with a single input source, but disable it in
+# System Settings > Keyboard > Shortcuts > Input Sources if a second one is
+# ever added.
+prefix = "ctrl+space"
+
+# Panes: Omarchy's prefix letters (h and n split below, v splits right, x
+# kills) plus its direct chords. Herdr's own prefix+hjkl pane focus is dropped
+# on purpose -- those letters are splits in Omarchy, and focus lives on the
+# ctrl+alt arrows. Direction note: Herdr's split_vertical splits to the right
+# and split_horizontal splits downward, the opposite of tmux's -v/-h flags, so
+# tmux `bind h split-window -v` (a pane below) maps to split_horizontal.
+split_horizontal = ["prefix+minus", "prefix+h", "prefix+n", "alt+enter"]
+split_vertical = ["prefix+v", "alt+shift+enter"]
+close_pane = ["prefix+x", "alt+escape"]
+focus_pane_left = "ctrl+alt+left"
+focus_pane_down = "ctrl+alt+down"
+focus_pane_up = "ctrl+alt+up"
+focus_pane_right = "ctrl+alt+right"
+resize_pane_left = "ctrl+shift+alt+left"
+resize_pane_down = "ctrl+shift+alt+down"
+resize_pane_up = "ctrl+shift+alt+up"
+resize_pane_right = "ctrl+shift+alt+right"
+# Omarchy's `r` renames the window, so Herdr's resize mode moves aside.
+resize_mode = "prefix+ctrl+r"
+
+# Tabs stand in for tmux windows: r renames, k kills, M-1..9 jump, M-arrows
+# cycle, M-S-arrows reorder. prefix+n is a split (above), so next tab keeps
+# only alt+right.
+rename_tab = ["prefix+shift+t", "prefix+r"]
+close_tab = ["prefix+shift+x", "prefix+k"]
+switch_tab = ["prefix+1..9", "alt+1..9"]
+previous_tab = ["prefix+p", "alt+left"]
+next_tab = ["alt+right"]
+move_tab_previous = "alt+shift+left"
+move_tab_next = "alt+shift+right"
+
+# Workspaces stand in for tmux sessions: M-Up/M-Down switch, and Omarchy's
+# session letters (C/K) are added next to Herdr's own defaults.
+previous_workspace = "alt+up"
+next_workspace = "alt+down"
+new_workspace = ["prefix+shift+n", "prefix+shift+c"]
+close_workspace = ["prefix+shift+d", "prefix+shift+k"]

@@ -97,7 +97,8 @@ A single line naming the Herdr built-in theme that best matches this theme.
 
 **Applied to:** the `theme.name` key of `~/.config/herdr/config.toml`, patched
 in place by `bin/herdr-config`. On macOS that file is Stow-linked from
-`configs/herdr`, so a theme switch leaves a one-line diff in the repo.
+`configs/herdr`, but the `herdr-config git-clean` filter pins the name to
+`terminal` in git, so a theme switch never shows up as a diff.
 
 **Valid values:** `catppuccin`, `catppuccin-latte`, `terminal`, `tokyo-night`,
 `tokyo-night-day`, `dracula`, `nord`, `gruvbox`, `gruvbox-light`, `one-dark`,

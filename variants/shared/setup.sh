@@ -135,16 +135,19 @@ stow_link pi
 
 # Herdr's config is Stow-linked on macOS (configs/herdr) but not on other
 # platforms, and its server writes to the file either way, so the keymap and
-# theme are patched in place rather than templated.
+# theme are patched in place rather than templated. The keymap itself has one
+# source for every platform, configs/herdr/keys.toml; ensure-keys copies its
+# [keys] table into the live config.
 #
-# theme.name in that file is machine state, but Herdr reads a single config.toml
-# (no include/override file), so it cannot be split out like alacritty's
-# theme.toml. Instead .gitattributes runs a clean filter that pins it to
-# "terminal" in git; the filter itself lives in .git/config, so register it on
-# every setup. Everything else in the file (keys, onboarding, channel) still
+# theme.name in that file is machine state and the [keys] table is a copy, but
+# Herdr reads a single config.toml (no include/override file), so neither can
+# be split out like alacritty's theme.toml. Instead .gitattributes runs a clean
+# filter (bin/herdr-config git-clean) that pins the theme to "terminal" and
+# strips the keys in git; the filter itself lives in .git/config, so register
+# it on every setup. Everything else in the file (onboarding, channel) still
 # diffs normally.
-git -C "$DOT_DIR" config filter.herdr-theme.clean \
-  'sed -E "/^\[theme\]/,/^\[/ s/^name = \".*\"/name = \"terminal\"/"'
+git -C "$DOT_DIR" config filter.herdr-config.clean "\"$DOT_DIR/bin/herdr-config\" git-clean"
+git -C "$DOT_DIR" config --remove-section filter.herdr-theme 2>/dev/null || true
 
 if command -v herdr &>/dev/null; then
   "$DOT_DIR/bin/herdr-config" ensure-keys

@@ -2,16 +2,23 @@
 
 # Herdr config helper.
 #
-# On macOS ~/.config/herdr/config.toml is Stow-linked from configs/herdr, but
-# Herdr's server also rewrites parts of it (onboarding state, update channel),
-# so this patches single keys in place rather than templating the whole file --
-# the same way theme-switch patches ~/.claude/settings.json. Writes go through
-# the symlink on purpose: replacing it would break the Stow link.
+# Herdr reads a single ~/.config/herdr/config.toml and its server rewrites parts
+# of it (onboarding state, update channel; `herdr update` regenerates the whole
+# file), so nothing here templates the file -- keys are patched in place. On
+# macOS the file is Stow-linked from configs/herdr, so writes go *through* the
+# symlink on purpose: replacing it would break the Stow link.
+#
+# The keymap has one source for every platform: configs/herdr/keys.toml.
+# `ensure-keys` copies its [keys] table into config.toml, and `git-clean` (the
+# clean filter registered by variants/shared/setup.sh) strips that table and
+# the machine-local theme name back out of the stowed macOS copy so neither
+# shows up as a diff.
 
 set -e
 
 DOTFILES_PATH="${DOTFILES_PATH:-$HOME/dotfiles}"
 HERDR_CONFIG="${HERDR_CONFIG:-$HOME/.config/herdr/config.toml}"
+HERDR_KEYMAP="${HERDR_KEYMAP:-$DOTFILES_PATH/configs/herdr/keys.toml}"
 
 # Herdr's own built-in theme list (`herdr config check` rejects anything else).
 # Themes with no match fall back to "terminal", which makes Herdr adopt the
@@ -19,14 +26,25 @@ HERDR_CONFIG="${HERDR_CONFIG:-$HOME/.config/herdr/config.toml}"
 DEFAULT_HERDR_THEME="terminal"
 
 usage() {
-  cat <<EOF
+  cat <<USAGE
 Usage: herdr-config <command>
 
   set <section> <key> <toml-value>  Set one key, creating the section if needed
   set-theme <name>                  Set one of Herdr's built-in theme names
   sync-theme                        Apply themes/current/herdr-theme to Herdr
-  ensure-keys                       Apply the Omarchy tmux keymap to Herdr
-EOF
+  ensure-keys                       Copy configs/herdr/keys.toml into Herdr's config
+  git-clean                         Clean filter: stdin config -> stdout without the
+                                    [keys] table and with theme.name pinned
+USAGE
+}
+
+# Write stdin over the config without replacing the file, so a Stow-linked
+# config keeps pointing at the dotfiles copy.
+write_config() {
+  mkdir -p "$(dirname "$HERDR_CONFIG")"
+  cat >"$HERDR_CONFIG.tmp"
+  cat "$HERDR_CONFIG.tmp" >"$HERDR_CONFIG"
+  rm -f "$HERDR_CONFIG.tmp"
 }
 
 # Set section.key = value in config.toml, preserving everything else. TOML has
@@ -61,12 +79,32 @@ toml_set() {
         print key " = " value
       }
     }
-  ' "$HERDR_CONFIG" >"$HERDR_CONFIG.tmp"
+  ' "$HERDR_CONFIG" | write_config
+}
 
-  # Write through the symlink instead of moving over it, so a Stow-linked
-  # config keeps pointing at the dotfiles copy.
-  cat "$HERDR_CONFIG.tmp" >"$HERDR_CONFIG"
-  rm -f "$HERDR_CONFIG.tmp"
+# stdin -> stdout without the [keys] table. Blank lines right above the table
+# and at the end go too, so a config that ensure-keys appended the table to
+# compares equal to one that never had it. Sub-tables such as [[keys.command]]
+# are separate headers and are left alone.
+strip_keys() {
+  awk '
+    function flush() { for (i = 0; i < blanks; i++) print ""; blanks = 0 }
+    /^[[:space:]]*$/ { if (!in_keys) blanks++; next }
+    /^[[:space:]]*\[/ {
+      if ($0 ~ /^[[:space:]]*\[keys\][[:space:]]*$/) { in_keys = 1; blanks = 0; next }
+      in_keys = 0
+    }
+    !in_keys { flush(); print }
+  '
+}
+
+# The [keys] table of the keymap file: from its header to the next header or
+# the end of the file, comments included.
+keys_table() {
+  awk '
+    /^[[:space:]]*\[/ { in_keys = ($0 ~ /^[[:space:]]*\[keys\][[:space:]]*$/) }
+    in_keys
+  ' "$HERDR_KEYMAP"
 }
 
 reload() {
@@ -89,72 +127,40 @@ sync_theme() {
   echo "Herdr theme: $name"
 }
 
+# Replace the live [keys] table with the one from configs/herdr/keys.toml.
+# Whole-table replacement (rather than key-by-key patching) means a binding
+# removed from the keymap disappears from the machine too.
 ensure_keys() {
-  # Mirror Omarchy's tmux keymap (configs/tmux/.config/tmux/tmux.conf, itself a
-  # copy of basecamp/omarchy config/tmux/tmux.conf) so the same chords drive
-  # panes, tabs and workspaces whether the multiplexer is Herdr or tmux.
-  #
-  # Herdr takes a list per action, so its own prefix defaults stay intact and
-  # the Omarchy chords are added on top. Direction note: Herdr's
-  # split_vertical splits to the right and split_horizontal splits downward,
-  # the opposite of tmux's -v/-h flags, so M-Enter (tmux "split -v", a pane
-  # below) maps to split_horizontal.
-  #
-  # On macOS none of the alt chords arrive until Alacritty maps Option to Alt
-  # (option_as_alt, see configs/alacritty-osx).
+  if [ ! -f "$HERDR_KEYMAP" ]; then
+    echo "herdr-config: keymap not found: $HERDR_KEYMAP" >&2
+    exit 1
+  fi
+  if ! keys_table | grep -q '^[[:space:]]*\[keys\]'; then
+    echo "herdr-config: no [keys] table in $HERDR_KEYMAP" >&2
+    exit 1
+  fi
 
-  # Prefix: Omarchy's tmux prefix is C-Space (with C-b kept as prefix2), so
-  # Herdr takes ctrl+space too. That also splits the nesting cleanly: a tmux
-  # running inside a Herdr pane never sees ctrl+space, but its prefix2 ctrl+b
-  # now passes straight through. On macOS ctrl+space is the "select previous
-  # input source" system shortcut -- harmless with a single input source, but
-  # disable it in System Settings > Keyboard > Shortcuts > Input Sources if a
-  # second one is ever added.
-  toml_set keys prefix '"ctrl+space"'
-
-  # Panes: Omarchy's prefix letters (h and n split below, v splits right, x
-  # kills) plus its direct chords. Herdr's own prefix+hjkl pane focus is
-  # dropped on purpose -- those letters are splits in Omarchy, and focus lives
-  # on the ctrl+alt arrows. Direction note: Herdr's split_vertical splits to
-  # the right and split_horizontal splits downward, the opposite of tmux's
-  # -v/-h flags, so tmux `bind h split-window -v` maps to split_horizontal.
-  toml_set keys split_horizontal '["prefix+minus", "prefix+h", "prefix+n", "alt+enter"]'
-  toml_set keys split_vertical '["prefix+v", "alt+shift+enter"]'
-  toml_set keys close_pane '["prefix+x", "alt+escape"]'
-  toml_set keys focus_pane_left '"ctrl+alt+left"'
-  toml_set keys focus_pane_down '"ctrl+alt+down"'
-  toml_set keys focus_pane_up '"ctrl+alt+up"'
-  toml_set keys focus_pane_right '"ctrl+alt+right"'
-  toml_set keys resize_pane_left '"ctrl+shift+alt+left"'
-  toml_set keys resize_pane_down '"ctrl+shift+alt+down"'
-  toml_set keys resize_pane_up '"ctrl+shift+alt+up"'
-  toml_set keys resize_pane_right '"ctrl+shift+alt+right"'
-  # Omarchy's `r` renames the window, so Herdr's resize mode moves aside.
-  toml_set keys resize_mode '"prefix+ctrl+r"'
-
-  # Tabs stand in for tmux windows: r renames, k kills, M-1..9 jump,
-  # M-arrows cycle, M-S-arrows reorder.
-  toml_set keys rename_tab '["prefix+shift+t", "prefix+r"]'
-  toml_set keys close_tab '["prefix+shift+x", "prefix+k"]'
-  toml_set keys switch_tab '["prefix+1..9", "alt+1..9"]'
-  toml_set keys previous_tab '["prefix+p", "alt+left"]'
-  # prefix+n is a split (above), so next tab keeps only alt+right.
-  toml_set keys next_tab '["alt+right"]'
-  toml_set keys move_tab_previous '"alt+shift+left"'
-  toml_set keys move_tab_next '"alt+shift+right"'
-
-  # Workspaces stand in for tmux sessions: M-Up/M-Down switch, and Omarchy's
-  # session letters (C/K) are added next to Herdr's own defaults.
-  toml_set keys previous_workspace '"alt+up"'
-  toml_set keys next_workspace '"alt+down"'
-  toml_set keys new_workspace '["prefix+shift+n", "prefix+shift+c"]'
-  toml_set keys close_workspace '["prefix+shift+d", "prefix+shift+k"]'
+  mkdir -p "$(dirname "$HERDR_CONFIG")"
+  [ -f "$HERDR_CONFIG" ] || : >"$HERDR_CONFIG"
+  local rest
+  rest=$(strip_keys <"$HERDR_CONFIG")
+  {
+    if [ -n "$rest" ]; then printf '%s\n\n' "$rest"; fi
+    keys_table
+  } | write_config
 
   reload
   if command -v herdr >/dev/null 2>&1; then
     herdr config check
   fi
-  echo "Herdr keys: Omarchy tmux map applied (prefix ctrl+space, alt/ctrl+alt chords)"
+  echo "Herdr keys: applied $HERDR_KEYMAP"
+}
+
+# git clean filter for the stowed configs/herdr copy: drop the [keys] table
+# (owned by keys.toml) and pin theme.name (machine state set by theme-switch).
+git_clean() {
+  strip_keys |
+    sed -E "/^\[theme\]/,/^\[/ s/^name = \".*\"/name = \"$DEFAULT_HERDR_THEME\"/"
 }
 
 case "${1:-}" in
@@ -170,5 +176,6 @@ set-theme)
   ;;
 sync-theme) sync_theme ;;
 ensure-keys) ensure_keys ;;
+git-clean) git_clean ;;
 *) usage; exit 1 ;;
 esac
