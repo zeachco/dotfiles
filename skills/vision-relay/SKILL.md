@@ -29,9 +29,10 @@ Sonnet 5.5 via OpenRouter) and brings the description back.
      directly.
    - Text-only (`qwen3.8`, Nimble, …) and the user pasted/attached an image
      or asks about one → continue.
-2. Never route this to `gemma-4-E2B` or other light-tier vision models:
-   they are cold and 16k-context. The `planner` agent targets Claude
-   Sonnet 5.5 via OpenRouter (`openrouter/anthropic/claude-sonnet-5.5`),
+2. Never route this to a local light-tier model: the router's `gemma-4-*`
+   vision models are kept out of pi's catalog (`llamacpp-sync`, `PI_HIDDEN`),
+   and they were cold and 16k-context anyway. The `planner` agent targets
+   Claude Sonnet 5.5 via OpenRouter (`openrouter/anthropic/claude-sonnet-5.5`),
    which reads images natively.
 
 ## Step 1 — locate the image bytes

@@ -10,6 +10,8 @@ Rebuilds model definitions for the local llama.cpp routers and OpenRouter. For e
     thinking maps, tool support, costs, and compatibility settings)
   * derives new model metadata from the endpoint response
   * drops models no longer served
+  * keeps the light tier's gemma-4 models out of pi's defs (PI_HIDDEN below; opencode
+    still lists them)
   * skips unreachable endpoints, empty model lists, and invalid responses with a warning
 
 OpenRouter's public catalog is filtered to text-output chat models. Its API key is not
@@ -50,6 +52,14 @@ DEFAULT_MAX_TOKENS = 16384
 REASONING_HINT = re.compile(
     r"(qwen3|deepseek|glm-[45]|gpt-oss|ministral|mistral|kimi|reasoning|think)", re.I
 )
+# Models the light router serves that pi does NOT get. pi has no use for the light
+# tier's gemma-4 models: nothing routes to them (configs/pi AGENTS.md -- the vision relay
+# and the typing tier run on OpenRouter), settings.json's enabledModels hides them from
+# /model, and a subagent `model:` line or a `--model` that resolved to one would pay a
+# cold load for a 16k-context answer. Listing them only let the resolver reach them. The
+# router keeps serving them (opencode and `los` still see them); this only keeps them out
+# of pi's llamacpp provider, so a sync does not put them back.
+PI_HIDDEN = re.compile(r"^gemma-4-", re.I)
 
 
 def is_syncable_provider(name):
@@ -327,6 +337,14 @@ def sync_pi(models_path, provider_filter, timeout, dry_run):
         if live is None:
             warn(f"{name}: {reason}")
             continue
+        if kind == PREFIX:
+            hidden = [m["id"] for m in live if PI_HIDDEN.search(m["id"])]
+            if hidden:
+                # A new list, not a filter in place: live_models() caches the router's
+                # answer and opencode's pass reads the same object.
+                live = [m for m in live if not PI_HIDDEN.search(m["id"])]
+                warn(f"{name}: kept {len(hidden)} light-tier model(s) out of pi's defs: "
+                     f"{', '.join(hidden)}")
 
         old = {m["id"]: m for m in cfg.get("models") or [] if isinstance(m, dict)}
         new = [build_pi_model(m, old.get(m["id"]), kind) for m in live]

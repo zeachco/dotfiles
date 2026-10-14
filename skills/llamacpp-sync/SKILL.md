@@ -46,6 +46,10 @@ sync. opencode reads its config at startup, so restart it.
   dropped), the per-slot context (`contextWindow` for pi, `limit.context` for
   opencode — `--ctx-size` divided by `--parallel` unless `--kv-unified`), and
   image input (`input` / `attachment`).
+- **Hidden from pi:** the light tier's `gemma-4-*` models never enter pi's
+  `llamacpp` provider (`PI_HIDDEN` in the script; the sync prints which ones it
+  kept out). pi routes nothing to them and `enabledModels` hides them from
+  `/model`; opencode still lists them.
 - **Preserved** for surviving models: pi's `name`, `reasoning`,
   `thinkingLevelMap`, `maxTokens`, `compat`, `cost`, `samplingParams`; every key
   an opencode entry already carries, including ones the script never writes.
