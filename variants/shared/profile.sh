@@ -121,6 +121,7 @@ _set lg "lazygit"
 _set ld "lazydocker"
 _set oo "opencode"
 _set prs "gh pr list  --author \"@me\""
+_set opr "gh pr view --web"
 
 alias e="nvim"
 alias v="nvim"
