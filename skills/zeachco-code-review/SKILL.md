@@ -5,7 +5,8 @@ description: >
   resilient, and pleasant to change. Use for pull-request and diff reviews. Builds on
   the review threads already on the PR instead of repeating them, and proposes a
   simpler shape (as code or pseudo code) when the surrounding code is messy, even
-  outside the diff.
+  outside the diff. Every finding is handed to a devil's-advocate sub-agent that
+  tries to disprove it before it is posted.
 ---
 
 # Code review runbook
@@ -128,7 +129,7 @@ Every non-trivial finding should include:
 2. **Problem** — what is unclear, slow, fragile, or incorrect.
 3. **Consequence** — who is affected and under what condition.
 4. **Smallest improvement** — a concrete change or verification.
-5. **Kind** — the comment prefix (§5): `blocking`, `non-blocking`, `preference`, `nit`,
+5. **Kind** — the comment prefix (§6): `blocking`, `non-blocking`, `preference`, `nit`,
    `question`, or `praise`.
 
 Prefer questions when intent is unclear. Separate correctness issues from design
@@ -164,7 +165,65 @@ Useful forms:
   recorded follow-up. On its own it is a `question` or `preference`, never `blocking`,
   and the lifecycle exceptions in §3 apply (no shape proposals on code leaving soon).
 
-## 5. Deliver each finding on its diff line
+## 5. Challenge every finding before posting
+
+A finding is a claim, and the reviewer who made it is the wrong person to check it.
+Before anything is posted, every finding from §2–§4 — blocking through nit, questions
+included, replies to existing threads included — goes to a fresh sub-agent whose only job
+is to prove it wrong. Only what survives is posted.
+
+The sub-agent is a fresh process that has not seen this conversation: Claude Code's
+`Agent` tool, pi's `agent` tool, the task/subagent tool of Codex or opencode. The mechanism
+differs, the brief does not. The findings are independent, so launch one sub-agent per
+finding, all at once. Its brief is self-contained: where the code is, the finding exactly
+as it would be posted, the instruction to disprove it, and the output contract. Do not
+pass the reasoning that led to the finding — a sub-agent handed the argument tends to
+return it confirmed; handed the claim and the code, it looks for what the claim missed.
+
+```
+You are the devil's advocate for one code-review finding. Your job is to prove it wrong.
+
+Repo: <absolute path>, PR #<N>, head <SHA> (read the PR head: `git show <SHA>:<path>`,
+`gh pr diff <N>`, `gh pr view <N>`).
+
+Finding, as it would be posted:
+  <path>:<line>
+  <kind>(ai-review): <problem / consequence / smallest improvement>
+
+Assume the finding is wrong and look for what makes it so: a guard, type, default,
+caller contract, test, migration order, config, or documented intent the reviewer
+missed. Read the surrounding code, the callers, the tests and the PR description;
+use git log/blame when history matters. Do not take the finding on trust, and do
+not argue from style — only from what the code does. If you cannot disprove it,
+say what makes it real: the exact condition that triggers it, a repro, another
+affected call site, a bound, a cost.
+
+Reply ONLY in this form:
+- Verdict: FALSE | HOLDS
+- Evidence: file:line references and what each one does (required for both verdicts)
+- Sharper: what makes the problem clearer than the finding states, or "none"
+- Kind: keep | <blocking|non-blocking|preference|nit|question> — only when the
+  evidence changes the consequence, with why
+```
+
+Apply the verdicts:
+
+- **FALSE** — check the cited evidence (the file and line exist, the guard does what it
+  says). If it checks out, drop the finding, even when you still like it; do not soften it
+  into a `question` to keep it alive. If the evidence does not check out, the finding
+  stands.
+- **HOLDS with something sharper** — fold it in: the triggering condition, the repro, the
+  second call site, the measured cost. The comment gets more precise, not longer. Change
+  the kind when the evidence changes the consequence (reachable in production: up to
+  `blocking`; reachable only from a test fixture: down to `nit` or `non-blocking`).
+- **HOLDS with nothing new** — post it as written.
+- A verdict without evidence is not a verdict (an agent that agrees without reading the
+  code, or reports an error). Re-send once with a sharper brief; if it fails again, post
+  the finding unchanged and say in the review body that it was not counter-checked.
+
+The review body's verdict is built from the surviving findings only.
+
+## 6. Deliver each finding on its diff line
 
 Post findings as **inline PR review comments anchored to the exact line of the PR
 head** — not only as a summary. The author should meet each concern where the code
@@ -220,7 +279,7 @@ JSON
 `event` is `COMMENT` unless the intent is a formal request-changes; keep `COMMENT`
 for verdicts that are approve-after-fix or questions.
 
-## 6. Finish the review
+## 7. Finish the review
 
 Before approving, confirm that:
 
@@ -230,4 +289,6 @@ Before approving, confirm that:
 - failure, performance, rollout, and rollback paths are acceptable;
 - technical debt is reduced or consciously bounded;
 - every remaining concern has an owner, scope, or explicit acceptance;
+- every posted finding survived its challenge (§5), and what the challenge sharpened is
+  in the comment;
 - nothing in the review repeats a thread that was already open.
