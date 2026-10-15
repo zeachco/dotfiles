@@ -310,6 +310,17 @@ if [ "${SHELL##*/}" = "zsh" ]; then
   bindkey '[D' backward-word
 fi
 
+# `herdr update` regenerates ~/.config/herdr/config.toml and drops the [keys] table
+# from configs/herdr/keys.toml, so re-apply it right after a successful update.
+herdr() {
+  command herdr "$@"
+  local rc=$?
+  if [ "$1" = update ] && [ "$rc" -eq 0 ]; then
+    "$DOT_DIR/bin/herdr-config" ensure-keys
+  fi
+  return "$rc"
+}
+
 ai() {
   opencode "$@"
 }
