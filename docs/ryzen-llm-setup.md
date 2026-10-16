@@ -128,6 +128,31 @@ One llama.cpp-specific detail lives in `models.json`: GLM's `thinkingLevelMap` m
 still thinks. Measured 2026-09-08: default → 40 tokens of `reasoning_content` and an empty
 answer; `"none"` → the answer in 2 tokens.
 
+**Compaction on qwen3.8 (2026-10-16).** pi compacts at `contextWindow - compaction.reserveTokens`,
+caps the summary at 0.8 × reserveTokens output tokens, and runs the summary call at the
+*session's* thinking level. At the defaults (16384 → trigger at 114688, cap 13107) with the
+session at `high`, qwen3.8 spent the whole cap reasoning: the r3000 session's summary ran 40 min
+at 5.4 tok/s to exactly 13107 tokens and failed ("generation hit the token cap and the summary is
+incomplete"); two of the three summaries that did succeed that day ended at 13055 and 14464. The
+model process never died -- the "crash" was pi losing the compaction, then re-ingesting the whole
+~115k context on the next turn because its ~8.6 GiB `cache-ram` entry had been evicted (16 GiB
+holds two such states), which at 166–213 tok/s is 8–10 min of silence. Three settings carry this:
+
+- `compaction.modelOverrides["llamacpp/qwen3.8"].reserveTokens = 32768` in pi's `settings.json`
+  (trigger at 98304, cap 26214). Per model on purpose: a global 32768 would make the 32k-context
+  heavy models compact on every turn.
+- `configs/pi/.pi/agent/extensions/compaction-thinking.ts` lowers `reasoning_effort` to `medium`
+  on summarization requests only. `high` is not a cap on this model: its chat template folds
+  `high` into `xhigh` and accepts only xhigh / medium / low.
+- pi-task's stream watchdog, which aborted every silent turn at exactly 10 min (the "[SYSTEM] The
+  model stream produced no events for 10 minutes" messages), is at 20 min via `streamInactivityMs`
+  in `~/.config/pi-task/config.json` -- machine-local, and its sanitizer accepts only 5/10/20/30 min
+  or 0, anything else silently falls back to 10.
+
+None of it reaches a running pi; restart the session. The only server-side failure in the same
+four days was one unified-KV-pool overflow (2026-10-15 00:58, "Context size has been exceeded",
+five requests killed at once) -- the `kv-unified-per-slot` tradeoff in `light.ini`.
+
 ## Ports
 
 | Port | Tier | Unit | Host | Models |
