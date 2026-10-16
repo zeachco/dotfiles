@@ -160,12 +160,22 @@ stow_link codex
 git -C "$DOT_DIR" config filter.herdr-config.clean "\"$DOT_DIR/bin/herdr-config\" git-clean"
 git -C "$DOT_DIR" config --remove-section filter.herdr-theme 2>/dev/null || true
 
-# Claude Code reads a single settings.json too, and two of its keys are machine
-# state: "theme" (bin/theme-switch flips it with the terminal theme) and "hooks"
+# opencode.json is git-ignored for the same reason: llamacpp-sync rewrites its llamacpp*
+# and openrouter model lists. Seed the hand-maintained parts with empty model lists, only
+# when absent; the sync fills the models in afterwards.
+if [[ ! -f "$DOT_DIR/configs/opencode/.config/opencode/opencode.json" ]]; then
+  cp "$DOT_DIR/configs/opencode/.config/opencode/opencode.seed.json" \
+     "$DOT_DIR/configs/opencode/.config/opencode/opencode.json"
+  echo -e "${INFO}seeded ${NORM}opencode.json (run 'llamacpp-sync' to fill in the models)"
+fi
+
+# Claude Code reads a single settings.json too, and three of its keys are machine
+# state: "theme" (bin/theme-switch flips it with the terminal theme), "hooks"
 # (the herdr integration registers its SessionStart hook there with an absolute
-# path -- for pi and opencode it drops a gitignored file instead). Same remedy:
-# a clean filter strips both in git, the working copy keeps them.
-git -C "$DOT_DIR" config filter.claude-settings.clean "jq 'del(.theme, .hooks)'"
+# path -- for pi and opencode it drops a gitignored file instead) and "model"
+# (the default /model picks, which differ per box). Same remedy: a clean filter
+# strips them in git, the working copy keeps them.
+git -C "$DOT_DIR" config filter.claude-settings.clean "jq 'del(.theme, .hooks, .model)'"
 
 if command -v herdr &>/dev/null; then
   "$DOT_DIR/bin/herdr-config" ensure-keys

@@ -9,6 +9,5 @@
     "claude-fable-5-1": {
       "effortLevel": "xhigh"
     }
-  },
-  "model": "haiku"
+  }
 }

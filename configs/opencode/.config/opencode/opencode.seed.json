@@ -1,0 +1,92 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "autoupdate": false,
+  "mcp": {
+    "blender": {
+      "type": "local",
+      "command": [
+        "/home/olivier/.local/bin/blender-mcp"
+      ],
+      "enabled": true
+    }
+  },
+  "default_agent": "build",
+  "agent": {
+    "build": {
+      "mode": "primary",
+      "model": "llamacpp/qwen3.8",
+      "permission": {
+        "edit": "allow",
+        "bash": "allow"
+      }
+    },
+    "plan": {
+      "mode": "primary",
+      "model": "llamacpp/qwen3.8",
+      "permission": {
+        "edit": "deny",
+        "bash": "deny"
+      }
+    },
+    "brainstorm": {
+      "mode": "all",
+      "description": "Devil's advocate, ideas disproofing or proposing plan mutations, basically challenging assumptions, defining task expectations and going in depth",
+      "model": "llamacpp/qwen3.8",
+      "prompt": "You are a brainstorm agent. You can access current system tools to prove ideas or explore around, but should not make edits.",
+      "permission": {
+        "edit": "deny",
+        "bash": "allow"
+      }
+    },
+    "generate-code": {
+      "description": "Sub agent used to generate large chunks of coded and keep the main orchestrer with lighter tokens, optimized for fast code generation",
+      "mode": "subagent",
+      "model": "llamacpp/qwen3.8",
+      "permission": {
+        "edit": "deny",
+        "bash": "deny"
+      }
+    },
+    "code-reviewer": {
+      "description": "Reviews code for best practices and potential issues",
+      "mode": "subagent",
+      "model": "llamacpp/qwen3.8",
+      "prompt": "You are a code reviewer. Focus on security, performance, and maintainability.",
+      "permission": {
+        "edit": "deny"
+      }
+    }
+  },
+  "provider": {
+    "llamacpp-heavy": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "llama.cpp (heavy tier :7072 -- los-drain first)",
+      "options": {
+        "baseURL": "http://oli-llms.local:7072/v1",
+        "timeout": false
+      },
+      "models": {}
+    },
+    "llamacpp": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "llama.cpp",
+      "options": {
+        "baseURL": "http://oli-llms.local:7070/v1",
+        "timeout": false
+      },
+      "models": {}
+    },
+    "openrouter": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "OpenRouter",
+      "options": {
+        "baseURL": "https://openrouter.ai/api/v1",
+        "apiKey": "{env:OPENROUTER_API_KEY}",
+        "timeout": false
+      },
+      "models": {}
+    }
+  },
+  "model": "llamacpp/qwen3.8",
+  "small_model": "llamacpp/qwen3.8"
+}

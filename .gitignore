@@ -18,3 +18,9 @@ configs/pi/.pi/agent/models.json
 
 # Machine-local pi model-store cache
 configs/pi/.pi/agent/models-store.json
+
+# Machine-local opencode config: llamacpp-sync rewrites the llamacpp* and openrouter
+# model lists (OpenRouter's catalog changes weekly), and each box serves different models.
+# Seeded from opencode.seed.json by setup, which carries the hand-maintained parts with empty
+# model lists -- so the auto-updated catalog never reaches git.
+configs/opencode/.config/opencode/opencode.json
