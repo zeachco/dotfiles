@@ -112,9 +112,24 @@ gguf_header() {
     *)   echo "implausible GGUF version '$version'"; return 1 ;;
   esac
 
-  # A model with no tensors is a vocab-only file, never something the router can serve.
-  [ "$n_tensors" -gt 0 ] 2>/dev/null || { echo "0 tensors (vocab-only or truncated)"; return 1; }
+  [ "$n_tensors" -ge 0 ] 2>/dev/null || { echo "unreadable tensor count '$n_tensors'"; return 1; }
   [ "$n_kv" -gt 0 ] 2>/dev/null      || { echo "0 metadata keys"; return 1; }
+
+  # A model with no tensors is a vocab-only file, never something the router can serve
+  # -- EXCEPT the first shard of a split. unsloth keeps shard 00001 of its large splits
+  # to metadata and vocab: Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf is 10.9 MB,
+  # 0 tensors, split.tensors.count = 1224, and llama.cpp reads every tensor from shards
+  # 00002/00003. That file is byte-identical to upstream, yet this check failed it on
+  # 2026-10-17 and fetch_verify then told the operator to delete and re-download it --
+  # forever. Truncation is still caught by the size check in verify_file, so a 0-tensor
+  # shard loses nothing by passing here. Same `*-of-*` shard test as load_test below and
+  # fetch_dir_model in _fetch-lib.sh.
+  if [ "$n_tensors" -eq 0 ]; then
+    case "${f##*/}" in
+      *-of-*) ;;
+      *) echo "0 tensors (vocab-only or truncated)"; return 1 ;;
+    esac
+  fi
 
   echo "$version $n_tensors $n_kv"
 }
