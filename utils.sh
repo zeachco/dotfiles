@@ -26,6 +26,8 @@ elif [[ $SHELL == *zsh* ]]; then
 fi
 touch $USER_SOURCE_FILE
 
+INSTALLED_PROFILES=()
+
 function install_profile {
   variant="$1"
   profile_path="variants/$variant"
@@ -35,17 +37,40 @@ function install_profile {
 
   profile_filename="$HOME/.dotfiles_$variant"
 
-  hook="[[ -f $profile_filename ]] && source $profile_filename # zeachco-dotfiles $variant"
-
-  cp "$DOT_DIR/$profile_path/profile.sh" "$profile_filename"
+  # Write to a temp file and mv over the old one so a shell opened mid-update
+  # always sources either the old or the new profile, never nothing.
+  tmp_profile="$(mktemp "$profile_filename.XXXXXX")"
+  cp "$DOT_DIR/$profile_path/profile.sh" "$tmp_profile"
+  mv -f "$tmp_profile" "$profile_filename"
 
   echo -e "${INFO}link ${NORM}$profile_filename"
-  echo "$hook" >>$USER_SOURCE_FILE
+  INSTALLED_PROFILES+=("$variant")
 }
 
+# Remove profiles and source hooks that this run did not install. Runs last so
+# the previous profiles stay sourceable for the whole update.
 function clean_imports {
-  cp -f $USER_SOURCE_FILE "$USER_SOURCE_FILE.backup"
-  sed '/zeachco-dotfiles/d' "$USER_SOURCE_FILE.backup" >$USER_SOURCE_FILE
+  for old_file in "$HOME"/.dotfiles_*; do
+    [[ -f "$old_file" ]] || continue
+    variant="${old_file##*/.dotfiles_}"
+    keep=false
+    for installed in "${INSTALLED_PROFILES[@]}"; do
+      [[ "$installed" == "$variant" ]] && keep=true
+    done
+    if [[ $keep == false ]]; then
+      echo -e "${WARN}removing old ${NORM}$old_file"
+      rm -f "$old_file"
+    fi
+  done
+
+  cp -f "$USER_SOURCE_FILE" "$USER_SOURCE_FILE.backup"
+  tmp_source="$(mktemp "$USER_SOURCE_FILE.XXXXXX")"
+  sed '/zeachco-dotfiles/d' "$USER_SOURCE_FILE.backup" >"$tmp_source"
+  for variant in "${INSTALLED_PROFILES[@]}"; do
+    profile_filename="$HOME/.dotfiles_$variant"
+    echo "[[ -f $profile_filename ]] && source $profile_filename # zeachco-dotfiles $variant" >>"$tmp_source"
+  done
+  mv -f "$tmp_source" "$USER_SOURCE_FILE"
 }
 
 function prehook {

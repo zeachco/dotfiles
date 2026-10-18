@@ -1,16 +1,6 @@
 #!/usr/bin/env bash
 . ~/dotfiles/utils.sh
 
-clean_imports
-
-# Clean up old dotfiles_* files before installing profiles
-for old_file in $HOME/.dotfiles_*; do
-    if [[ -f "$old_file" ]]; then
-        echo -e "${WARN}removing old ${NORM}$old_file"
-        rm -f "$old_file"
-    fi
-done
-
 echo "Will install using $SHELL ($0)"
 
 # run the correct setup file
@@ -53,5 +43,8 @@ if [[ "$(basename "$OS_DIR")" == "archlinux" ]] && command -v omarchy &>/dev/nul
   echo -e "${INFO}applying ${NORM}omarchy configuration..."
   "$SHELL" "$DOT_DIR/variants/omarchy/setup.sh"
 fi
+
+# Prune stale profiles/hooks only now, so aliases stay available during the update.
+clean_imports
 
 echo "All done!"
