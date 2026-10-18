@@ -1,7 +1,7 @@
 ---
 name: code
-description: "Small-brief code writer (GLM-5.3 Flash via OpenRouter, thinking off). Implements a short, self-contained coding brief: one file, one function, a small script. Use for mechanical implementation once everything is decided; not for design or multi-file refactors."
-model: openrouter/z-ai/glm-5.3-flash:off
+description: "Small-brief code writer (GLM-5.3 Flash via OpenRouter, minimal thinking). Implements a short, self-contained coding brief: one file, one function, a small script. Use for mechanical implementation once everything is decided; not for design or multi-file refactors."
+model: openrouter/z-ai/glm-5.3-flash:low
 tools: read, edit, write, grep, find, ls, bash
 ---
 
