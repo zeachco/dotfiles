@@ -122,6 +122,11 @@ _set btfix "$DOT_DIR/bin/bt-controller-refresh --now"
 # Hyprland-on-Lua gotchas it works around.
 _set phone "$DOT_DIR/bin/phone"
 
+# OBS virtual camera on demand: launches OBS minimized to tray with the virtual
+# camera already started (needs the v4l2loopback module, which `phone cam`
+# also relies on). Closing OBS stops the camera.
+_set obscam "obs --startvirtualcam --minimize-to-tray"
+
 # System info using utils.sh colors
 sysinfo() {
     echo -e "${INFO}=== System Information ===${NORM}"

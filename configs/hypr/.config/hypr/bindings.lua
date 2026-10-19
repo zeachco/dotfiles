@@ -60,3 +60,7 @@ hl.unbind("SUPER + code:20")
 hl.unbind("SUPER + code:21")
 o.bind("SUPER + code:20", "Shrink window width (column on scrolling)", resize_width(-100, "-0.05"))
 o.bind("SUPER + code:21", "Expand window width (column on scrolling)", resize_width(100, "+0.05"))
+
+-- SUPER + E toggles OBS between the "Scene" and "Screen sharing" scenes
+-- (via obs-websocket + obs-cmd; see ~/.local/bin/obs-toggle-scene).
+o.bind("SUPER + E", "OBS: toggle scene", os.getenv("HOME") .. "/.local/bin/obs-toggle-scene")

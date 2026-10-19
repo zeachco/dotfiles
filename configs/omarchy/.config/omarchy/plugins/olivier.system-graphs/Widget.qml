@@ -11,7 +11,9 @@ BarWidget {
     implicitHeight: vertical ? 139 : barSize
     property var sample: ({})
     property var histories: [[], [], [], [], []]
-    readonly property color ink: Color.bar.text
+    // Read through the bar like the stock widgets do: it also tracks the
+    // transparent-bar foreground, and survives Commons reloading mid-binding.
+    readonly property color ink: bar ? bar.foreground : Color.bar.text
 
     function metricDetails(index) {
         var s = sample

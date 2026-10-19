@@ -35,14 +35,7 @@
           "id": "olivier.system-graphs"
         },
         {
-          "id": "omarchy.tray",
-          "pinned": [
-            "Slack_status_icon_1",
-            "steam",
-            "1Password_status_icon_1",
-            "spotify-client",
-            "dropbox-client-816717"
-          ],
+          "id": "olivier.tray",
           "hidden": []
         },
         {
