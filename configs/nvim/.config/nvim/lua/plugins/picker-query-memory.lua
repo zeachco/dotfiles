@@ -72,9 +72,13 @@ return {
     -- The stored entry is fzf-lua's saved `__call_opts` table, with the query
     -- written into it afterwards, so it holds `search` (grep) or `query`
     -- (client-side filter) depending on the provider.
+    -- Read through `resume_get`: keys such as `git.diff` are dotted paths in
+    -- `__resume_map` (`__resume_map.git.diff`), not flat string keys.
     local function remembered(o)
-      local key = memory_key(o)
-      local data = key and config.__resume_map and config.__resume_map[key]
+      if memory_key(o) == nil then
+        return nil
+      end
+      local data = config.resume_get(nil, o)
       return type(data) == "table" and data or nil
     end
 

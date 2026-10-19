@@ -64,3 +64,32 @@ end
 
 _G.dotfiles_write_buffer = write_buffer
 vim.cmd([[cnoreabbrev <expr> w v:lua.dotfiles_write_abbreviation()]])
+
+-- Every file this branch touches: committed since it forked from main, plus
+-- staged, unstaged and untracked work. `<leader>gd` only shows the latter.
+local function git_branch_files()
+  local fzf = require("fzf-lua")
+  local base
+  for _, trunk in ipairs({ "main", "master" }) do
+    local out = vim.fn.systemlist({ "git", "merge-base", trunk, "HEAD" })
+    if vim.v.shell_error == 0 and out[1] and out[1] ~= "" then
+      base = out[1]
+      break
+    end
+  end
+  if not base then
+    vim.notify("No main/master branch to compare against", vim.log.levels.WARN)
+    return
+  end
+  fzf.git_diff({
+    ref = base,
+    cmd = "{ git --no-pager diff --name-only {ref}; git ls-files --others --exclude-standard; } | sort -u",
+    -- Untracked files have no diff against the base; show them as fully added.
+    preview = "git diff --color=always {ref} -- {file} || git diff --color=always --no-index /dev/null {file}",
+    prompt = "BranchFiles> ",
+    -- Own memory slot so the remembered filter is not shared with <leader>gd.
+    __resume_key = "git.diff_branch",
+  })
+end
+
+vim.keymap.set("n", "<leader>gD", git_branch_files, { desc = "Git Diff (branch + working tree files)" })
