@@ -66,7 +66,13 @@ _G.dotfiles_write_buffer = write_buffer
 vim.cmd([[cnoreabbrev <expr> w v:lua.dotfiles_write_abbreviation()]])
 
 -- Every file this branch touches: committed since it forked from main, plus
--- staged, unstaged and untracked work. `<leader>gd` only shows the latter.
+-- staged, unstaged and untracked work. `<leader>gs` only shows the latter.
+--
+-- Built on `git_status` rather than `git_diff` so the entries carry the usual
+-- status columns and untracked files preview as their full content. Lines are
+-- emitted in porcelain v1 form ("XY path"): real `git status` output first,
+-- then one "M  path"-style line per file changed on the branch, deduplicated
+-- on the path so the working-tree state wins.
 local function git_branch_files()
   local fzf = require("fzf-lua")
   local base
@@ -81,15 +87,29 @@ local function git_branch_files()
     vim.notify("No main/master branch to compare against", vim.log.levels.WARN)
     return
   end
-  fzf.git_diff({
-    ref = base,
-    cmd = "{ git --no-pager diff --name-only {ref}; git ls-files --others --exclude-standard; } | sort -u",
-    -- Untracked files have no diff against the base; show them as fully added.
-    preview = "git diff --color=always {ref} -- {file} || git diff --color=always --no-index /dev/null {file}",
+  local defaults = fzf.config.globals.previewers.git_diff
+  fzf.git_status({
+    cmd = table.concat({
+      "{ git -c color.status=false --no-optional-locks status --porcelain=v1 -u;",
+      "git --no-pager diff --name-status " .. base .. " --",
+      [[| awk -F'\t' '{ printf "%s  %s\n", substr($1, 1, 1), $NF }'; }]],
+      [[| awk '{ p = substr($0, 4); if (!seen[p]++) print }']],
+    }, " "),
+    previewer = {
+      _ctor = defaults._ctor,
+      _fn_git_icons = defaults._fn_git_icons,
+      pager = defaults.pager,
+      cmd_modified = "git diff --color " .. base,
+      cmd_deleted = "git diff --color " .. base .. " --",
+      cmd_untracked = defaults.cmd_untracked,
+    },
     prompt = "BranchFiles> ",
-    -- Own memory slot so the remembered filter is not shared with <leader>gd.
-    __resume_key = "git.diff_branch",
+    header = false,
+    -- Own memory slot so the remembered filter is not shared with <leader>gs.
+    __resume_key = "git.status_branch",
   })
 end
 
-vim.keymap.set("n", "<leader>gD", git_branch_files, { desc = "Git Diff (branch + working tree files)" })
+vim.keymap.set({ "n", "i", "x", "s" }, "<C-g>", git_branch_files, { desc = "Git Status (branch + working tree files)" })
+-- LazyVim's plain `git_diff` picker is superseded by the one above.
+pcall(vim.keymap.del, "n", "<leader>gd")
