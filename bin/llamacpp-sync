@@ -240,10 +240,14 @@ def openrouter_facts(live):
     pricing = live.get("pricing") or {}
 
     def per_million(key):
+        # OpenRouter reports -1 for routers whose price depends on the
+        # model picked at request time (openrouter/auto); pi would then
+        # count a negative dollar total. Treat that as unknown = 0.
         try:
-            return float(pricing[key]) * 1_000_000
+            value = float(pricing[key]) * 1_000_000
         except (KeyError, TypeError, ValueError):
             return 0
+        return max(value, 0)
 
     cost = {
         "input": per_million("prompt"),
@@ -304,7 +308,8 @@ def build_pi_model(live, existing, kind):
         if ex.get(key) is not None:
             model[key] = ex[key]
     if cost is not None:
-        model.setdefault("cost", cost)
+        # live OpenRouter pricing wins over whatever an earlier sync wrote
+        model["cost"] = cost
     model.setdefault(
         "cost", {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}
     )
@@ -395,7 +400,7 @@ def build_opencode_model(live, existing, kind):
     model["attachment"] = ex["attachment"] if "attachment" in ex else has_image
     model["reasoning"] = ex["reasoning"] if "reasoning" in ex else reasoning_guess
     if kind == OPENROUTER and cost is not None:
-        model.setdefault("cost", cost)
+        model["cost"] = cost
     return model
 
 
