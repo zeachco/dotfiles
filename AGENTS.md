@@ -50,11 +50,12 @@ management. This file keeps only the map and the gotchas.
   re-run herdr's Claude integration afterwards to get the hook back.
 - **Herdr's server rewrites its own config.** `~/.config/herdr/config.toml` is Stow-linked on
   macOS, but the server patches it in place (onboarding state, channel) and `herdr update`
-  regenerates it wholesale, so `bin/herdr-config` patches keys through the symlink — never
-  retemplate the file. The keymap has one source for every platform, `configs/herdr/keys.toml`:
-  `herdr-config ensure-keys` copies its `[keys]` table into the live config (re-run it after
-  `herdr update`, which drops the table and leaves the prefix on ctrl+b), and the `git-clean`
-  filter strips it back out of the stowed macOS copy. Alt chords need `option_as_alt`
+  regenerates it wholesale, so the live file is git-ignored and seeded by setup from
+  `configs/herdr/config.seed.toml` (only when absent); `bin/herdr-config` patches keys
+  through the symlink — never retemplate the file. The keymap has one source for every
+  platform, `configs/herdr/keys.toml`: `herdr-config ensure-keys` copies its `[keys]` table
+  into the live config (re-run it after `herdr update`, which drops the table and leaves the
+  prefix on ctrl+b). Hand-maintained changes go in the seed. Alt chords need `option_as_alt`
   (alacritty-osx) and CSI-u Enter bindings (alacritty, foot). Validate with `herdr config check`.
 - **The Herdr server inherits a launchd environment on macOS** (Alacritty is started by launchd:
   `PATH=/usr/bin:/bin:/usr/sbin:/sbin`), so plugin commands and `[[keys.command]]` entries can

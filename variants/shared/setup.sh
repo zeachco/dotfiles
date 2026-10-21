@@ -145,19 +145,19 @@ unfold_dir "$HOME/.codex/skills"
 stow_link codex
 
 # Herdr's config is Stow-linked on macOS (configs/herdr) but not on other
-# platforms, and its server writes to the file either way, so the keymap and
-# theme are patched in place rather than templated. The keymap itself has one
-# source for every platform, configs/herdr/keys.toml; ensure-keys copies its
-# [keys] table into the live config.
-#
-# theme.name in that file is machine state and the [keys] table is a copy, but
-# Herdr reads a single config.toml (no include/override file), so neither can
-# be split out like alacritty's theme.toml. Instead .gitattributes runs a clean
-# filter (bin/herdr-config git-clean) that pins the theme to "terminal" and
-# strips the keys in git; the filter itself lives in .git/config, so register
-# it on every setup. Everything else in the file (onboarding, channel) still
-# diffs normally.
-git -C "$DOT_DIR" config filter.herdr-config.clean "\"$DOT_DIR/bin/herdr-config\" git-clean"
+# platforms, and its server writes to the file either way (onboarding state,
+# channel; `herdr update` regenerates it wholesale), so the live file is
+# machine state and git-ignored. Seed it from configs/herdr/config.seed.toml
+# only when absent, then patch the keymap and theme in place: the keymap has
+# one source for every platform, configs/herdr/keys.toml, and ensure-keys
+# copies its [keys] table into the live config.
+if [[ ! -f "$DOT_DIR/configs/herdr/.config/herdr/config.toml" ]]; then
+  cp "$DOT_DIR/configs/herdr/config.seed.toml" \
+     "$DOT_DIR/configs/herdr/.config/herdr/config.toml"
+  echo -e "${INFO}seeded ${NORM}herdr config.toml"
+fi
+# Older setups registered a clean filter for that file; drop it.
+git -C "$DOT_DIR" config --remove-section filter.herdr-config 2>/dev/null || true
 git -C "$DOT_DIR" config --remove-section filter.herdr-theme 2>/dev/null || true
 
 # opencode.json is git-ignored for the same reason: llamacpp-sync rewrites its llamacpp*

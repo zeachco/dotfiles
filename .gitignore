@@ -24,3 +24,8 @@ configs/pi/.pi/agent/models-store.json
 # Seeded from opencode.seed.json by setup, which carries the hand-maintained parts with empty
 # model lists -- so the auto-updated catalog never reaches git.
 configs/opencode/.config/opencode/opencode.json
+
+# Machine-local herdr config: the server rewrites it (onboarding, channel, `herdr update`
+# regenerates it wholesale), bin/herdr-config patches theme.name and appends the [keys]
+# table. Seeded from configs/herdr/config.seed.toml by setup, only when absent.
+configs/herdr/.config/herdr/config.toml

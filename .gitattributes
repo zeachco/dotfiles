@@ -1,10 +1,3 @@
-# Herdr's stowed config carries machine state: theme.name (bin/theme-switch
-# patches it) and the [keys] table that bin/herdr-config ensure-keys appends
-# from configs/herdr/keys.toml. The clean filter pins the theme to "terminal"
-# and strips the keys so neither ever shows up as a diff. Registered per clone
-# by variants/shared/setup.sh (filters live in .git/config).
-configs/herdr/.config/herdr/config.toml filter=herdr-config
-
 # Claude Code's settings.json carries three machine-state keys, "theme", "hooks"
 # and "model" (see variants/shared/setup.sh, which registers the filter); the clean
 # filter strips them so none of them ever shows up as a diff.

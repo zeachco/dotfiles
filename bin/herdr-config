@@ -9,10 +9,9 @@
 # symlink on purpose: replacing it would break the Stow link.
 #
 # The keymap has one source for every platform: configs/herdr/keys.toml.
-# `ensure-keys` copies its [keys] table into config.toml, and `git-clean` (the
-# clean filter registered by variants/shared/setup.sh) strips that table and
-# the machine-local theme name back out of the stowed macOS copy so neither
-# shows up as a diff.
+# `ensure-keys` copies its [keys] table into config.toml. The live config is
+# git-ignored (seeded from configs/herdr/config.seed.toml by setup), so the
+# theme name and the copied table never show up as a diff.
 
 set -e
 
@@ -33,8 +32,6 @@ Usage: herdr-config <command>
   set-theme <name>                  Set one of Herdr's built-in theme names
   sync-theme                        Apply themes/current/herdr-theme to Herdr
   ensure-keys                       Copy configs/herdr/keys.toml into Herdr's config
-  git-clean                         Clean filter: stdin config -> stdout without the
-                                    [keys] table and with theme.name pinned
 USAGE
 }
 
@@ -156,13 +153,6 @@ ensure_keys() {
   echo "Herdr keys: applied $HERDR_KEYMAP"
 }
 
-# git clean filter for the stowed configs/herdr copy: drop the [keys] table
-# (owned by keys.toml) and pin theme.name (machine state set by theme-switch).
-git_clean() {
-  strip_keys |
-    sed -E "/^\[theme\]/,/^\[/ s/^name = \".*\"/name = \"$DEFAULT_HERDR_THEME\"/"
-}
-
 case "${1:-}" in
 set)
   shift
@@ -176,6 +166,5 @@ set-theme)
   ;;
 sync-theme) sync_theme ;;
 ensure-keys) ensure_keys ;;
-git-clean) git_clean ;;
 *) usage; exit 1 ;;
 esac

@@ -1,0 +1,20 @@
+# Herdr configuration seed. Setup copies this to .config/herdr/config.toml
+# (git-ignored, Stow-linked into ~/.config/herdr on macOS) only when that file
+# is absent, then bin/herdr-config patches theme.name and appends the [keys]
+# table from keys.toml. Herdr itself also rewrites the live file (onboarding
+# state, `herdr channel set`, and `herdr update` regenerates it wholesale), so
+# the live copy is machine state and never reaches git.
+#
+# Keep this seed to the hand-maintained parts; do not add bindings here, the
+# keymap lives in keys.toml. Validate any edit with `herdr config check`.
+
+onboarding = false
+
+[theme]
+name = "terminal"
+auto_switch = false
+[ui]
+status_indicators = "symbols"
+
+[ui.toast]
+delivery = "herdr"

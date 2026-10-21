@@ -2,6 +2,7 @@
 # data (read from the repo by bin/herdr-config) and this file out of $HOME.
 # A local ignore list replaces Stow's built-in one, hence the README/VCS rules.
 ^/keys\.toml
+^/config\.seed\.toml
 ^/\.stow-local-ignore
 ^/README.*
 \.git
