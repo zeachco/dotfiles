@@ -31,7 +31,8 @@ install_profile "shared"
 # Extract just the variant name from the OS_DIR path
 install_profile "$(basename $OS_DIR)"
 
-# Install the Framework Desktop RGB monitor as a systemd user daemon.
+# Install the Framework Desktop RGB monitor as the privileged
+# framework-rgb@<user> system daemon.
 if [[ "$unameOut" == Linux* ]]; then
   "$SHELL" "$DOT_DIR/framework-ryzen/setup.sh"
 fi

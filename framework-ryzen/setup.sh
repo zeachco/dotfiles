@@ -12,7 +12,10 @@ MANIFEST="$SCRIPT_DIR/framework-rgb/Cargo.toml"
 if ! command -v framework_tool >/dev/null 2>&1; then
   # shellcheck source=../utils.sh
   source "$SCRIPT_DIR/../utils.sh"
-  sudo pacman -S framework-system
+  # install_pkg routes to the right package manager (pacman/apt/…); || true because
+  # set -e must not abort on boxes where framework-system is unavailable — the
+  # re-check below skips gracefully either way.
+  install_pkg framework-system || true
 fi
 
 if ! command -v framework_tool >/dev/null 2>&1; then
