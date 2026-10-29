@@ -3,9 +3,12 @@ name: complexity-pass
 description: >
   Reduce code complexity in a repo, a branch, or the current working tree: delete dead
   code, simplify lines that are clever without a reason, keep the complexity that is a
-  real optimisation (encapsulated or commented), and collapse repeated concepts into one
-  shared shape. Use when asked to simplify, clean up, de-duplicate, DRY, remove dead
-  code, tame a messy module, or run a refactor pass that must not change behaviour.
+  real optimisation (encapsulated or commented), collapse repeated concepts into one
+  shared shape, and extract functions, utilities, or files when a function, file, or
+  class has grown too large (Rust-style inline tests move to a colocated `_spec.rs`).
+  Use when asked to simplify, clean up, de-duplicate, DRY, remove dead code, split a big
+  function or file, tame a messy module, or run a refactor pass that must not change
+  behaviour.
   Built for small-context sessions (a 27B model at 64k-128k): three disk-backed phases —
   collect, reference, change — so the session holds the notes, never the codebase.
 ---
@@ -148,6 +151,24 @@ sub-agent must also say whether the complexity looks **load-bearing** — a tigh
 inlined hot path, manual index math, a cache, a precomputed table, a workaround with a
 link — because that kind decides between deleting and keeping.
 
+**E. Oversized units** → `02-findings.md` § oversized
+
+Size is measured per unit, and the tolerance differs by unit:
+
+| unit | tolerance | signal to report |
+| --- | --- | --- |
+| function / method | **strict** | > ~40 lines, > 3 nesting levels, > 4 parameters, or more than one reason to change |
+| file / module | **moderate** | > ~400 lines, or owning more than one concept (per 1A) |
+| class / struct impl | **lenient** | acceptable when large but cohesive; report only when the same big shape repeats across many types |
+
+```
+For each unit over its tolerance: path:line-range, unit kind, size, the distinct
+responsibilities you can name (one line each), and which of them could stand alone
+under a name. For Rust-like files with inline tests (#[cfg(test)] mod tests), report
+the production line count and the test line count separately.
+Cap: 20 rows.
+```
+
 ## Phase 2 — Reference
 
 Turn the findings into the two documents phase 3 obeys. Nothing else survives: after this
@@ -199,8 +220,9 @@ Rules:
   never bundled into a simplification.
 - **Small rows.** One file, one concept, roughly ≤50 changed lines. A row you cannot
   state in one line is two rows.
-- **Order: delete → unify → simplify.** Deleting first shrinks everything after it;
-  unifying before simplifying prevents simplifying the same code four times.
+- **Order: delete → unify → extract → simplify.** Deleting first shrinks everything
+  after it; unifying before extracting prevents extracting the same code four times;
+  extracting before simplifying gives each simplification a small target.
 - Delete rows come with their proof transcribed (`02-findings § dead #n`), because the
   proof is what justifies the deletion in review and in the commit message.
 - Independent rows can be marked `(parallel)`; rows that touch the same file never are.
@@ -229,6 +251,39 @@ Two ways to keep complexity honest, and the plan says which one per case:
 Complexity with no reason and no measurable benefit is not kept — it is deleted in a T
 row. If you cannot find the reason and cannot measure it, offer to measure (a bench or a
 test) rather than trusting the shape.
+
+### Extraction — when a unit is too large
+
+Each row from 1E becomes an extract row in `04-plan.md`, or a line in
+`05-do-not-touch.md` saying why the size is earned. The tolerance ladder decides:
+
+- **Functions first, strictly.** A function doing two nameable things becomes two
+  functions; a block that needs a comment to introduce it becomes a function named after
+  the comment. Extract a utility only when the piece has a name that stands without its
+  caller — otherwise it is a private helper beside the caller, not a shared module.
+- **Files moderately.** Split a file when it owns more than one concept, along the
+  concept boundary from 1A — never into `part1`/`part2`. A single large file that owns
+  one concept is fine; a mid-sized file owning three is not.
+- **Classes leniently.** A big class with one cohesive responsibility stays. Extract
+  when the same large shape (the same methods, the same private helpers) repeats across
+  many types — that is a repeated concept (1C), and the extraction is a shared trait,
+  base, or utility, not a per-class split.
+- **Inline tests move to a colocated spec file.** In languages where tests live in the
+  production file (Rust `#[cfg(test)] mod tests`, and the like), when the file is over
+  its tolerance, move the tests to `<file>_spec.rs` next to it and keep a stub in place:
+
+  ```rust
+  #[cfg(test)]
+  #[path = "parser_spec.rs"]
+  mod tests;
+  ```
+
+  The spec file keeps `use super::*;` so private items stay reachable. This counts as a
+  file split along the test/production boundary; do it before splitting production code
+  across files, since it often brings the file back under tolerance by itself.
+
+An extraction is behaviour-preserving by construction only if the extracted piece keeps
+its inputs, outputs, and side-effect order. Anything else is a `behaviour:` row.
 
 ## Phase 3 — Change the code
 
@@ -267,7 +322,7 @@ explain. The pass can always pause: the plan is on disk.
 | --- | --- | --- |
 | `00-baseline.md` | scope, gate, build, pre-existing failures | written first, never edited |
 | `01-inventory.md` | files by size/churn, the concept each owns | ≤120 lines |
-| `02-findings.md` | dead · repeated · complex · `?`, every row with `path:line` | ≤200 lines; split rather than grow |
+| `02-findings.md` | dead · repeated · complex · oversized · `?`, every row with `path:line` | ≤200 lines; split rather than grow |
 | `03-reference.md` | canonical shape per concept to unify | one section per concept |
 | `04-plan.md` | ordered checkbox rows, exact anchors and checks | the only file phase 3 reads wholesale |
 | `05-do-not-touch.md` | kept complexity, reason, verify command | append-only |
@@ -281,6 +336,8 @@ the PR description when the user wants the reasoning kept.
 
 - Do not refactor outside the scope because the file is in front of you.
 - Do not rename, move, and simplify in the same change.
+- Do not extract a function used once into a shared module, and do not split a cohesive
+  class because it is long.
 - Do not delete "unused" code without the zero-hits proof, and never delete tests,
   migrations, configs, or public API on the strength of "nothing calls it" alone.
 - Do not unify two things just because they look alike, and do not add a parameter that
