@@ -23,13 +23,14 @@ hold one notes file, one plan row, and one file's worth of lines. Everything els
 on disk or inside a sub-agent that returns a conclusion. Whenever a step would need more
 than that, that is the signal to delegate or to write a note — not to read more.
 
-## The three phases
+## The four phases
 
 | phase | you produce | you hold in context |
 | --- | --- | --- |
 | 1. **Collect** — exploratory data | `00-baseline.md`, `01-inventory.md`, `02-findings.md` | one sub-agent report at a time |
 | 2. **Reference** — the plan and the shapes | `03-reference.md`, `04-plan.md`, `05-do-not-touch.md` | the notes you are writing |
 | 3. **Change** — the code | diffs, `06-progress.md` | one plan row + one file |
+| 4. **Close out** — the durable bits in code, notes deleted | `why:` comments, rejection note | `05-do-not-touch.md` + one code site at a time |
 
 Never mix phases. Finish and write the notes of a phase before starting the next; if you
 are interrupted, the next session resumes from the notes alone.
@@ -226,6 +227,10 @@ Rules:
 - Delete rows come with their proof transcribed (`02-findings § dead #n`), because the
   proof is what justifies the deletion in review and in the commit message.
 - Independent rows can be marked `(parallel)`; rows that touch the same file never are.
+- **Rows are verified on the spot.** Anchor line numbers shift after earlier same-file
+  rows, and sub-agent reports can name symbols that do not exist. Identify each target
+  by content, verify it is actually present before executing, and re-cut the row if the
+  scout hallucinated it.
 
 ### `05-do-not-touch.md` — the kept complexity
 
@@ -303,7 +308,9 @@ Work the plan top to bottom, one row at a time. The loop, per row:
 4. **Record.** Tick the row (`- [x] T3 | …`), and append one line to `06-progress.md`:
    `T3 done — removed old-report.ts, gate green (baseline + 0) — <commit or WIP>`.
    A row that turns out wrong is marked `- [ ] T3 skipped — <why>` and, if it is real
-   work, re-cut as new rows. Do not silently drop it.
+   work, re-cut as new rows. Do not silently drop it. Tick and append in the same step
+   as the commit — a committed-but-unchecked row is a notes bug, and the notes are the
+   only state the next session can trust.
 5. **Commit per row** when the repo allows it: one concept per commit, message naming the
    concept and citing the plan row. Small commits are the only rollback a small model
    can reason about.
@@ -315,6 +322,31 @@ Work the plan top to bottom, one row at a time. The loop, per row:
 Stop and ask the user when: a row would change behaviour, a deletion has an unclear
 proof, two concepts want the same name, or the gate breaks in a way the baseline cannot
 explain. The pass can always pause: the plan is on disk.
+
+## Phase 4 — Close out after a green run
+
+When every row is checked or skipped and `06-progress.md` has its final gate line, the
+notes have done their job. Close out so the next pass starts clean; without it, the only
+record of *why* something was kept or rejected dies with the notes directory.
+
+1. **Persist the kept complexity in code, not in notes.** Walk `05-do-not-touch.md`
+   entry by entry. Each one must already be honest in the code — an encapsulating name,
+   or a `why:` comment on the kept lines (the constraint, the measurement, how to check).
+   If an entry's reason exists only in the notes, add the comment now, directly above the
+   lines it describes. It is the only record that survives the deletion, and it cannot
+   drift because it sits on the code.
+2. **Keep the rejection memory.** The skipped rows and the "judged not worth it"
+   verdicts live only in the notes. Copy them — one line each, with the verdict — into
+   the PR description, a short `docs/` note, or agent memory, so a future pass does not
+   re-flag and re-litigate them.
+3. **Delete the notes.** `rm -rf "$notes"`. The commits are the deliverable. Leaving the
+   directory is acceptable only when another pass is expected soon — and then the next
+   pass must read the old `05-do-not-touch.md` before planning, or it re-proposes the
+   kept complexity as if it were new.
+
+A from-scratch re-run earns its cost only after the code has changed again (new WIP or
+commits) or after a long interval. Immediately after a green run it re-derives
+"nothing to do" — minus the rejection memory, which is exactly what step 2 keeps alive.
 
 ## Notes files, at a glance
 
@@ -329,8 +361,10 @@ explain. The pass can always pause: the plan is on disk.
 | `06-progress.md` | one line per executed row | append-only |
 
 Notes are working state, not a deliverable: they are git-excluded, and the durable output
-is the commits. Offer to copy the final `03-reference.md` + `04-plan.md` into `docs/` or
-the PR description when the user wants the reasoning kept.
+is the commits. At close-out (phase 4) the directory is deleted after its durable bits —
+the kept-complexity reasons and the rejection verdicts — are folded into code comments
+and the PR or a docs note. Offer to copy the final `03-reference.md` + `04-plan.md` into
+`docs/` when the user wants the reasoning kept.
 
 ## What not to do
 
@@ -344,5 +378,7 @@ the PR description when the user wants the reasoning kept.
   keeps both old behaviours alive.
 - Do not replace a comment that records a reason with a cleaner-looking abstraction —
   the abstraction may be slower.
+- Do not delete the notes before persisting their reasons: the `05` entries are the only
+  record of kept complexity until they sit in the code as names or `why:` comments.
 - Do not let the notes drift from the code: if a row is edited, the notes are edited in
   the same step.
