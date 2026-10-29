@@ -1,5 +1,5 @@
 ---
-name: complexity-pass
+name: zeachco-complexity-pass
 description: >
   Reduce code complexity in a repo, a branch, or the current working tree: delete dead
   code, simplify lines that are clever without a reason, keep the complexity that is a
