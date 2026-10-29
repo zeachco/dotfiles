@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "olivier.notifications",
+  "name": "My Notifications",
+  "version": "1.0.0",
+  "author": "Olivier",
+  "description": "Omarchy notifications with one-minute popup timeouts",
+  "kinds": ["service"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml"
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.notifications"
+  }
+}

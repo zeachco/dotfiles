@@ -65,6 +65,10 @@
     "lock": 300,
     "screensaver": 150
   },
-  "plugins": [],
+  "plugins": [
+    {
+      "id": "olivier.notifications"
+    }
+  ],
   "version": 1
 }
