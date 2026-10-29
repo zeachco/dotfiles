@@ -22,7 +22,7 @@
     "npm:pi-session-summary"
   ],
   "theme": "light/dark",
-  "lastChangelogVersion": "1.3.0",
+  "lastChangelogVersion": "1.4.0",
   "editorPaddingX": 1,
   "outputPad": 1,
   "terminal": {
