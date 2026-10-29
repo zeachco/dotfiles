@@ -67,7 +67,6 @@ install flatpak
 install fd
 install fzf
 install bat
-install exa
 install starship
 script_install bw "install bitwarden-cli"
 

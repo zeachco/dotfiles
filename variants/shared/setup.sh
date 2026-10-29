@@ -48,7 +48,8 @@ git config --global --replace-all init.defaultBranch main
 # script_install bun "curl -fsSL https://bun.sh/install | $SHELL"
 
 install fastfetch
-install rg || install ripgrep # ripgrep
+install_pkg ripgrep # binary is rg; install_pkg queries the PM, so the
+# already-installed case is a silent skip instead of a re-run of apt/pacman
 install fd                    # fast find
 install gh                    # github-cli
 install jq                    # json parser
@@ -69,8 +70,8 @@ if [[ ${SHELL##*/} == "zsh" ]]; then
     print_exists zsh-vi-mode
   fi
 fi
-# script_install opencode "curl -fsSL https://opencode.ai/install | bash"
-script_install claude "curl -fsSL https://claude.ai/install.sh | bash && echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc"
+# Claude Code and opencode come from mise when needed (omarchy picks them up
+# on first `claude` invocation); no curl installer here.
 
 # Local text-to-speech behind `say`/`converse`. The runtime lives outside the repo
 # (~/.local/share) and pulls ~200 MB of CPU-only torch wheels, so it is installed

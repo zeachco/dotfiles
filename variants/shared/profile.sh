@@ -11,8 +11,11 @@ dotfiles_update() {
   cd $DOT_DIR || return 1
   git fetch
 
-  # git reset --hard below throws away local work, warn before it happens
-  DIRTY=$(git status --porcelain)
+  # git reset --hard below throws away local work, warn before it happens.
+  # Check every *tracked* file (staged + unstaged changes vs HEAD). Untracked
+  # files are safe — reset --hard never touches them — so they must not gate
+  # the update (status --porcelain flagged them and re-prompted forever).
+  DIRTY=$(git diff --name-only HEAD)
   UNPUSHED=$(git log --oneline origin/main..HEAD 2>/dev/null)
   if [ -n "$DIRTY" ] || [ -n "$UNPUSHED" ]; then
     printf "\033[0;33mdotfiles has local work that 'git reset --hard origin/main' will destroy:\033[0m\n"

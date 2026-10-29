@@ -1,9 +1,5 @@
 # zeachco PR corpus — past year (2025-10-09 → 2026-10-09)
 
-Canonical list: [docs/pr-review-audit-2025-10-09--2026-10-09.md](../docs/pr-review-audit-2025-10-09--2026-10-09.md)
-(723 PRs, 24 repos, 1,741 review submissions — `reviewed-by:zeachco` filtered by actual
-review timestamps; own-PR list: 517 PRs via `author:zeachco created:>2025-10-09`).
-
 ## Analysis (Oct 2026)
 
 Full corpus: 1,468 PRs fetched serially (951 reviewed-window + 517 own).
