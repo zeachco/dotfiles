@@ -16,7 +16,7 @@ setup.sh
 ├─ OS detection                    (uname + /etc/arch-release, TERMUX, lsb_release)
 ├─ clean_imports                   (strip old source hooks from the shell rc)
 ├─ install_profile "shared"        (base tools + configs on every OS)
-├─ install_profile "<variant>"     (osx | debian | ubuntu | archlinux | termux)
+├─ install_profile "<variant>"     (osx | archlinux | termux)
 ├─ framework-ryzen/setup.sh        (Linux only: Framework Desktop RGB daemon)
 └─ variants/omarchy/setup.sh       (archlinux only, when `omarchy` is installed)
 ```
@@ -29,10 +29,10 @@ setup.sh
 `setup.sh` (top of file):
 
 1. `uname` → `Linux` vs `Darwin` (anything else: no setup).
-2. Linux: `/etc/arch-release` or a `pacman` binary → **archlinux**, else **debian**.
-   The debian profile doubles as the base for Manjaro and friends.
-3. Overrides checked afterwards: `$TERMUX_VERSION` / `PREFIX` containing `com.termux` →
-   **termux**; `lsb_release` containing Ubuntu → **ubuntu**.
+2. Linux: `/etc/arch-release` or a `pacman` binary → **archlinux**; any other
+   distribution runs the shared profile alone.
+3. Override checked afterwards: `$TERMUX_VERSION` / `PREFIX` containing `com.termux`
+   → **termux**.
 4. `Darwin` → **osx**.
 
 ## Variants (`variants/*`)
@@ -40,8 +40,6 @@ setup.sh
 | Variant     | PM           | Stow configs                       | Notes                                             |
 | ----------- | ------------ | ---------------------------------- | ------------------------------------------------- |
 | shared      | agnostic     | alacritty, tmux, pi, claude, codex | Base: git config, rg, fd, gh, fzf, tmux, pi, Claude Code + Codex (shared skills), herdr keymap (`configs/herdr/keys.toml`) |
-| debian      | apt          | alacritty-debian, nvim            | Core tools                                         |
-| ubuntu      | apt          | same as debian                     | + omakub, devbox, GNOME shortcuts                  |
 | osx         | brew         | aerospace, sketchybar, herdr, …   | Generates herdr os.toml, `option_as_alt`, launches Herdr via `$SHELL -l -i -c` |
 | archlinux   | pacman + yay | wireplumber, opencode              | AUR helpers, `pac*`/`yay*` functions, llama.cpp build sync |
 | termux      | pkg          | none                               | Android; redefines `killport`/network helpers     |

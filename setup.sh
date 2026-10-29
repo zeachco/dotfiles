@@ -11,7 +11,8 @@ Linux*)
   if [[ -f /etc/arch-release ]] || command -v pacman &>/dev/null; then
     OS_DIR=variants/archlinux
   else
-    OS_DIR=variants/debian
+    # Other Linux (Ubuntu, Fedora, …): the shared profile alone, no OS variant.
+    OS_DIR=""
   fi
   ;;
 Darwin*) OS_DIR=variants/osx ;;
@@ -21,15 +22,19 @@ esac
 # Check for Termux environment
 if [[ -n "$TERMUX_VERSION" ]] || [[ "$PREFIX" == *"com.termux"* ]]; then
   OS_DIR=variants/termux
-elif [[ "$(lsb_release -a 2>/dev/null)" =~ "Ubuntu" ]]; then
-  OS_DIR=variants/ubuntu
 fi
 
 install_profile "shared"
 
-# note: the debian profile is also adapted to arch/manjaroo
-# Extract just the variant name from the OS_DIR path
-install_profile "$(basename $OS_DIR)"
+# An OS profile only runs when one exists for the detected environment; on any
+# other Linux the shared profile is the whole setup (the old debian/ubuntu
+# variants were dropped -- their tools moved to mise).
+if [[ -n "$OS_DIR" ]]; then
+  # Extract just the variant name from the OS_DIR path
+  install_profile "$(basename "$OS_DIR")"
+else
+  echo -e "${WARN}no OS-specific profile; shared profile only${NORM}"
+fi
 
 # Install the Framework Desktop RGB monitor as the privileged
 # framework-rgb@<user> system daemon.

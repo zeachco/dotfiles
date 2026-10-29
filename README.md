@@ -62,17 +62,12 @@ journalctl -u framework-rgb@"$USER".service -f
 Optional environment overrides can be added to the system unit for `MAX_TEMPERATURE_C` (default
 90), `MAX_POWER_WATTS` (120), `MAX_DISK_MBPS` (1000), and `MAX_NETWORK_MBPS` (1000).
 
-# Ubuntu special case
-
-For ubuntu, it also installs [omakub](https://omakub.org/) it's just too good to ignore, other OS manually installs the good parts of omakub that I want there like tmux, nvim, sh utils configs
-
 # Supports
 
-- linux debian/arch based (with apt-get such as Ubuntu)
-- linux debian/arch based (with pacman such as Manjaroo)
+- linux arch based (with pacman such as Manjaro)
 - macos (with xcode)
-- spin cloud debian-based server
-- extensible by profile
+- termux (Android, shared profile only)
+- other Linux: shared profile only, extensible by adding a `variants/<os>/` profile
 
 # Repository layout
 
@@ -99,9 +94,9 @@ inheritance, themes, the llama.cpp subsystem, and per-OS service management.
 
 The repository uses a profile-based approach for different environments. When you run `setup.sh`:
 
-1. It automatically detects your operating system and environment (macOS, Arch, Debian, Ubuntu, Termux, etc.).
+1. It automatically detects your operating system and environment (macOS, Arch, Termux, etc.).
 2. It first runs the `shared` profile which installs the base set of tools and configurations using `stow` for symlinking `configs/` into your `$HOME`.
-3. It then runs the specific profile for your OS (e.g. `variants/osx`, `variants/ubuntu`).
+3. It then runs the specific profile for your OS (e.g. `variants/osx`, `variants/archlinux`); on any other Linux the shared profile is the whole setup.
 4. Profiles use a helper script (`utils.sh`) to intelligently manage dependencies across OS package managers (apt, pacman, brew, pkg).
 5. It safely injects a source hook into your shell's initialization file (`~/.bashrc`, `~/.zshrc`, etc.) to load aliases, variables, and bash functions from `.dotfiles_<variant>`.
 6. You can re-run the setup at any time safely to update or apply new configs.
