@@ -1,0 +1,291 @@
+---
+name: complexity-pass
+description: >
+  Reduce code complexity in a repo, a branch, or the current working tree: delete dead
+  code, simplify lines that are clever without a reason, keep the complexity that is a
+  real optimisation (encapsulated or commented), and collapse repeated concepts into one
+  shared shape. Use when asked to simplify, clean up, de-duplicate, DRY, remove dead
+  code, tame a messy module, or run a refactor pass that must not change behaviour.
+  Built for small-context sessions (a 27B model at 64k-128k): three disk-backed phases —
+  collect, reference, change — so the session holds the notes, never the codebase.
+---
+
+# Complexity pass
+
+Make the code say what it does in fewer, plainer pieces, and keep only the complexity
+that buys something.
+
+**This runbook assumes a small context window.** You cannot hold the codebase. You can
+hold one notes file, one plan row, and one file's worth of lines. Everything else lives
+on disk or inside a sub-agent that returns a conclusion. Whenever a step would need more
+than that, that is the signal to delegate or to write a note — not to read more.
+
+## The three phases
+
+| phase | you produce | you hold in context |
+| --- | --- | --- |
+| 1. **Collect** — exploratory data | `00-baseline.md`, `01-inventory.md`, `02-findings.md` | one sub-agent report at a time |
+| 2. **Reference** — the plan and the shapes | `03-reference.md`, `04-plan.md`, `05-do-not-touch.md` | the notes you are writing |
+| 3. **Change** — the code | diffs, `06-progress.md` | one plan row + one file |
+
+Never mix phases. Finish and write the notes of a phase before starting the next; if you
+are interrupted, the next session resumes from the notes alone.
+
+## Phase 0 — Scope, before anything else
+
+Notes live in the target repo, never in the repo history:
+
+```bash
+root=$(git rev-parse --show-toplevel); notes="$root/.complexity-pass"
+mkdir -p "$notes"; grep -qxF '.complexity-pass/' "$root/.git/info/exclude" 2>/dev/null \
+  || echo '.complexity-pass/' >> "$root/.git/info/exclude"
+```
+
+Then fix the **scope** — what "the current work" means for this pass:
+
+```bash
+git status --short          # the current work, including the user's WIP
+git diff --stat             # unstaged size
+git diff --cached --stat    # staged size
+git diff -U0 | rg '^\+' | wc -l
+```
+
+- Default scope: the files touched by the working tree and the current branch, plus the
+  files those touch that are demonstrably part of the same concept. Widen to the whole
+  repo only when the user asks, or when a repetition found inside the scope is clearly
+  the same code in files outside it.
+- If there is no current work, scope = the last commit range (`git diff --stat
+  <base>..HEAD`) or the directory the user named.
+- **Do not touch the user's uncommitted work beyond what the pass requires**, and never
+  attribute it to yourself. If the WIP is half-finished, it is a `?` row in the plan,
+  not a silent fix.
+
+Write the gate you will use after every change — one command, discovered now, not later,
+with its pre-existing failures recorded:
+
+```markdown
+# 00-baseline.md
+scope: <files or range>
+gate: <exact command>        # e.g. bun test · npm run lint && npm test · cargo test
+baseline: <N pass / M fail — name the failures>
+build: <exact command>       # the cheapest real check (typecheck/build) if different
+```
+
+A red baseline is normal. Without it you cannot tell your damage from the existing damage.
+
+## Phase 1 — Collect exploratory data
+
+Rules for the whole phase:
+
+- **Do not read whole files yourself.** List with `rg`/`git`, and hand anything wider than
+  ~60 lines to a sub-agent. The sub-agent is a fresh process that has not seen this
+  conversation, so every brief is self-contained: absolute repo path, the files or
+  directory, the question, the output format, and the cap.
+- Ask for **conclusions with `path:line` evidence**, never for pasted code, and never for
+  more than ~25 lines back per call. Paste-ready code is phase 3's job.
+- Write each report into its notes file **the moment it comes back**, in your own short
+  words, then drop the rest. If you cannot summarise it in five bullets, the brief was
+  too broad — re-cut it.
+- Anything you cannot classify goes in `02-findings.md` under `?` with the reason. Later
+  sessions decide; nothing is deleted on a guess.
+
+The four collections, in this order. Any harness's agent tool will do (pi `subagent`
+with `scout`; Claude Code `Agent`; Codex task tool; opencode agent):
+
+**A. Inventory + hotspots** → `01-inventory.md`
+
+```bash
+git ls-files -z -- '*.ts' '*.tsx' '*.js' '*.py' '*.rs' '*.go' '*.sh' \
+  | xargs -0 wc -l | sort -rn | head -40      # biggest files
+git log --since=6.months --name-only --pretty=format: | sort | uniq -c | sort -rn | head -30
+rg -n 'TODO|FIXME|HACK|XXX|@deprecated' | head -40
+```
+
+Brief the sub-agent to answer, for the top files in scope only: what concept each file
+owns, which files duplicate the same concept, and where the file is doing three unrelated
+things. Record: file, lines, concept, and one line of verdict.
+
+**B. Dead code** → `02-findings.md` § dead
+
+Ask a sub-agent to prove absence, not to guess: unused exports and files (no importer
+anywhere, including tests, scripts, configs and dynamic `import()`), unreachable branches
+(guarded by a constant or a flag that is never set), parameters never passed, fields never
+written or never read, comments-out code, feature flags past their date, compatibility
+shims for versions no longer supported.
+
+```
+Report only candidates you can prove are unreferenced, with the search you ran:
+- path:line — symbol — proof it is dead (rg pattern + zero hits, or the constant that
+  makes the branch impossible) — related remains (a similar live symbol?)
+Cap: 25 rows. Say "unproven" explicitly for anything you suspect but could not prove.
+```
+
+Exclude from "dead": public API surface of a published package, entry points referenced
+only from config, DI/plugin hooks invoked by name, and tests. Ambiguous ones go to `?`.
+
+**C. Repeated concepts (DRY)** → `02-findings.md` § repeated
+
+This is the collection that needs the written plan most, so gather it as **concepts**, not
+as code: retry/backoff loops, error mapping, validation, fetch wrappers, date/number
+formatting, path/URL building, feature-flag reads, DB session setup, colour/spacing tokens,
+test fixtures/harness setup. For each, the sub-agent returns: the concept in one sentence,
+every `path:line` site, and how much the sites differ.
+
+```
+Cluster the matches into concepts. For each concept: a one-sentence definition,
+all call sites as path:line, and the differences between them (arguments, defaults,
+error behaviour, types). Skip anything with fewer than 3 sites.
+Cap: 8 concepts, 20 site lines each.
+```
+
+**D. Suspicious complexity** → `02-findings.md` § complex
+
+Only for files in scope, and only where the sub-agent can quote the reason: nested
+conditionals three levels deep, boolean-parameter soup, one-method classes, single-use
+indirection, duplicated validation, defensive branches for impossible states, comments
+narrating the next line, and one-liners that need a paragraph to read. For each, the
+sub-agent must also say whether the complexity looks **load-bearing** — a tight loop,
+inlined hot path, manual index math, a cache, a precomputed table, a workaround with a
+link — because that kind decides between deleting and keeping.
+
+## Phase 2 — Reference
+
+Turn the findings into the two documents phase 3 obeys. Nothing else survives: after this
+phase, the notes are the task.
+
+### `03-reference.md` — the canonical shapes
+
+One section per repeated concept from 1C that you decided to unify. For each:
+
+```markdown
+## <concept>
+shape:      <module path to create or existing home> — signature, in one line
+sites:      <path:line>, <path:line>, ...
+variances:  <what differs and how the shape absorbs it, or why it cannot>
+not-now:    <sites to leave, and why>
+```
+
+Rules that keep a de-duplication safe:
+
+- **Rule of three.** Unify at three real sites; at two, duplication is cheaper than the
+  coupling. If the sites differ in behaviour, unify the skeleton and keep the difference
+  as an explicit argument — never as a flag that re-selects the two old bodies.
+- **Unify the concept, not the coincidence.** Identical-looking code that changes for
+  different reasons stays apart; it is cheaper to read twice than to change once and
+  break half the app.
+- **One home per concept**, named after the concept (`retryWithBackoff`, not `helpers`),
+  placed at the layer all its callers already depend on. If they disagree on the layer,
+  stop: the concept is not shared, only similar.
+- Types stay with their concept; no `utils` bucket, no barrel re-export of everything.
+
+The shape is a sketch, not a mandate — a few lines are enough for a small model to
+implement. Say plainly when you are unsure and leave it open.
+
+### `04-plan.md` — the ordered task list
+
+One row per change. Fixed columns, so an edit tool can tick a row and a 27B can execute
+it without re-deriving anything:
+
+```markdown
+- [ ] T1 | src/api/client.ts:120-178 | extract the retry loop into retryWithBackoff | ~40 lines | check: bun test client
+- [ ] T2 | src/api/client.ts, src/jobs/run.ts | use retryWithBackoff at both sites | ~15 lines | check: bun test
+- [ ] T3 | src/legacy/old-report.ts | delete file (dead: 02-findings § dead #4) | ~0 lines | check: build
+```
+
+Rules:
+
+- **Behaviour-preserving only.** A bug fix or a behaviour change you spot goes into the
+  plan as a separate row marked `behaviour: <what changes>`, for the user to approve —
+  never bundled into a simplification.
+- **Small rows.** One file, one concept, roughly ≤50 changed lines. A row you cannot
+  state in one line is two rows.
+- **Order: delete → unify → simplify.** Deleting first shrinks everything after it;
+  unifying before simplifying prevents simplifying the same code four times.
+- Delete rows come with their proof transcribed (`02-findings § dead #n`), because the
+  proof is what justifies the deletion in review and in the commit message.
+- Independent rows can be marked `(parallel)`; rows that touch the same file never are.
+
+### `05-do-not-touch.md` — the kept complexity
+
+Every piece of complexity you decided to keep because it is an optimisation or a
+deliberate workaround goes here with the reason and how to verify it:
+
+```markdown
+- src/render/hot-path.ts:88 — manual index loop instead of map, keeps the per-frame
+  allocation at zero. Kept inline, comment added: // why: 0 alloc/frame, see bench/draw.ts
+  verify: bun bench draw
+```
+
+Two ways to keep complexity honest, and the plan says which one per case:
+
+1. **Encapsulate** — move it behind a name that states the intent (`fastPathFor…`,
+   `precomputedTable`), so the caller reads simply and the ugliness has one home with a
+   documented reason.
+2. **Comment** — when inlining is the point, keep the lines and add a `why:` comment
+   above them: the constraint, the measurement, and how to check it. A comment that
+   narrates the code is deleted; a comment that records a reason is the price of keeping
+   the code unreadable.
+
+Complexity with no reason and no measurable benefit is not kept — it is deleted in a T
+row. If you cannot find the reason and cannot measure it, offer to measure (a bench or a
+test) rather than trusting the shape.
+
+## Phase 3 — Change the code
+
+Work the plan top to bottom, one row at a time. The loop, per row:
+
+1. **Load only the row and the target.** Read the row from `04-plan.md`, then the cited
+   file region (`read` with offset/limit around the lines, not the whole file); the notes
+   files if the row references them.
+2. **Change.** A row that is a pure mechanical edit — rename, extract, replace call site,
+   delete a file — goes to a cheap typing sub-agent (`completion`/`code` in pi, a small
+   model elsewhere) with the exact file, the exact before/after, and the exact check. A
+   row that needs judgement (the shape is a sketch, the site has surprises) you do
+   yourself, or hand to `worker` as a self-contained brief.
+3. **Verify, always.** Run the gate from `00-baseline.md` and diff the actual work:
+   `git diff` (never trust a sub-agent's success report — read the diff). Failures are
+   compared to the baseline, not to zero.
+4. **Record.** Tick the row (`- [x] T3 | …`), and append one line to `06-progress.md`:
+   `T3 done — removed old-report.ts, gate green (baseline + 0) — <commit or WIP>`.
+   A row that turns out wrong is marked `- [ ] T3 skipped — <why>` and, if it is real
+   work, re-cut as new rows. Do not silently drop it.
+5. **Commit per row** when the repo allows it: one concept per commit, message naming the
+   concept and citing the plan row. Small commits are the only rollback a small model
+   can reason about.
+6. **Context checkpoint.** After the commit, forget everything except `04-plan.md`'s next
+   unchecked row, the last line of `06-progress.md`, and the current file. If you notice
+   you are re-reading things you already decided, re-read the notes file instead — the
+   decision is written down.
+
+Stop and ask the user when: a row would change behaviour, a deletion has an unclear
+proof, two concepts want the same name, or the gate breaks in a way the baseline cannot
+explain. The pass can always pause: the plan is on disk.
+
+## Notes files, at a glance
+
+| file | content | rule |
+| --- | --- | --- |
+| `00-baseline.md` | scope, gate, build, pre-existing failures | written first, never edited |
+| `01-inventory.md` | files by size/churn, the concept each owns | ≤120 lines |
+| `02-findings.md` | dead · repeated · complex · `?`, every row with `path:line` | ≤200 lines; split rather than grow |
+| `03-reference.md` | canonical shape per concept to unify | one section per concept |
+| `04-plan.md` | ordered checkbox rows, exact anchors and checks | the only file phase 3 reads wholesale |
+| `05-do-not-touch.md` | kept complexity, reason, verify command | append-only |
+| `06-progress.md` | one line per executed row | append-only |
+
+Notes are working state, not a deliverable: they are git-excluded, and the durable output
+is the commits. Offer to copy the final `03-reference.md` + `04-plan.md` into `docs/` or
+the PR description when the user wants the reasoning kept.
+
+## What not to do
+
+- Do not refactor outside the scope because the file is in front of you.
+- Do not rename, move, and simplify in the same change.
+- Do not delete "unused" code without the zero-hits proof, and never delete tests,
+  migrations, configs, or public API on the strength of "nothing calls it" alone.
+- Do not unify two things just because they look alike, and do not add a parameter that
+  keeps both old behaviours alive.
+- Do not replace a comment that records a reason with a cleaner-looking abstraction —
+  the abstraction may be slower.
+- Do not let the notes drift from the code: if a row is edited, the notes are edited in
+  the same step.
