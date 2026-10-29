@@ -193,8 +193,10 @@ fi
 # backup .zshrc
 if [ "$SHELL" = "/bin/zsh" ] || [ "$SHELL" = "/usr/bin/zsh" ]; then
   cp ~/.zshrc ~/.zshrc.backup
-  # replace theme
-  awk '/ZSH_THEME=/ {sub(/=.*/, "=\"amuse\"")} 1' ~/.zshrc >temp.zshrc && mv temp.zshrc ~/.zshrc
+  # replace theme; the temp file lives next to ~/.zshrc so the mv is atomic
+  # (a CWD-relative temp would land wherever setup was started from)
+  tmp_zshrc="$(mktemp ~/.zshrc.XXXXXX)"
+  awk '/ZSH_THEME=/ {sub(/=.*/, "=\"amuse\"")} 1' ~/.zshrc >"$tmp_zshrc" && mv -f "$tmp_zshrc" ~/.zshrc
 else
   cp ~/.bashrc ~/.bashrc.backup
 fi
