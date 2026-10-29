@@ -308,6 +308,35 @@ denode() {
   deno run -A --unstable "npm:$1"
 }
 
+# Start Plasma Bigscreen (TV shell) on a bare console. It must NOT be launched
+# from inside Hyprland: Plasma's session services (plasmashell, kded6, powerdevil)
+# would attach to the running desktop and draw full-page OSDs as tiled windows.
+# Usage: switch to a free console (Ctrl+Alt+F2), log in, run `bigscreen`.
+bigscreen() {
+  if ! command -v plasma-bigscreen-wayland >/dev/null 2>&1; then
+    echo "bigscreen: Plasma Bigscreen is not installed (package: plasma-bigscreen)." >&2
+    return 127
+  fi
+  if [ -n "${WAYLAND_DISPLAY:-}" ] || [ -n "${DISPLAY:-}" ] || [ -n "${TMUX:-}" ] ||
+    ! case "$(tty 2>/dev/null)" in /dev/tty[0-9]*) true ;; *) false ;; esac; then
+    cat >&2 <<'MSG'
+bigscreen: run this from a bare virtual console, not a terminal inside a desktop session.
+  1. Press Ctrl+Alt+F2 and log in there.
+  2. Run `bigscreen`.
+  3. Ctrl+Alt+F1 returns to Hyprland; Ctrl+Alt+F2 returns to Bigscreen.
+Launching it inside Hyprland leaks Plasma services into the desktop. If that
+already happened: systemctl --user stop plasma-core.target plasma-plasmashell plasma-kded6 plasma-powerdevil plasma-ksmserver
+MSG
+    return 1
+  fi
+  local runner=/usr/lib/plasma-dbus-run-session-if-needed
+  if [ -x "$runner" ]; then
+    "$runner" plasma-bigscreen-wayland
+  else
+    plasma-bigscreen-wayland
+  fi
+}
+
 if [ "${SHELL##*/}" = "zsh" ]; then
   bindkey '[C' forward-word
   bindkey '[D' backward-word
