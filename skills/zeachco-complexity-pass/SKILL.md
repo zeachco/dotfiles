@@ -152,6 +152,17 @@ sub-agent must also say whether the complexity looks **load-bearing** — a tigh
 inlined hot path, manual index math, a cache, a precomputed table, a workaround with a
 link — because that kind decides between deleting and keeping.
 
+Also collect **magic numbers** in scope: bare numeric literals with meaning (durations,
+sizes, limits, ratios) that are not already named. For each: `path:line`, the literal,
+what it means, and whether the meaning is *certain* (documented elsewhere, used in the
+same role at several sites, or obvious from the expression) or a guess.
+
+```
+Report bare numeric literals that carry meaning, as path:line — literal — meaning —
+certainty (certain: <where documented> | guess). Skip 0, 1, -1, array indices, and
+test fixtures. Cap: 20 rows.
+```
+
 **E. Oversized units** → `02-findings.md` § oversized
 
 Size is measured per unit, and the tolerance differs by unit:
@@ -227,6 +238,18 @@ Rules:
 - Delete rows come with their proof transcribed (`02-findings § dead #n`), because the
   proof is what justifies the deletion in review and in the commit message.
 - Independent rows can be marked `(parallel)`; rows that touch the same file never are.
+- **Magic numbers, with a grain of salt.** Two cheap readability rows, both
+  behaviour-preserving:
+  - Large literals get digit separators where the language has them (`86_400_000`, not
+    `86400000`; JS/TS, Python, Rust, Go, Java, Kotlin, C# all accept `_`). Do it for
+    anything with more than four digits, as part of whichever row touches the line, or
+    as one sweep row per file.
+  - A literal whose meaning is **certain** — documented elsewhere, used in the same role
+    at several sites, or obvious from the expression — becomes a self-documenting
+    constant named for the meaning (`ONE_DAY_MS = 24 * 60 * 60 * 1000`), placed beside
+    its callers. A literal whose meaning is a guess stays a literal; a wrong name is
+    worse than no name. One-use constants that only restate the expression
+    (`const THOUSAND = 1000`) are not an improvement — use common sense.
 - **Rows are verified on the spot.** Anchor line numbers shift after earlier same-file
   rows, and sub-agent reports can name symbols that do not exist. Identify each target
   by content, verify it is actually present before executing, and re-cut the row if the
