@@ -163,6 +163,12 @@ certainty (certain: <where documented> | guess). Skip 0, 1, -1, array indices, a
 test fixtures. Cap: 20 rows.
 ```
 
+And, in typed languages, **untyped boundaries**: functions that return `any` (or the
+language's escape hatch) at an I/O or external-API edge — storage reads, `fetch`/HTTP
+wrappers, JSON parsing, env/config reads, message handlers — where every caller then
+re-asserts the type by hand. Report `path:line`, the function, and how many callers cast
+its result. Cap: 10 rows.
+
 **E. Oversized units** → `02-findings.md` § oversized
 
 Size is measured per unit, and the tolerance differs by unit:
@@ -250,6 +256,21 @@ Rules:
     its callers. A literal whose meaning is a guess stays a literal; a wrong name is
     worse than no name. One-use constants that only restate the expression
     (`const THOUSAND = 1000`) are not an improvement — use common sense.
+- **Untyped boundaries, rarely and lightly.** When an I/O or external-API wrapper
+  returns `any` and its callers each cast or re-type the result, give the wrapper a type
+  parameter the caller supplies, defaulting to the safe unknown:
+
+  ```ts
+  readLocalStorage(key: string): any            // callers: `as Settings` everywhere
+  readLocalStorage<T = unknown>(key: string): T  // caller says what it expects, once
+  ```
+
+  Only at the edge where the code meets the outside world (storage, HTTP, JSON, env,
+  message bus), and only when leaving it as is forces boilerplate or a bad type on every
+  caller. Internal functions that happen to say `any` are a plain simplify row or left
+  alone; no sweeping `any` hunt. Changing the default from `any` to `unknown` can turn
+  compile-clean callers red — that is the gate's job to show, and the fix is the callers
+  naming their type, not widening the default back.
 - **Rows are verified on the spot.** Anchor line numbers shift after earlier same-file
   rows, and sub-agent reports can name symbols that do not exist. Identify each target
   by content, verify it is actually present before executing, and re-cut the row if the
