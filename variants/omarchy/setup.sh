@@ -13,6 +13,11 @@ stow_link alacritty-omarchy
 stow_link foot
 stow_link nvim
 
+# Plasma Bigscreen's package does not pull in Qt's Wayland platform plugin,
+# which it needs when started from a virtual console.
+install_pkg plasma-bigscreen
+install_pkg qt6-wayland
+
 install s-tui  # cli tool for CPU benchmarks
 
 # JetBrains Mono Nerd Font (alacritty terminal font)
