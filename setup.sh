@@ -7,8 +7,11 @@ echo "Will install using $SHELL ($0)"
 unameOut="$(uname -s)"
 case "${unameOut}" in
 Linux*)
-  # Check for Arch Linux first
-  if [[ -f /etc/arch-release ]] || command -v pacman &>/dev/null; then
+  # NixOS first: it has no pacman/apt, and /etc/NixOS is the distro's own marker.
+  if [[ -f /etc/NixOS ]] || grep -q '^ID=nixos' /etc/os-release 2>/dev/null; then
+    OS_DIR=variants/nixos
+  # Then Arch Linux
+  elif [[ -f /etc/arch-release ]] || command -v pacman &>/dev/null; then
     OS_DIR=variants/archlinux
   else
     # Other Linux (Ubuntu, Fedora, …): the shared profile alone, no OS variant.

@@ -19,6 +19,7 @@ Re-run with `dotfiles_update` to apply changes and remove deprecated configs.
 | Platform                        | Coverage                                    |
 | ------------------------------- | ------------------------------------------- |
 | Arch-based Linux (pacman)       | full, including Omarchy/Hyprland integration |
+| NixOS (nix profile + module)    | shared tools + `variants/nixos/dotfiles.nix` for root-level state |
 | macOS (with Xcode tools)        | full                                        |
 | Termux (Android)                | shared profile only                         |
 | Other Linux                     | shared profile only; add `variants/<os>/`   |

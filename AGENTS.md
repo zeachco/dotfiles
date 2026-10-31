@@ -14,7 +14,7 @@ management. This file keeps only the map and the gotchas.
 | ------------------- | ------------------------------------------------------------------- |
 | `setup.sh`          | Orchestrator: OS detection → `install_profile shared` → `install_profile <variant>` → extras |
 | `utils.sh`          | `install_profile`, `stow_link`, `install`/`install_pkg`, `clean_imports`, theme seeding |
-| `variants/`         | One dir per OS (+ shared base): `setup.sh` (packages) + `profile.sh` (shell state), partials in `_*.sh` |
+| `variants/`         | One dir per OS (+ shared base): `setup.sh` (packages) + `profile.sh` (shell state), partials in `_*.sh`; `nixos/dotfiles.nix` is the declarative root-level half of that variant |
 | `configs/`          | Stow packages, mirroring `$HOME`: `configs/nvim/.config/nvim/…` → `~/.config/nvim/…` |
 | `skills/`           | Agent skills shared by every harness (Claude Code, Codex, opencode, pi), one dir per skill; each `configs/<harness>` package links it in |
 | `llamacpp/`         | Local model serving: shared launchers/menu/fetch lib, osx (launchd) + archlinux (systemd) — see [llamacpp/README.md](llamacpp/README.md) |

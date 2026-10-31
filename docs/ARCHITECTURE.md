@@ -13,10 +13,10 @@ idempotent: re-running `setup.sh` (or `dotfiles_update`) **is** the update mecha
 
 ```
 setup.sh
-├─ OS detection                    (uname + /etc/arch-release, TERMUX, lsb_release)
+├─ OS detection                    (uname + /etc/NixOS, /etc/arch-release, TERMUX)
 ├─ clean_imports                   (strip old source hooks from the shell rc)
 ├─ install_profile "shared"        (base tools + configs on every OS)
-├─ install_profile "<variant>"     (osx | archlinux | termux)
+├─ install_profile "<variant>"     (osx | nixos | archlinux | termux)
 ├─ framework-ryzen/setup.sh        (Linux only: Framework Desktop RGB daemon)
 └─ variants/omarchy/setup.sh       (archlinux only, when `omarchy` is installed)
 ```
@@ -29,8 +29,9 @@ setup.sh
 `setup.sh` (top of file):
 
 1. `uname` → `Linux` vs `Darwin` (anything else: no setup).
-2. Linux: `/etc/arch-release` or a `pacman` binary → **archlinux**; any other
-   distribution runs the shared profile alone.
+2. Linux: `/etc/NixOS` or `ID=nixos` in `/etc/os-release` → **nixos**; else
+   `/etc/arch-release` or a `pacman` binary → **archlinux**; any other distribution runs
+   the shared profile alone.
 3. Override checked afterwards: `$TERMUX_VERSION` / `PREFIX` containing `com.termux`
    → **termux**.
 4. `Darwin` → **osx**.
@@ -42,6 +43,7 @@ setup.sh
 | shared      | agnostic     | alacritty, tmux, pi, claude, codex | Base: git config, rg, fd, gh, fzf, tmux, pi, Claude Code + Codex (shared skills), herdr keymap (`configs/herdr/keys.toml`) |
 | osx         | brew         | aerospace, sketchybar, herdr, …   | Generates herdr os.toml, `option_as_alt`, launches Herdr via `$SHELL -l -i -c` |
 | archlinux   | pacman + yay | wireplumber, opencode              | AUR helpers, `pac*`/`yay*` functions, llama.cpp build sync |
+| nixos       | nix profile  | wireplumber, alacritty-archlinux, opencode | User tools via `nix profile`; root-level state (login shell, fonts, pipewire, Vulkan) is the `dotfiles.nix` module linked into `/etc/nixos`; `nix*` functions |
 | termux      | pkg          | none                               | Android; redefines `killport`/network helpers     |
 | omarchy     | pacman       | hypr, foot, alacritty-omarchy     | Setup-only overlay on archlinux (Hyprland bindings), no shell profile |
 
@@ -111,14 +113,21 @@ executing), `dotfiles_update`, `repos`, `killport`, devbox auto-entry (`ds` /
 
 ## Package managers
 
-`utils.sh` abstracts apt / pacman / brew / pkg (Termux) behind a few functions:
+`utils.sh` abstracts apt / pacman / brew / pkg (Termux) / `nix profile` (NixOS) behind a few
+functions:
 
 | Function          | Checks presence by                    | Use for                                                        |
 | ----------------- | ------------------------------------- | -------------------------------------------------------------- |
 | `install <cmd> [pkg]` | `command -v <cmd>`                 | Anything that ships a binary                                   |
-| `install_pkg <pkg>`   | the PM's own database (`dpkg-query`, `pacman -Q`, `brew list`) | Headers, libraries, plugins — anything with no binary to probe for |
+| `install_pkg <pkg>`   | the PM's own database (`dpkg-query`, `pacman -Q`, `brew list`, `nix profile list`) | Headers, libraries, plugins — anything with no binary to probe for |
 | `script_install <cmd> <exec>` | `command -v <cmd>`        | Installer scripts (curl \| bash, …)                            |
 | `needs` / `exists`    | `command -v`                          | Predicates used by the above                                   |
+
+On NixOS the imperative layer is the user's `nix profile` (`nixpkgs#<pkg>`), gated by
+`is_nixos` so a box that merely has nix installed keeps its native package manager. What
+needs root is declarative instead: `variants/nixos/dotfiles.nix` is linked to
+`/etc/nixos/dotfiles.nix` by the variant's setup and imported from `configuration.nix` by
+hand, then applied with `nixup` (`nixos-rebuild switch`).
 
 The split between `install` and `install_pkg` is load-bearing: `command -v vulkan-headers` can
 never succeed, so `install` re-ran the package manager on every update until `install_pkg`

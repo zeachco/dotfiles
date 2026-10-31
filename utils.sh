@@ -113,6 +113,23 @@ function needs {
   fi
 }
 
+# NixOS: packages are installed into the user's `nix profile` (imperative, so the
+# shared `install`/`install_pkg` calls keep working). System-level state (login
+# shell, fonts, services) is declarative and lives in variants/nixos/dotfiles.nix.
+function is_nixos() {
+  [[ -f /etc/NixOS ]] || grep -q '^ID=nixos' /etc/os-release 2>/dev/null
+}
+
+# `nix profile list` prints one "Name: <pkg>" line per entry (nix >= 2.20); older
+# versions print the flake attribute, which ends in ".<pkg>".
+function nix_profile_has() {
+  nix profile list 2>/dev/null | grep -qE "^Name: +$1\$|nixpkgs#$1\$|\.$1\$"
+}
+
+function nix_profile_install() {
+  nix profile install "nixpkgs#$1"
+}
+
 function install() {
   name="$1"
   pkg_name="${2:-$1}"
@@ -123,6 +140,8 @@ function install() {
     # Check for Termux environment first
     if [[ -n "$TERMUX_VERSION" ]] || [[ "$PREFIX" == *"com.termux"* ]]; then
       pkg install -y $pkg_name
+    elif is_nixos; then
+      nix_profile_install "$pkg_name"
     elif command -v apt &>/dev/null; then
       sudo apt install -y $pkg_name
     elif command -v pacman &>/dev/null; then
@@ -147,6 +166,11 @@ function install_pkg() {
     print_needs "$pkg_name"
     echo -e "${WARN}installing ${NORM}$pkg_name..."
     pkg install -y "$pkg_name"
+  elif is_nixos; then
+    nix_profile_has "$pkg_name" && return 0
+    print_needs "$pkg_name"
+    echo -e "${WARN}installing ${NORM}$pkg_name..."
+    nix_profile_install "$pkg_name"
   elif command -v apt &>/dev/null; then
     dpkg-query -W -f='${Status}' "$pkg_name" 2>/dev/null | grep -q "ok installed" && return 0
     print_needs "$pkg_name"
