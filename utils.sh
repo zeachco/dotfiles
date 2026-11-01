@@ -120,18 +120,25 @@ function is_nixos() {
   [[ -f /etc/NixOS ]] || grep -q '^ID=nixos' /etc/os-release 2>/dev/null
 }
 
+# `nix profile` needs the nix-command + flakes experimental features. A stock
+# NixOS install has them off, and the shared profile runs before the nixos
+# variant writes them to ~/.config/nix/nix.conf, so pass the flag explicitly.
+function nix_cmd() {
+  nix --extra-experimental-features "nix-command flakes" "$@"
+}
+
 # `nix profile list` prints one "Name: <pkg>" line per entry (nix >= 2.20); older
 # versions print the flake attribute, which ends in ".<pkg>".
 function nix_profile_has() {
-  nix profile list 2>/dev/null | grep -qE "^Name: +$1\$|nixpkgs#$1\$|\.$1\$"
+  nix_cmd profile list 2>/dev/null | grep -qE "^Name: +$1\$|nixpkgs#$1\$|\.$1\$"
 }
 
 # nix >= 2.26 renamed `nix profile install` to `add` and warns on the old name.
 function nix_profile_install() {
-  if nix profile add --help >/dev/null 2>&1; then
-    nix profile add "nixpkgs#$1"
+  if nix_cmd profile add --help >/dev/null 2>&1; then
+    nix_cmd profile add "nixpkgs#$1"
   else
-    nix profile install "nixpkgs#$1"
+    nix_cmd profile install "nixpkgs#$1"
   fi
 }
 
