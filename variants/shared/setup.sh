@@ -6,6 +6,17 @@ source "$HOME/dotfiles/utils.sh"
 # not have it yet.
 install git
 
+# A ZIP bootstrap (README) leaves no .git, which dotfiles_update needs. The
+# archive is a snapshot of main, so adopting origin/main loses nothing. HTTPS:
+# a fresh machine has no SSH key yet; switch the remote later if you push.
+if [[ ! -d "$DOT_DIR/.git" ]]; then
+  echo -e "${WARN}converting ${NORM}$DOT_DIR into a git clone..."
+  git -C "$DOT_DIR" init -q -b main
+  git -C "$DOT_DIR" remote add origin https://github.com/zeachco/dotfiles.git
+  git -C "$DOT_DIR" fetch -q origin main
+  git -C "$DOT_DIR" reset -q --hard origin/main
+fi
+
 configureGitIdentity() {
   echo "Email for git config: "
   read git_email

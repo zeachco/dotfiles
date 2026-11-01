@@ -10,8 +10,17 @@ packages without asking. Fork it if you want something else.
 gh repo clone zeachco/dotfiles ~/dotfiles && bash ~/dotfiles/setup.sh
 ```
 
-`git clone git@github.com:zeachco/dotfiles.git` works too, or extract the
-[ZIP](https://github.com/zeachco/dotfiles/archive/refs/heads/main.zip) to `~/dotfiles`.
+`git clone git@github.com:zeachco/dotfiles.git` works too. Without git (fresh
+install), fetch the [ZIP](https://github.com/zeachco/dotfiles/archive/refs/heads/main.zip);
+setup.sh installs git and turns the folder into a clone:
+
+```sh
+curl -fsSL https://github.com/zeachco/dotfiles/archive/refs/heads/main.zip -o /tmp/dotfiles.zip \
+  && unzip -q /tmp/dotfiles.zip -d /tmp && mv /tmp/dotfiles-main ~/dotfiles && bash ~/dotfiles/setup.sh
+```
+
+On NixOS, where curl/unzip may not be on PATH yet, prefix with
+`nix-shell -p curl unzip --run '...'`.
 Re-run with `dotfiles_update` to apply changes and remove deprecated configs.
 
 ## Platforms
