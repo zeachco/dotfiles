@@ -11,17 +11,17 @@ gh repo clone zeachco/dotfiles ~/dotfiles && bash ~/dotfiles/setup.sh
 ```
 
 `git clone git@github.com:zeachco/dotfiles.git` works too. Without git (fresh
-install), fetch the [ZIP](https://github.com/zeachco/dotfiles/archive/refs/heads/main.zip);
-setup.sh installs git and turns the folder into a clone:
+install), fetch the [tarball](https://github.com/zeachco/dotfiles/archive/refs/heads/main.tar.gz);
+setup.sh installs git and turns the folder into a clone. Only curl and tar are
+needed, both present on a bare NixOS, Arch, or macOS:
 
 ```sh
-curl -fsSL https://github.com/zeachco/dotfiles/archive/refs/heads/main.zip -o /tmp/dotfiles.zip \
-  && unzip -q /tmp/dotfiles.zip -d /tmp && mv /tmp/dotfiles-main ~/dotfiles && bash ~/dotfiles/setup.sh
+curl -fsSL https://github.com/zeachco/dotfiles/archive/refs/heads/main.tar.gz | tar -xz -C ~ \
+  && mv ~/dotfiles-main ~/dotfiles && bash ~/dotfiles/setup.sh
 ```
 
-On NixOS, where curl/unzip may not be on PATH yet, prefix with
-`nix-shell -p curl unzip --run '...'`, or import the system module remotely first
-(see the header of `variants/nixos/dotfiles.nix`) so `nixos-rebuild switch` brings git.
+On NixOS you can instead import the system module remotely first (see the header
+of `variants/nixos/dotfiles.nix`) so `nixos-rebuild switch` brings git.
 Re-run with `dotfiles_update` to apply changes and remove deprecated configs.
 
 ## Platforms
