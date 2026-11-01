@@ -126,8 +126,13 @@ function nix_profile_has() {
   nix profile list 2>/dev/null | grep -qE "^Name: +$1\$|nixpkgs#$1\$|\.$1\$"
 }
 
+# nix >= 2.26 renamed `nix profile install` to `add` and warns on the old name.
 function nix_profile_install() {
-  nix profile install "nixpkgs#$1"
+  if nix profile add --help >/dev/null 2>&1; then
+    nix profile add "nixpkgs#$1"
+  else
+    nix profile install "nixpkgs#$1"
+  fi
 }
 
 function install() {

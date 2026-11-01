@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 source "$HOME/dotfiles/utils.sh"
 
+# git is assumed everywhere below, but a fresh install (NixOS in particular, where
+# the system module that ships git only applies after nixos-rebuild switch) may
+# not have it yet.
+install git
+
 configureGitIdentity() {
   echo "Email for git config: "
   read git_email
@@ -77,6 +82,8 @@ fi
 # (~/.local/share) and pulls ~200 MB of CPU-only torch wheels, so it is installed
 # once and skipped on every later dotfiles_update. Python 3.11 specifically: torch
 # 2.5.1+cpu stops at cp312 and Arch ships only the current Python, hence mise/uv.
+# Omarchy ships mise; every other OS gets it from its package manager here.
+install mise
 KOKORO_VENV="$HOME/.local/share/kokoro-tts"
 if install_python_venv kokoro-tts 3.11; then
   kokoro_fresh=0

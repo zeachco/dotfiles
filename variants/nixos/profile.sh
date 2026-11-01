@@ -21,7 +21,7 @@ nixupgrade() {
 nixin() {
     for pkg in "$@"; do
         echo -e "${WARN}installing ${NORM}$pkg into the user profile..."
-        nix profile install "nixpkgs#$pkg"
+        nix_profile_install "$pkg"
     done
 }
 
