@@ -20,7 +20,8 @@ curl -fsSL https://github.com/zeachco/dotfiles/archive/refs/heads/main.zip -o /t
 ```
 
 On NixOS, where curl/unzip may not be on PATH yet, prefix with
-`nix-shell -p curl unzip --run '...'`.
+`nix-shell -p curl unzip --run '...'`, or import the system module remotely first
+(see the header of `variants/nixos/dotfiles.nix`) so `nixos-rebuild switch` brings git.
 Re-run with `dotfiles_update` to apply changes and remove deprecated configs.
 
 ## Platforms

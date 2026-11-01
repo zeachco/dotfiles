@@ -3,6 +3,11 @@
 #
 #   imports = [ ./hardware-configuration.nix ./dotfiles.nix ];
 #
+# Or, before anything is cloned (no git on the box yet), straight from GitHub;
+# nixos-rebuild then provides git for the clone + setup.sh that follow:
+#
+#   "${builtins.fetchTarball "https://github.com/zeachco/dotfiles/archive/main.tar.gz"}/variants/nixos/dotfiles.nix"
+#
 # Everything a user can install on their own goes through `nix profile` in
 # variants/nixos/setup.sh instead, so this file only holds what needs root:
 # the login shell, fonts, system packages the stowed configs expect, and services.
