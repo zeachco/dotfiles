@@ -206,22 +206,36 @@ node_admin() {
 
 alias clone="bun ~/dotfiles/advanced/clone.ts"
 
-# List my github repos in fzf, cd into ~/dev/<repo> or clone it there first
+# List my github + gitlab repos in fzf, cd into ~/dev/<repo> or clone it there first.
+# GitLab needs GITLAB_TOKEN (read_api scope) to see private projects; without it only public ones show.
+_gitlab_repos() {
+  local url="https://gitlab.com/api/v4/projects?membership=true&simple=true&per_page=100&order_by=last_activity_at"
+  local auth=()
+  [ -n "$GITLAB_TOKEN" ] && auth=(-H "PRIVATE-TOKEN: $GITLAB_TOKEN")
+  [ -z "$GITLAB_TOKEN" ] && url="https://gitlab.com/api/v4/users/zeachco/projects?simple=true&per_page=100"
+  curl -sf --max-time 10 "${auth[@]}" "$url" | jq -r '.[] | "gitlab.com/\(.path_with_namespace)"'
+}
+
 repos() {
   local dev_dir="$HOME/dev"
   local repo
-  repo=$(gh repo list --limit 500 | awk '{print $1}' | fzf)
+  repo=$( (gh repo list --limit 500 --json nameWithOwner -q '.[] | "github.com/\(.nameWithOwner)"' & _gitlab_repos & wait) | sort | fzf )
   [ -z "$repo" ] && return 1
 
+  local host="${repo%%/*}" path="${repo#*/}"
   local name
-  name=$(basename "$repo")
+  name=$(basename "$path")
   mkdir -p "$dev_dir"
 
   if [ -d "$dev_dir/$name" ]; then
     cd "$dev_dir/$name" || return 1
   else
     cd "$dev_dir" || return 1
-    gh repo clone "$repo" || return 1
+    if [ "$host" = "github.com" ]; then
+      gh repo clone "$path" || return 1
+    else
+      git clone "git@$host:$path.git" || return 1
+    fi
     cd "$dev_dir/$name" || return 1
     secrets
     # fresh clone: install the toolchain and fetch the env; both are allowed to fail
