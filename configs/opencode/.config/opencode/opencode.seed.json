@@ -8,6 +8,17 @@
         "/home/olivier/.local/bin/blender-mcp"
       ],
       "enabled": true
+    },
+    "lmms": {
+      "type": "local",
+      "command": [
+        "/home/olivier/.venvs/lmms-mcp/bin/lmms-mcp"
+      ],
+      "environment": {
+        "LMMS_EXECUTABLE": "/usr/bin/lmms",
+        "LMMS_PROJECTS_DIR": "/home/olivier/Music/lmms/AI-Projects"
+      },
+      "enabled": true
     }
   },
   "default_agent": "build",
