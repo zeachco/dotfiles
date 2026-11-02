@@ -22,7 +22,7 @@
     "npm:pi-session-summary"
   ],
   "theme": "light/dark",
-  "lastChangelogVersion": "1.4.0",
+  "lastChangelogVersion": "1.5.0",
   "editorPaddingX": 1,
   "outputPad": 1,
   "terminal": {
@@ -33,5 +33,8 @@
   "enableInstallTelemetry": false,
   "defaultProjectTrust": "ask",
   "treeFilterMode": "default",
-  "tuiMode": "fullscreen"
+  "tuiMode": "fullscreen",
+  "extensionChangelogVersions": {
+    "{\"source\":\"npm:pi-subagents\",\"scope\":\"user\"}": "0.78.0"
+  }
 }

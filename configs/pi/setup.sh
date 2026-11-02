@@ -8,8 +8,9 @@
 # before they load. This script runs `pi install` for every package declared in
 # settings.json so that "clone dotfiles + run setup" always yields a working pi.
 #
-# `pi install` is idempotent: packages that are already present are a fast no-op,
-# so re-running setup is safe.
+# `pi install` re-runs a full `npm install` even when the package is already
+# present, so packages found under ~/.pi/agent/npm/node_modules are skipped.
+# Delete that directory (or run `pi install <pkg>` by hand) to force a refresh.
 set -uo pipefail
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
@@ -36,11 +37,15 @@ if (( ${#packages[@]} == 0 )); then
   exit 0
 fi
 
+npm_root="${HOME}/.pi/agent/npm/node_modules"
 status=0
 for pkg in "${packages[@]}"; do
-  if [[ -n "$pkg" ]]; then
-    pi install "$pkg" || status=1
+  [[ -n "$pkg" ]] || continue
+  if [[ "$pkg" == npm:* && -d "$npm_root/${pkg#npm:}" ]]; then
+    echo "present ${pkg}"
+    continue
   fi
+  pi install "$pkg" || status=1
 done
 
 if (( status == 0 )); then
