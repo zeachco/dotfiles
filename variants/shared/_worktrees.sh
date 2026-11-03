@@ -241,6 +241,7 @@ all_my_prs() {
   # stdin (a gh prompt, git asking for credentials) would otherwise swallow the
   # remaining lines and those PRs would silently never get a workspace
   local count=0 skipped=0 failed=0 number branch
+  local delay="${ALL_MY_PRS_DELAY:-5}"
   while read -r number branch <&3; do
     [ -z "$branch" ] && continue
     echo ""
@@ -260,6 +261,14 @@ all_my_prs() {
       echo "Skipping: a space named '${repo_name}:${branch}' is already open."
       skipped=$((skipped + 1))
       continue
+    fi
+
+    # stagger the launches: opening spaces back to back makes herdr juggle
+    # several workspace setups at once, so pause after each one actually
+    # opened (skips cost nothing and don't wait)
+    if [ "$count" -gt 0 ]; then
+      echo "Waiting ${delay}s before opening the next workspace..."
+      sleep "$delay"
     fi
 
     herdr_branch_repo "$branch" --pr="$number"
