@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetch the macOS router's model set. ~29 GB. Resumable and idempotent: re-run to
+# Fetch the macOS router's model set. ~26 GB. Resumable and idempotent: re-run to
 # continue an interrupted download; a completed file is skipped, not re-reported as
 # failed. Safe to run while the router is up -- a directory that appears mid-run is
 # picked up on the next router restart (`los-restart`).
@@ -13,11 +13,12 @@
 #   * a multimodal or multi-shard model MUST live in a SUBDIRECTORY, and its
 #     projector filename MUST start with "mmproj". The id is then the DIRECTORY name.
 #
-# All three models here ship an mmproj, so all three get a subdirectory -- and the
-# directory names below are therefore the exact strings that must appear as section
-# headers in llamacpp/osx/osx.ini and as model ids in any client config. All three
-# repos also happen to name the projector `mmproj-BF16.gguf`, which is a second reason
-# the subdirectories are mandatory: they would collide at the top level.
+# The two gemmas ship an mmproj, and Qwen keeps its subdirectory so its id stays
+# stable -- so all three get a subdirectory, and the directory names below are
+# therefore the exact strings that must appear as section headers in
+# llamacpp/osx/osx.ini and as model ids in any client config. Both gemma repos also
+# name the projector `mmproj-BF16.gguf`, which is a second reason the subdirectories
+# are mandatory: they would collide at the top level.
 #
 # MTP draft heads go in ~/models-drafts, a SIBLING of ~/models rather than a
 # subdirectory of it: anything under --models-dir is scanned, and three unrelated
@@ -38,11 +39,15 @@ fetch unsloth/gemma-4-E2B-it-GGUF mmproj-BF16.gguf           "$MODELS/gemma-4-E2
 fetch unsloth/gemma-4-E4B-it-GGUF gemma-4-E4B-it-Q4_K_M.gguf "$MODELS/gemma-4-E4B-it"
 fetch unsloth/gemma-4-E4B-it-GGUF mmproj-BF16.gguf           "$MODELS/gemma-4-E4B-it"
 
-# --- id: Qwen3.8-27B ------- 16.46 + 0.93 GB. The "think hard" model. -------------
+# --- id: Qwen3.8-27B ------- 14.25 GB. The "think hard" model. -------------------
 # NOTE the id differs from the Ryzen box's `qwen3.8` (same model, different directory
 # name). Client configs that target both boxes need both strings.
-fetch unsloth/Qwen3.8-27B-GGUF Qwen3.8-27B-UD-Q4_K_M.gguf "$MODELS/Qwen3.8-27B"
-fetch unsloth/Qwen3.8-27B-GGUF mmproj-BF16.gguf           "$MODELS/Qwen3.8-27B"
+# 2026-11-03: UD-IQ4_XS instead of UD-Q4_K_M (-2.1 GB, no measurable quality delta)
+# and NO mmproj: the model is text-only in every client config (see vision-relay),
+# so the 0.9 GiB projector was pure Metal overhead. A single gguf in a subdirectory
+# still gets the DIRECTORY name as its id (same as ~/models/laya), so the id is
+# unchanged. Retired files live in ~/models-retired/Qwen3.8-27B.
+fetch unsloth/Qwen3.8-27B-GGUF Qwen3.8-27B-UD-IQ4_XS.gguf "$MODELS/Qwen3.8-27B"
 
 # --- MTP draft heads ------- 1.57 GB total. Optional speculative decode. ----------
 # Cheap enough to always have on disk; wiring them up is a commented-out block at the
