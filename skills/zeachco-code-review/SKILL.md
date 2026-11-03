@@ -14,6 +14,17 @@ description: >
 Review for the code that should exist, not only whether the diff works: easy to
 understand, hard to misuse, fast enough in real conditions, resilient, cheap to change.
 
+## 0. Invocation
+
+Arguments: zero or more PR numbers, and an optional `--dry-run`.
+
+- No number: the PR of the current branch (`gh pr view --json number`).
+- Several numbers: review each one in turn, same rules, one report per PR.
+- `--dry-run`: post nothing on GitHub. Print to the terminal what would have been
+  posted, per PR: the §1 skip verdict or the review body and each inline finding as
+  `path:line kind(ai-review): …`. Everything else in this runbook runs as usual,
+  the §5 challenge included.
+
 ## 1. Establish the frame
 
 Before commenting, know the problem being solved, the intended vs existing behavior,
@@ -32,8 +43,28 @@ gh api "repos/$OWNER/$REPO/pulls/$N/reviews" \
   --jq '.[] | select(.body != "") | "\(.user.login): \(.body | split("\n")[0])"'
 ```
 
-Keep the list of (file, line, concern) already raised. New comments go where nobody has
-looked; something to add to an existing thread is a reply there, not a new comment.
+Keep the list of (file, line, concern) already raised, and who raised it. A concern a
+teammate already posted is theirs: do not re-raise it in other words, on a nearby line,
+or as a question. Something to add to that thread (a second call site, a repro, a
+bound) is a reply there, not a new comment, and only when it changes the outcome. New
+comments go where nobody has looked.
+
+Then decide whether the PR needs this review at all:
+
+```bash
+gh api "repos/$OWNER/$REPO/pulls/$N/reviews" \
+  --jq '[.[] | select(.state == "APPROVED") | .user.login] | unique'
+gh pr view "$N" --json reviewRequests,reviewDecision
+```
+
+With two or more approvals from distinct humans, and nothing that asks for my input
+(no review request naming me or my team, no thread that mentions me, no open
+`blocking` thread, no question left unanswered that I can answer), the PR is covered:
+stop here with a one-line verdict, `skip: N approvals, nothing waiting on me`. When a
+quick read still turns up a `blocking` finding, post that one finding alone, after §5.
+Outside `--dry-run`, if a request for my review is pending on such a PR, approve with a
+one-line body (`covered by <reviewers>, no new finding`) instead of adding a third
+review nobody asked for.
 
 ## 2. Review in this order
 
