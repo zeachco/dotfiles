@@ -299,6 +299,48 @@ EOF
 }
 _set allprs "all_my_prs"
 
+# List the open PRs waiting on a review from me or one of my teams and hand
+# them to claude for a dry-run /zeachco-code-review: nothing is posted on the
+# PRs, the findings land in the terminal. No devbox, no worktree, no herdr.
+review_prs() {
+  _git_check_repo || return 1
+
+  local login teams
+  login=$(gh api user --jq .login </dev/null 2>/dev/null)
+  if [ -z "$login" ]; then
+    echo "Error: gh is not authenticated"
+    return 1
+  fi
+  # team-review-requested only matches teams spelled org/slug, so build the
+  # query from the teams I belong to (none is fine: the @me clause stays)
+  teams=$(gh api user/teams --paginate \
+    --jq '.[] | "team-review-requested:" + .organization.login + "/" + .slug' </dev/null 2>/dev/null)
+
+  echo "Fetching PRs waiting on $login or their teams..."
+  local prs
+  prs=$(gh pr list --state open --json number,title,author \
+    --search "review-requested:@me" \
+    --jq '.[] | "\(.number) \(.author.login): \(.title)"' </dev/null)
+  local query
+  for query in $teams; do
+    prs=$(printf '%s\n%s' "$prs" "$(gh pr list --state open --json number,title,author \
+      --search "$query" --jq '.[] | "\(.number) \(.author.login): \(.title)"' </dev/null)")
+  done
+  # my own PRs are not mine to review; dedup PRs requested from several sides
+  prs=$(printf '%s\n' "$prs" | grep -v "^[0-9]* ${login}:" | awk 'NF && !seen[$1]++')
+  if [ -z "$prs" ]; then
+    echo "Nothing to review."
+    return 0
+  fi
+
+  echo "$prs"
+  local numbers
+  numbers=$(printf '%s\n' "$prs" | awk '{print $1}' | tr '\n' ' ')
+  echo ""
+  claude --permission-mode auto "/zeachco-code-review --dry-run ${numbers% }"
+}
+_set review "review_prs"
+
 worktree_branch_delete() {
   if ! git rev-parse --git-dir > /dev/null 2>&1; then
     echo "Error: Not in a git repository"
