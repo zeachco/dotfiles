@@ -6,7 +6,9 @@ description: >
   the review threads already on the PR instead of repeating them, and proposes a
   simpler shape (as code or pseudo code) when the surrounding code is messy, even
   outside the diff. Every finding is handed to a devil's-advocate sub-agent that
-  tries to disprove it before it is posted.
+  tries to disprove it before it is posted. Nits and questions are the exception, not
+  the default: a nit needs a real consequence, a question needs context the code
+  cannot supply.
 ---
 
 # Code review runbook
@@ -132,17 +134,31 @@ Every non-trivial finding should include:
 5. **Kind** — the comment prefix (§6): `blocking`, `non-blocking`, `preference`, `nit`,
    `question`, or `praise`.
 
-Prefer questions when intent is unclear. Separate correctness issues from design
-preferences. Praise is rare: reserve it for something not commonly seen in the field,
-not for ordinary good practice. Do not produce a long list of style opinions after the
-important risks are covered.
+Separate correctness issues from design preferences. Praise is rare: reserve it for
+something not commonly seen in the field, not for ordinary good practice. Do not produce
+a long list of style opinions after the important risks are covered.
+
+Nits and questions are rare too. Before writing either, try to resolve it yourself:
+
+- A **question** is only for intent that the code, tests, PR description, commit
+  messages, linked issue and existing threads genuinely cannot settle. Read those first.
+  If the answer is implied, do not ask; if it is not, ask, and say what you looked at.
+  Never dress up a preference or a finding you are unsure of as a question — either it
+  survives §5 as what it is, or it is dropped.
+- A **nit** is only posted when leaving it would cost something concrete: a name that
+  will mislead the next reader, a stale usage line that will be copied, a typo in a
+  user-facing or logged string. Pure style (formatting, ordering, wording that is
+  understandable as is) is not posted. One nit per review is normal; several means
+  some should go.
+- When a nit or question would be the only comment on an otherwise sound PR, prefer
+  no comment.
 
 Useful forms:
 
 - “Can we make this direct/explicit? I have to navigate through `<abstraction>` to
   understand `<behavior>`.”
 - “What happens when `<failure or edge case>`? Please add a test or explain the
-  intended fallback.”
+  intended fallback.” (only when the code and tests do not already answer it)
 - “This adds `<cost>` per `<request/item>`; can we measure it or bound the work?”
 - “Can we split the refactor from the behavior change so rollback and review stay
   clear?”
@@ -162,8 +178,9 @@ Useful forms:
   Would that fit here, or is there a constraint I'm not seeing?”
 
   Scope it: in this PR when it is small and stays within the changed code, otherwise a
-  recorded follow-up. On its own it is a `question` or `preference`, never `blocking`,
-  and the lifecycle exceptions in §3 apply (no shape proposals on code leaving soon).
+  recorded follow-up. On its own it is a `preference`, never `blocking`; phrase it as a
+  question only when a real constraint might exist that you could not find. The
+  lifecycle exceptions in §3 apply (no shape proposals on code leaving soon).
 
 ## 5. Challenge every finding before posting
 
@@ -223,6 +240,11 @@ Apply the verdicts:
 
 The review body's verdict is built from the surviving findings only.
 
+Then prune one more time, before posting: for each surviving `nit` or `question`, drop
+it unless it clears the bar in §4 (a concrete cost for the nit; a real gap in context
+for the question). A challenge only proves a finding is true, not that it is worth the
+author's time.
+
 ## 6. Deliver each finding on its diff line
 
 Post findings as **inline PR review comments anchored to the exact line of the PR
@@ -240,9 +262,11 @@ is. One review submission carries all of them.
   - `preference(ai-review): …` — a design or style preference the author may decline.
     Only with the reasoning and why it is worth considering here; a preference without
     its why is not posted.
-  - `nit(ai-review): …` — a small thing (naming, a typo, formatting, a stale usage
-    line). Same rule: say why it is worth the change, or leave it out.
-  - `question(ai-review): …?` — intent is unclear; the body ends with a question mark.
+  - `nit(ai-review): …` — rare: a small thing with a concrete cost (a misleading name,
+    a stale usage line, a typo in a visible string). Say why it is worth the change, or
+    leave it out; formatting and wording preferences are never a nit.
+  - `question(ai-review): …?` — rare: intent that the code, tests, description and
+    threads could not settle. Name what you checked; the body ends with a question mark.
   - `praise(ai-review): …` — rarely: only for something not commonly seen in the field.
 - The review body carries no kind prefix: it opens with the verdict and maps the inline
   findings in a line. The `(ai-review)` decoration on each comment marks the origin.
@@ -270,7 +294,7 @@ gh api "repos/$OWNER/$REPO/pulls/$N/reviews" -X POST --input - <<JSON
     { "path": "src/x.ts", "line": 53, "side": "RIGHT",
       "body": "non-blocking(ai-review): <problem / consequence / smallest improvement>" },
     { "path": "src/y.ts", "line": 12, "side": "RIGHT",
-      "body": "question(ai-review): <what is unclear, under which condition>?" }
+      "body": "blocking(ai-review): <incorrect behavior / condition / fix>" }
   ]
 }
 JSON
@@ -291,4 +315,6 @@ Before approving, confirm that:
 - every remaining concern has an owner, scope, or explicit acceptance;
 - every posted finding survived its challenge (§5), and what the challenge sharpened is
   in the comment;
-- nothing in the review repeats a thread that was already open.
+- nothing in the review repeats a thread that was already open;
+- every `nit` and `question` left in the review earned its place (§4): a cost named,
+  or a gap in context that reading could not close.
