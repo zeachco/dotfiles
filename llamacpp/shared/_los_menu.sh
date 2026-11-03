@@ -244,6 +244,18 @@ emit("%slogs%s              %sfollow a router's journal%s" % (BOLD, OFF, DIM, OF
      "  a Vulkan/GGML allocation error in the router's log while the client just sees a\n"
      "  400. Ctrl-C to stop following.\n")
 
+emit("%srestart%s           %srestart every router daemon%s" % (BOLD, OFF, DIM, OFF),
+     "restart",
+     "restart\n\n"
+     "  Restarts the DAEMON of every tier (systemctl --user restart <unit>; launchctl\n"
+     "  kickstart -k on macOS), reachable or not -- this is the way to bring back a tier\n"
+     "  the header lists as unreachable, or to pick up an edited .ini.\n\n"
+     "  Every model on every router is unloaded by this: in-flight requests die and all\n"
+     "  cached contexts are gone. Models come back on demand (light/cheap autoload) or\n"
+     "  through 'load' (heavy runs --no-models-autoload).\n\n"
+     "  Same thing as `los-restart-all` in a shell, which also works when the menu\n"
+     "  cannot open because no router answers.\n")
+
 emit("%ssync-models%s       %spush model catalogs into pi and opencode%s" % (BOLD, OFF, DIM, OFF),
      "sync-models",
      "sync-models\n\n"
@@ -491,6 +503,29 @@ _los_menu_sync_models() {
   return $rc
 }
 
+# Restart every tier's daemon, reachable or not. Public (not _los_menu_*) because it is
+# the verb to reach for precisely when the menu refuses to open: `los` bails out when no
+# router answers, and a crashed set of routers is exactly that situation.
+los-restart-all() {
+  local spec tier unit rc=0
+  for spec in $LOS_MENU_TIERS; do
+    tier="${spec%%:*}"; unit="${spec##*:}"
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+      # kickstart -k restarts whether or not the job is running; stop+start does not.
+      launchctl kickstart -k "gui/$(id -u)/${unit%.service}" && echo "restarted $tier ($unit)" || rc=1
+    else
+      systemctl --user restart "$unit" && echo "restarted $tier ($unit)" || rc=1
+    fi
+  done
+  return $rc
+}
+
+_los_menu_restart_all() {
+  los-restart-all
+  printf '\n%s' "[enter] back to the menu "
+  read -r
+}
+
 _los_menu_logs() {
   local spec tier port unit pick
   pick=$(for spec in $LOS_MENU_TIERS; do
@@ -509,6 +544,7 @@ los() {
       echo "los                            interactive menu over the llama.cpp routers"
       echo "los-load <model>               load a model and wait until it reports loaded"
       echo "los-drain [url]                unload everything on a router (default :7070)"
+      echo "los-restart-all                restart every router daemon (the menu's 'restart')"
       echo "llamacpp-sync                  the menu's sync-models action, non-interactive"
       echo "los-server-{light,cheap,heavy} run a router in the FOREGROUND (the daemons'"
       echo "                               journals are the menu's 'logs' action instead)"
@@ -525,7 +561,7 @@ los() {
     # and that happens before the redirect can swallow it.
     find "$dir" -mindepth 1 -delete 2>/dev/null
     _los_menu_snapshot "$dir" "$LOS_MENU_TIERS" || { rm -rf "$dir"; return 1; }
-    [[ -s "$dir/index.tsv" ]] || { echo "los: no routers reachable ($LOS_MENU_TIERS)" >&2; rm -rf "$dir"; return 1; }
+    [[ -s "$dir/index.tsv" ]] || { echo "los: no routers reachable ($LOS_MENU_TIERS) -- try los-restart-all" >&2; rm -rf "$dir"; return 1; }
 
     # -m so several models can be toggled in one pass. With nothing marked, fzf returns
     # the hovered row, so the single-selection path below is the normal case.
@@ -575,6 +611,7 @@ los() {
         _los_menu_run_many "$dir" "$sub" "$want"
         ;;
       logs) _los_menu_logs ;;
+      restart) _los_menu_restart_all ;;
       sync-models) _los_menu_sync_models ;;
       model)
         case "$(_los_menu_meta "$dir" "$key" 6)" in

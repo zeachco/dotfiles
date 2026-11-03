@@ -65,6 +65,7 @@ fetch          llamacpp/<os>/fetch-models*.sh        resumable HF downloads into
 verify         llamacpp/shared/verify-models.sh      SHA-256 vs the HF sidecar recorded at fetch
 serve          router autoloads from --models-dir    (LLAMA_CACHE per tier keeps tiers isolated)
 sync clients   bin/llamacpp-sync  (los → sync-models) rebuilds pi/opencode model defs from /v1/models
+restart all    los-restart-all    (los → restart) restarts every tier's daemon, reachable or not
 audit          bin/llamacpp-audit                    ~/models vs INI presets vs client configs must agree
 ```
 
