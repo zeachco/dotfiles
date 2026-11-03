@@ -18,6 +18,34 @@
 # tier:port:unit -- the three routers in llamacpp/archlinux. Override to add a box.
 LOS_MENU_TIERS="${LOS_MENU_TIERS:-light:7070:llama-router.service cheap:7071:llama-router-cheap.service heavy:7072:llama-router-heavy.service}"
 
+# Loops over LOS_MENU_TIERS go through $(printf ...): zsh does not word-split an unquoted
+# $var (shwordsplit is off), but it does split command substitution, and bash does both.
+# Is this tier's daemon installed on this box at all? The Mac only installs the light
+# router (llamacpp/osx), and the Arch installer skips the heavy tier on a box without
+# the RAM for it, so a missing unit is information, not a failure: the menu lists it
+# as "not installed" and restart skips it instead of erroring on it.
+# launchd target for a systemd unit name: llama-router.service -> gui/501/com.zeachco.llama-router
+_los_launchd_target() { echo "gui/$(id -u)/com.zeachco.${1%.service}"; }
+
+_los_unit_installed() {
+  local unit="$1"
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    launchctl print "$(_los_launchd_target "$unit")" >/dev/null 2>&1
+  else
+    systemctl --user cat "$unit" >/dev/null 2>&1
+  fi
+}
+
+# Space-separated tier names whose unit is missing, for the snapshot header.
+_los_tiers_not_installed() {
+  local spec tier unit out=
+  for spec in $(printf "%s\n" $LOS_MENU_TIERS); do
+    tier="${spec%%:*}"; unit="${spec##*:}"
+    _los_unit_installed "$unit" || out="$out $tier"
+  done
+  echo "${out# }"
+}
+
 _los_menu_deps() {
   local missing=
   command -v fzf >/dev/null 2>&1 || missing="$missing fzf"
@@ -33,10 +61,11 @@ _los_menu_deps() {
 # file reads -- hovering never re-queries a router, so the menu stays instant even when
 # a tier is busy generating.
 _los_menu_snapshot() {
-  python3 - "$@" <<'PY'
+  LOS_NOT_INSTALLED="$(_los_tiers_not_installed)" python3 - "$@" <<'PY'
 import json, os, sys, glob, urllib.request, urllib.parse
 
 outdir, tierspec = sys.argv[1], sys.argv[2]
+not_installed = set(os.environ.get("LOS_NOT_INSTALLED", "").split())
 
 # Measured footprints, so an UNLOADED model can still be shown the number that decides
 # whether it fits: weights-on-disk badly understates it (qwen3.8 is 15.7 GiB of weights
@@ -179,9 +208,12 @@ if loaded:
     head.append("%d loaded (%s)" % (len(loaded), ", ".join(r["id"] for r in loaded)))
 if asleep:
     head.append("%d asleep (%s)" % (len(asleep), ", ".join(r["id"] for r in asleep)))
-down = [n for n, ok in reachable.items() if not ok]
+down = [n for n, ok in reachable.items() if not ok and n not in not_installed]
 if down:
     head.append("%sunreachable: %s%s" % (RED, " ".join(down), OFF))
+absent = [n for n, _, _ in tiers if n in not_installed]
+if absent:
+    head.append("%snot installed: %s%s" % (DIM, " ".join(absent), OFF))
 open(os.path.join(outdir, "header.txt"), "w").write("  ·  ".join(head) or "no routers reachable")
 
 # ---- rows -------------------------------------------------------------------
@@ -249,7 +281,8 @@ emit("%srestart%s           %srestart every router daemon%s" % (BOLD, OFF, DIM, 
      "restart\n\n"
      "  Restarts the DAEMON of every tier (systemctl --user restart <unit>; launchctl\n"
      "  kickstart -k on macOS), reachable or not -- this is the way to bring back a tier\n"
-     "  the header lists as unreachable, or to pick up an edited .ini.\n\n"
+     "  the header lists as unreachable, or to pick up an edited .ini. Tiers whose unit\n"
+     "  is not installed on this box (the header's 'not installed') are skipped.\n\n"
      "  Every model on every router is unloaded by this: in-flight requests die and all\n"
      "  cached contexts are gone. Models come back on demand (light/cheap autoload) or\n"
      "  through 'load' (heavy runs --no-models-autoload).\n\n"
@@ -428,7 +461,7 @@ _los_menu_toggle_many() {
 # Unload only what has no slot generating, everywhere.
 _los_menu_drain_idle() {
   local spec tier port unit any=
-  for spec in $LOS_MENU_TIERS; do
+  for spec in $(printf "%s\n" $LOS_MENU_TIERS); do
     tier="${spec%%:*}"; port="${spec#*:}"; port="${port%%:*}"
     local ids id
     ids=$(curl -sf -m 5 "http://127.0.0.1:$port/v1/models" 2>/dev/null | python3 -c 'import sys,json
@@ -508,11 +541,15 @@ _los_menu_sync_models() {
 # router answers, and a crashed set of routers is exactly that situation.
 los-restart-all() {
   local spec tier unit rc=0
-  for spec in $LOS_MENU_TIERS; do
+  for spec in $(printf "%s\n" $LOS_MENU_TIERS); do
     tier="${spec%%:*}"; unit="${spec##*:}"
+    if ! _los_unit_installed "$unit"; then
+      echo "skipped $tier ($unit not installed on this box)"
+      continue
+    fi
     if [[ "$(uname -s)" == "Darwin" ]]; then
       # kickstart -k restarts whether or not the job is running; stop+start does not.
-      launchctl kickstart -k "gui/$(id -u)/${unit%.service}" && echo "restarted $tier ($unit)" || rc=1
+      launchctl kickstart -k "$(_los_launchd_target "$unit")" && echo "restarted $tier ($unit)" || rc=1
     else
       systemctl --user restart "$unit" && echo "restarted $tier ($unit)" || rc=1
     fi
@@ -528,7 +565,7 @@ _los_menu_restart_all() {
 
 _los_menu_logs() {
   local spec tier port unit pick
-  pick=$(for spec in $LOS_MENU_TIERS; do
+  pick=$(for spec in $(printf "%s\n" $LOS_MENU_TIERS); do
       tier="${spec%%:*}"; unit="${spec##*:}"; port="${spec#*:}"; port="${port%%:*}"
       printf '%s\t%-6s %s%s (:%s)%s\n' "$unit" "$tier" $'\033[2m' "$unit" "$port" $'\033[0m'
     done | fzf --ansi --delimiter='\t' --with-nth=2.. --height=~40% --reverse \
