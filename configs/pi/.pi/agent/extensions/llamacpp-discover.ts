@@ -266,8 +266,32 @@ async function ensureLoaded(baseUrl: string, id: string, notify: Notify): Promis
 	notify(`${id}: timed out waiting for the load. Check with: ${cmd}`, "error");
 }
 
+type Router = (typeof ROUTERS)[number] & { fallback: ModelDef[] };
+type Register = (provider: string, baseUrl: string, models: ModelDef[]) => void;
+
+/** Re-register one provider from what its router serves now; returns a one-line note. */
+async function refreshRouter({ provider, baseUrl, fallback }: Router, register: Register): Promise<string> {
+	let live: LiveModel[];
+	try {
+		live = await fetchLive(baseUrl);
+	} catch (err) {
+		if (isRefused(err)) {
+			// Nothing listens on that port: this box does not run the tier at all
+			// (e.g. no heavy router), so do not offer models that cannot answer.
+			register(provider, baseUrl, []);
+			return `${provider}: no router on ${baseUrl}; provider emptied`;
+		}
+		// Transient (timeout, 5xx, bad JSON): keep what models.json says.
+		return `${provider}: ${baseUrl} failed (${(err as Error).message}); keeping models.json`;
+	}
+	const models = discoverModels(fallback, live);
+	if (!models.length) return `${provider}: ${baseUrl} failed (no chat models); keeping models.json`;
+	register(provider, baseUrl, models);
+	return `${provider}: ${models.length} models from ${baseUrl}`;
+}
+
 export default function (pi: ExtensionAPI) {
-	const register = (provider: string, baseUrl: string, models: ModelDef[]) =>
+	const register: Register = (provider, baseUrl, models) =>
 		pi.registerProvider(provider, {
 			name: `${provider} (${baseUrl})`,
 			baseUrl,
@@ -281,32 +305,7 @@ export default function (pi: ExtensionAPI) {
 	// Instant: the static list, so startup never waits on the router.
 	for (const { provider, baseUrl, fallback } of routers) register(provider, baseUrl, fallback);
 
-	const refresh = async (): Promise<string[]> => {
-		const notes: string[] = [];
-		await Promise.all(
-			routers.map(async ({ provider, baseUrl, fallback }) => {
-				try {
-					const live = await fetchLive(baseUrl);
-					const models = discoverModels(fallback, live);
-					if (!models.length) throw new Error("no chat models");
-					register(provider, baseUrl, models);
-					notes.push(`${provider}: ${models.length} models from ${baseUrl}`);
-				} catch (err) {
-					const message = (err as Error).message;
-					if (isRefused(err)) {
-						// Nothing listens on that port: this box does not run the tier at all
-						// (e.g. no heavy router), so do not offer models that cannot answer.
-						register(provider, baseUrl, []);
-						notes.push(`${provider}: no router on ${baseUrl}; provider emptied`);
-					} else {
-						// Transient (timeout, 5xx, bad JSON): keep what models.json says.
-						notes.push(`${provider}: ${baseUrl} failed (${message}); keeping models.json`);
-					}
-				}
-			}),
-		);
-		return notes;
-	};
+	const refresh = () => Promise.all(routers.map((r) => refreshRouter(r, register)));
 
 	// Background, after the session is up; never awaited by pi.
 	pi.on("session_start", () => {
