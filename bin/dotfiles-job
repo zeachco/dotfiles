@@ -8,10 +8,14 @@
 # closes the workspaces once every job has written its rc (see herdr_fan_out in
 # utils.sh).
 #
-# Usage: dotfiles-job <sysupdate|llamacpp|profile> <rc-dir>
+# Usage: dotfiles-job <sysupdate|llamacpp|models|profile> <rc-dir>
 #
 #   sysupdate  system packages (omarchy update / pacman -Syu); Arch only today
 #   llamacpp   llamacpp/<variant>/setup.sh (pull + rebuild + router install)
+#   models     bin/llamacpp-fetch-missing: lists the GGUFs the per-OS fetch recipe
+#              wants that are not on disk and downloads them after a [y/N] in the
+#              pane (declined / unanswered = rc 0, nothing fetched). Only on the two
+#              local-LLM boxes (llamacpp/shared/_hw-gate.sh).
 #   profile    setup.sh itself with the two steps above skipped
 #              (DOTFILES_SKIP_SYSUPDATE / DOTFILES_SKIP_LLAMACPP), DOTFILES_JOB set
 #              so it does not fan out again.
@@ -30,6 +34,7 @@ echo -e "${INFO}dotfiles job ${NORM}$job"
 case "$job" in
   sysupdate) system_update ;;
   llamacpp) bash "$DOT_DIR/llamacpp/$(dotfiles_variant)/setup.sh" ;;
+  models) bash "$DOT_DIR/bin/llamacpp-fetch-missing" ;;
   profile) DOTFILES_SKIP_SYSUPDATE=1 DOTFILES_SKIP_LLAMACPP=1 "$SHELL" "$DOT_DIR/setup.sh" ;;
   *)
     echo -e "${FAIL}unknown job: $job${NORM}"

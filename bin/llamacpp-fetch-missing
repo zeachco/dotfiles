@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Download the llama.cpp models that are missing from this box, after a confirmation.
+#
+# Two passes over the per-OS fetch recipe (llamacpp/<variant>/fetch-models*.sh):
+#   1. plan   LOS_FETCH_PLAN=<file> -- the shared fetch lib only runs its size
+#             pre-check and lists every file that is absent or differs from upstream,
+#             with its size. Nothing is written under ~/models.
+#   2. fetch  the same recipe for real, which skips what the plan skipped, resumes
+#             partial files, verifies digests and asks the routers to rescan.
+# Between the two, the plan is printed and the run waits for a `y`. Decline, no answer
+# within LOS_FETCH_TIMEOUT (default 300 s) or no terminal at all = nothing fetched,
+# exit 0 -- so the Herdr `models` job (bin/dotfiles-job) can leave this unattended
+# and still close its workspace. LOS_FETCH_YES=1 skips the prompt (non-interactive
+# installs). The Arch heavy tier keeps its own opt-in, LOS_FETCH_HEAVY=1.
+#
+# Runs with literal bash on purpose (see llamacpp/README.md) and stays bash 3.2 clean:
+# the Mac runs it too.
+set -uo pipefail
+
+DOT_DIR="$HOME/dotfiles"
+. "$DOT_DIR/llamacpp/shared/_hw-gate.sh"
+
+case "$(uname -s)" in
+Darwin) recipe="$DOT_DIR/llamacpp/osx/fetch-models-osx.sh"; gate=is_apple_silicon ;;
+Linux)  recipe="$DOT_DIR/llamacpp/archlinux/fetch-models.sh"; gate=is_ryzen_ai_max ;;
+*)      echo "llama.cpp models: unsupported OS $(uname -s), nothing to do"; exit 0 ;;
+esac
+
+if ! "$gate"; then
+  echo "llama.cpp models: not a local-LLM box (see llamacpp/shared/_hw-gate.sh), nothing to do"
+  exit 0
+fi
+
+plan="$(mktemp "${TMPDIR:-/tmp}/llamacpp-plan.XXXXXX")"
+trap 'rm -f "$plan"' EXIT
+
+echo "==> checking ~/models against $recipe"
+LOS_FETCH_PLAN="$plan" bash "$recipe" >/dev/null 2>&1
+
+if [ ! -s "$plan" ]; then
+  echo "All models are on disk; nothing to download."
+  exit 0
+fi
+
+# bytes -> GiB with one decimal; awk rather than bash arithmetic because the sizes
+# exceed 2^31 and bash 3.2 has no printf %f.
+echo
+echo "Missing or out-of-date files:"
+awk -F '\t' '{ gib = $4 / 1073741824; total += $4
+               dest = $3; sub("^" ENVIRON["HOME"] "/", "~/", dest)
+               n = split($2, parts, "/"); base = parts[n]
+               printf "  %7.1f GiB  %s  <- %s\n", gib, dest "/" base, $1 }
+             END { printf "  %7.1f GiB  total, %d file(s)\n", total / 1073741824, NR }' "$plan"
+echo
+
+# A retired copy is an mv, not a 16 GB download (fetch-models.sh says so per model).
+while IFS="$(printf '\t')" read -r _ file dest _; do
+  base="${file##*/}"
+  [ -f "$HOME/models/retired/$base" ] || continue
+  echo "note: ~/models/retired/$base exists; \`mv\` it to ~/${dest#$HOME/}/ instead of downloading"
+done <"$plan"
+
+if [ "${LOS_FETCH_YES:-0}" != "1" ]; then
+  if [ ! -t 0 ]; then
+    echo "No terminal to confirm on; re-run with LOS_FETCH_YES=1 to download. Nothing fetched."
+    exit 0
+  fi
+  answer=""
+  read -r -t "${LOS_FETCH_TIMEOUT:-300}" -p "Download now? [y/N] " answer || answer=""
+  echo
+  case "$answer" in
+  y | Y | yes | YES) ;;
+  *) echo "Nothing fetched. Re-run: bash $DOT_DIR/bin/llamacpp-fetch-missing"; exit 0 ;;
+  esac
+fi
+
+bash "$recipe"

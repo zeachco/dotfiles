@@ -30,9 +30,13 @@ management. This file keeps only the map and the gotchas.
   time. A profile change reaches a machine only after re-running `setup.sh` /
   `dotfiles_update` — an already-open shell keeps the old values.
 - **Inside Herdr, `setup.sh` fans out.** With `HERDR_ENV=1` and `herdr` on PATH, `setup.sh`
-  only opens one Herdr workspace per long step (`sysupdate`, `llamacpp`, `profile`, via
-  `bin/dotfiles-job`), waits for their rc files, closes the workspaces that passed and leaves
-  a failed one open. The profile job re-runs `setup.sh` with `DOTFILES_JOB` set plus
+  only opens one Herdr workspace per long step (`sysupdate`, `llamacpp`, `models`, `profile`,
+  via `bin/dotfiles-job`), waits for their rc files, closes the workspaces that passed and
+  leaves a failed one open. The `models` job (local-LLM boxes only) runs
+  `bin/llamacpp-fetch-missing`: it lists what the per-OS fetch recipe wants and is not on
+  disk, then waits for a `y` in its pane before downloading — so the whole update blocks on
+  that prompt until it is answered or times out (5 min = no). `DOTFILES_SKIP_MODELS=1` drops
+  the job. The profile job re-runs `setup.sh` with `DOTFILES_JOB` set plus
   `DOTFILES_SKIP_SYSUPDATE` / `DOTFILES_SKIP_LLAMACPP`, so a new long step must honour a
   skip flag of its own or it runs twice. `DOTFILES_PARALLEL=0` forces the serial path.
   pacman calls wait on `/var/lib/pacman/db.lck` (`pacman_wait_lock`) because the system

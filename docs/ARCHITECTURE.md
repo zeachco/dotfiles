@@ -13,8 +13,9 @@ idempotent: re-running `setup.sh` (or `dotfiles_update`) **is** the update mecha
 
 ```
 setup.sh
-├─ herdr_fan_out                   (inside Herdr only: sysupdate | llamacpp | profile run in
-│                                   parallel workspaces, profile = this same tree with skips)
+├─ herdr_fan_out                   (inside Herdr only: sysupdate | llamacpp | models | profile
+│                                   run in parallel workspaces; models asks [y/N] before
+│                                   fetching, profile = this same tree with skips)
 ├─ OS detection                    (uname + /etc/NixOS, /etc/arch-release, TERMUX)
 ├─ clean_imports                   (strip old source hooks from the shell rc)
 ├─ install_profile "shared"        (base tools + configs on every OS)

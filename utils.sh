@@ -394,8 +394,10 @@ function pacman_wait_lock {
 
 # ---- parallel update inside Herdr ----------------------------------------------------
 # When setup.sh runs in a Herdr pane, the long steps run side by side, one Herdr
-# workspace each (bin/dotfiles-job): the system update, the llama.cpp rebuild and
-# the profile installation. Each job writes <rc-dir>/<job>.rc when it exits; this
+# workspace each (bin/dotfiles-job): the system update, the llama.cpp rebuild, the
+# model download (on the local-LLM boxes only; it asks [y/N] in its pane before
+# fetching anything, and only fetches what is missing) and the profile installation.
+# Each job writes <rc-dir>/<job>.rc when it exits; this
 # polls those files, prints a summary, closes the workspaces of the jobs that passed
 # and leaves a failed one open so its output can be read. Returns non-zero when any
 # job failed, and 1 immediately when a workspace disappears (closed by hand).
@@ -410,11 +412,22 @@ function herdr_fan_out_available {
   herdr status server &>/dev/null
 }
 
+# The models job only makes sense where llamacpp/shared/_hw-gate.sh says local models
+# run at all; elsewhere it would open a workspace just to say so. Sourced in a
+# subshell so the gate's helpers do not leak into the profile.
+function herdr_models_job_wanted {
+  (
+    . "$DOT_DIR/llamacpp/shared/_hw-gate.sh"
+    is_ryzen_ai_max || is_apple_silicon
+  )
+}
+
 function herdr_fan_out {
   local variant jobs=() job rc_dir result ws pane
   variant="$(dotfiles_variant)"
   [[ "$variant" == archlinux ]] && jobs+=(sysupdate)
   [[ -n "$variant" && -f "$DOT_DIR/llamacpp/$variant/setup.sh" ]] && jobs+=(llamacpp)
+  if [[ "${DOTFILES_SKIP_MODELS:-}" != 1 ]] && herdr_models_job_wanted; then jobs+=(models); fi
   jobs+=(profile)
 
   rc_dir="$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-update.XXXXXX")"

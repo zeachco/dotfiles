@@ -8,6 +8,15 @@
 HF="${HF:-https://huggingface.co}"
 FETCH_FAILURES=0
 
+# PLAN MODE (LOS_FETCH_PLAN=<file>): nothing is downloaded, verified, linked or reloaded.
+# fetch() still runs its size pre-check and appends every file that is missing or
+# differs from upstream to the plan file as "<repo>\t<file>\t<dest>\t<bytes>", so a
+# fetch script run twice -- once in plan mode, once for real -- yields a "what would be
+# downloaded" list first. bin/llamacpp-fetch-missing builds its confirmation prompt
+# from that list. fetch_dir_model's directory guard applies in plan mode too, so a
+# legacy quant on disk never shows up as "missing".
+FETCH_PLAN="${LOS_FETCH_PLAN:-}"
+
 # fetch <repo> <file> <destdir>
 #
 # Resumable AND idempotent. The idempotence guard is the point: plain `curl -C -` on
@@ -19,8 +28,6 @@ fetch() {
   local out="$dest/${file##*/}"
   local url="$HF/$repo/resolve/main/$file"
   local remote local_size remote_meta remote_sha
-
-  mkdir -p "$dest"
 
   # HF sets x-linked-size for LFS objects, which is the true object size;
   # content-length on the redirect chain is the fallback. tolower($1) rather than
@@ -47,13 +54,22 @@ fetch() {
   if [ -f "$out" ] && [ -n "$remote" ]; then
     local_size="$(wc -c <"$out" | tr -d ' ')"
     if [ "$local_size" = "$remote" ]; then
-      echo "==> $repo :: ${file##*/} (complete, skipping)"
+      [ -n "$FETCH_PLAN" ] || echo "==> $repo :: ${file##*/} (complete, skipping)"
       # Backfill on the skip path too, so re-running a fetch gives models that were
       # already on disk a provenance record without re-downloading them.
       record_provenance "$dest" "${file##*/}" "$repo" "$file" "$remote_sha" "$remote"
       return 0
     fi
   fi
+
+  if [ -n "$FETCH_PLAN" ]; then
+    # A HEAD that failed leaves $remote empty; the real run will report that as a
+    # failure, so plan it as a download of unknown size rather than hiding it.
+    printf '%s\t%s\t%s\t%s\n' "$repo" "$file" "$dest" "${remote:-0}" >>"$FETCH_PLAN"
+    return 0
+  fi
+
+  mkdir -p "$dest"
 
   # Announce an in-place OVERWRITE distinctly from a first download. A local file
   # whose size differs from upstream is a stale or foreign build (a different quant
@@ -114,6 +130,7 @@ hf_ls() {
 
 # Call at the end of a fetch script so a 404'd filename cannot exit 0.
 fetch_report() {
+  [ -z "$FETCH_PLAN" ] || return 0
   if [ "$FETCH_FAILURES" -gt 0 ]; then
     echo "$FETCH_FAILURES download(s) failed. Check filenames with: hf_ls <repo>" >&2
     return 1
@@ -156,7 +173,7 @@ fetch_dir_model() {
       mmproj*)  continue ;;                       # projector, not the model
       *-of-*)   continue ;;                       # shard of a split model, not the model
     esac
-    echo "==> $repo :: $dest (already has ${f##*/}, skipping directory)"
+    [ -n "$FETCH_PLAN" ] || echo "==> $repo :: $dest (already has ${f##*/}, skipping directory)"
     return 0
   done
 
@@ -192,6 +209,7 @@ provenance_move() {
 # A failure counts as a fetch failure, so fetch_report exits non-zero.
 fetch_verify() {
   local verify dir
+  [ -z "$FETCH_PLAN" ] || return 0
   verify="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/verify-models.sh"
   for dir in "$@"; do
     [ -d "$dir" ] || continue
@@ -216,6 +234,7 @@ fetch_verify() {
 # 2026-09-14 reinstall the cheap router came up advertising a model it could not load.
 # Idempotent and silent when the source is not on disk yet.
 link_cheap_tier() {
+  [ -n "$FETCH_PLAN" ] && return 0
   [ "$(uname -s)" = Darwin ] && return 0
   local src="$HOME/models/light/gemma-4-E2B-it-GGUF/gemma-4-E2B-it-Q4_K_M.gguf"
   local dir="$HOME/models/cheap/gemma-4-E2B-it"
@@ -233,6 +252,7 @@ link_cheap_tier() {
 # treated as errors -- on a first install they may not be up yet.
 routers_reload() {
   local p
+  [ -z "$FETCH_PLAN" ] || return 0
   for p in "$@"; do
     if curl -sf -m 5 "http://127.0.0.1:$p/v1/models?reload=1" >/dev/null 2>&1; then
       echo "==> router :$p reloaded its model list"

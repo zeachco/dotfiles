@@ -62,6 +62,7 @@ and fail mid-conversation. `bin/llamacpp-audit` enforces this invariant.
 
 ```
 fetch          llamacpp/<os>/fetch-models*.sh        resumable HF downloads into ~/models/<tier> (plus non-router models such as `~/models/laya`)
+fetch missing  bin/llamacpp-fetch-missing            same recipe, plan pass first (LOS_FETCH_PLAN): lists what is missing, asks [y/N]; the `models` Herdr job of dotfiles_update
 verify         llamacpp/shared/verify-models.sh      SHA-256 vs the HF sidecar recorded at fetch
 serve          router autoloads from --models-dir    (LLAMA_CACHE per tier keeps tiers isolated)
 sync clients   bin/llamacpp-sync  (los → sync-models) rebuilds pi/opencode model defs from /v1/models
