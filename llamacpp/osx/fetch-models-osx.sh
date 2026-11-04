@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetch the macOS router's model set. ~26 GB. Resumable and idempotent: re-run to
+# Fetch the macOS router's model set. ~43 GB. Resumable and idempotent: re-run to
 # continue an interrupted download; a completed file is skipped, not re-reported as
 # failed. Safe to run while the router is up -- a directory that appears mid-run is
 # picked up on the next router restart (`los-restart`).
@@ -49,6 +49,23 @@ fetch unsloth/gemma-4-E4B-it-GGUF mmproj-BF16.gguf           "$MODELS/gemma-4-E4
 # unchanged. Retired files live in ~/models-retired/Qwen3.8-27B.
 fetch unsloth/Qwen3.8-27B-GGUF Qwen3.8-27B-UD-IQ4_XS.gguf "$MODELS/Qwen3.8-27B"
 
+# --- id: GLM-4.7-Flash-UD-Q4_K_XL -- 17.52 GB (16.32 GiB). Cindy's local default. -----
+# This is the model the Cindy app's `llamacpp` provider points at by default
+# (~/.pi/agent/models.json "defaultModel", served off this router at :7070). Until
+# 2026-11-04 it was fetched only by shared/fetch-initial-models.sh, so a fresh box that
+# skipped the initial download had Cindy pointing at an id the router never listed.
+# Single file at the TOP LEVEL of --models-dir, so the id is the filename stem; no
+# mmproj (text-only, same reasoning as Qwen above). osx.ini has no section for it: it
+# runs on the [*] defaults (c = 32768, np = 1), which match Cindy's contextWindow.
+#
+# MLX vs GGUF: Cindy's other local models (qwen3.8:27b-mlx, gemma4:12b-mlx) are MLX
+# builds that only exist on Apple silicon. GLM is the GGUF build here, and the GGUF is
+# also the only option for the Ryzen box (no MLX on Linux) -- but it is deliberately
+# NOT fetched there: retired 2026-10-12 because ~27 GiB resident does not fit beside
+# qwen3.8 under the 62.5 GiB GTT cap. See llamacpp/archlinux/fetch-models.sh ("light
+# tier, single-file models") and light.ini before re-adding it on that side.
+fetch unsloth/GLM-4.7-Flash-GGUF GLM-4.7-Flash-UD-Q4_K_XL.gguf "$MODELS"
+
 # --- MTP draft heads ------- 1.57 GB total. Optional speculative decode. ----------
 # Cheap enough to always have on disk; wiring them up is a commented-out block at the
 # bottom of llamacpp/osx/osx.ini, to be enabled one model at a time after reading the
@@ -69,7 +86,7 @@ routers_reload 7070
 echo
 echo "Confirm the ids the router actually assigned (restart with los-restart if it was down):"
 echo "  los-models"
-echo "They must be exactly: gemma-4-E2B-it, gemma-4-E4B-it, Qwen3.8-27B"
+echo "They must be exactly: gemma-4-E2B-it, gemma-4-E4B-it, Qwen3.8-27B, GLM-4.7-Flash-UD-Q4_K_XL"
 echo "Cross-check them against llamacpp/osx/osx.ini with: los-check"
 
 fetch_report

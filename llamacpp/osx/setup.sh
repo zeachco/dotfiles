@@ -74,10 +74,10 @@ fi
 bash "$SCRIPT_DIR/install.sh" ||
   echo -e "${FAIL}llama router install failed${NORM}"
 
-# The model set (~29 GB) is NOT fetched here by default. install_profile runs this
+# The model set (~43 GB) is NOT fetched here by default. install_profile runs this
 # file on every `dotfiles_update`, there is no consent step anywhere in the setup
 # flow, and the router does not need models to start -- verifying it boots and
-# answers /health with an empty ~/models is a better first milestone than a 29 GB
+# answers /health with an empty ~/models is a better first milestone than a 43 GB
 # download.
 if [[ "${LOS_FETCH_MODELS:-}" == "1" ]]; then
   bash "$SCRIPT_DIR/fetch-models-osx.sh" ||
