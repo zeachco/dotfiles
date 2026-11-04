@@ -42,6 +42,9 @@ const ROUTERS = [
 	{ provider: "llamacpp", baseUrl: "http://127.0.0.1:7070/v1" },
 	{ provider: "llamacpp-heavy", baseUrl: "http://127.0.0.1:7072/v1" },
 ];
+/** The router's own endpoints (POST /models/load, …) live beside /v1, not under it. */
+const routerRoot = (baseUrl: string) => baseUrl.replace(/\/v1\/?$/, "");
+const isHeavyRouter = (baseUrl: string) => ROUTERS.some((r) => r.provider === "llamacpp-heavy" && r.baseUrl === baseUrl);
 
 const FETCH_TIMEOUT_MS = 3000;
 const LOAD_POLL_MS = 3000;
@@ -118,7 +121,7 @@ function buildModel(live: LiveModel, existing: ModelDef | undefined): ModelDef {
 }
 
 async function fetchLive(baseUrl: string): Promise<LiveModel[]> {
-	const response = await fetch(`${baseUrl.replace(/\/$/, "")}/models`, {
+	const response = await fetch(`${routerRoot(baseUrl)}/v1/models`, {
 		headers: { Accept: "application/json" },
 		signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 	});
@@ -192,8 +195,8 @@ function footprint(live: LiveModel): { need: number; measured: boolean } {
 }
 
 function loadCommand(baseUrl: string, id: string): string {
-	const url = baseUrl.replace(/\/v1\/?$/, "");
-	return url.endsWith(":7072") ? `los-load ${id}` : `LOS_HEAVY_URL=${url} los-load ${id}`;
+	// los-load targets the heavy router by default; any other router needs the override.
+	return isHeavyRouter(baseUrl) ? `los-load ${id}` : `LOS_HEAVY_URL=${routerRoot(baseUrl)} los-load ${id}`;
 }
 
 async function routerStatus(baseUrl: string, id: string): Promise<LiveModel | undefined> {
@@ -233,7 +236,7 @@ async function ensureLoaded(baseUrl: string, id: string, notify: Notify): Promis
 
 	notify(`Loading ${id} (~${gib(need)}, ${gib(free)} free)…`, "info");
 	try {
-		await fetch(`${baseUrl.replace(/\/v1\/?$/, "")}/models/load`, {
+		await fetch(`${routerRoot(baseUrl)}/models/load`, {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({ model: id }),
