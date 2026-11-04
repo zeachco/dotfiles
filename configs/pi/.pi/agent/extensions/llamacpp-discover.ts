@@ -17,8 +17,9 @@
  *   - per-model tuning already in models.json (name, reasoning, thinkingLevelMap,
  *     compat, cost, samplingParams, inputLimits, maxTokens) is preserved
  *
- * When the router is unreachable the models.json definitions stay in place, so an
- * offline box behaves exactly as before. models.json is still rewritten by
+ * When nothing listens on a router's port (that tier is not installed on this box) the
+ * provider is emptied so /model does not offer dead models; a transient failure
+ * (timeout, bad response) keeps the models.json definitions in place. models.json is still rewritten by
  * `llamacpp-sync` for opencode and as the offline fallback; this extension only makes
  * pi stop needing a sync run after a router change.
  */
@@ -115,6 +116,14 @@ async function fetchLive(baseUrl: string, signal: AbortSignal): Promise<LiveMode
 	return payload.data.filter((m): m is LiveModel => !!m && typeof m.id === "string");
 }
 
+/** True when the TCP connect itself was refused — the service is simply not running here. */
+function isRefused(err: unknown): boolean {
+	for (let e: any = err; e; e = e.cause) {
+		if (e.code === "ECONNREFUSED" || /ECONNREFUSED/.test(String(e.message))) return true;
+	}
+	return false;
+}
+
 function discoverModels(fallback: ModelDef[], live: LiveModel[]): ModelDef[] {
 	const existing = new Map(fallback.map((m) => [m.id, m]));
 	return live
@@ -148,8 +157,16 @@ export default function (pi: ExtensionAPI) {
 					register(provider, baseUrl, models);
 					notes.push(`${provider}: ${models.length} models from ${baseUrl}`);
 				} catch (err) {
-					// router down: the models.json defs registered at load time stay in place
-					notes.push(`${provider}: ${baseUrl} unreachable (${(err as Error).message}); keeping models.json`);
+					const message = (err as Error).message;
+					if (isRefused(err)) {
+						// Nothing listens on that port: this box does not run the tier at all
+						// (e.g. no heavy router), so do not offer models that cannot answer.
+						register(provider, baseUrl, []);
+						notes.push(`${provider}: no router on ${baseUrl}; provider emptied`);
+					} else {
+						// Transient (timeout, 5xx, bad JSON): keep what models.json says.
+						notes.push(`${provider}: ${baseUrl} failed (${message}); keeping models.json`);
+					}
 				}
 			}),
 		);

@@ -33,7 +33,8 @@ pi's `llamacpp` provider (light router, :7070) no longer waits for a sync: the
 `llamacpp-discover.ts` extension (configs/pi/.pi/agent/extensions) registers the
 models.json list instantly, then re-reads `/v1/models` in the background after every
 session start (`/llamacpp-refresh` does it on demand) with the same filtering rules, and
-leaves models.json in place when the router is down. A sync is still what updates opencode, the
+empties a provider whose router port refuses connections (tier not installed on this box);
+only transient failures keep the models.json list. A sync is still what updates opencode, the
 `llamacpp-heavy` provider and the offline fallback itself.
 
 ```sh
