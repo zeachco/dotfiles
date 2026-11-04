@@ -176,6 +176,9 @@ function weightsBytes(path: string | undefined): number {
 	if (!path || !existsSync(path)) return 0;
 	const name = basename(path);
 	if (!name.includes("-of-")) return statSync(path).size;
+	// why: a sharded model is "<stem>-00001-of-0000N.gguf"; dropping the last three
+	// "-" segments gives the stem, and every shard of it is summed — the same figure
+	// `los` uses, so the fit check agrees with los's resident.tsv.
 	const stem = name.split("-").slice(0, -3).join("-");
 	return readdirSync(dirname(path))
 		.filter((f) => f.startsWith(`${stem}-`) && f.includes("-of-") && f.endsWith(".gguf"))
@@ -221,7 +224,7 @@ async function ensureLoaded(baseUrl: string, id: string, notify: Notify): Promis
 		return;
 	}
 	const state = live?.status?.value;
-	if (!live || state !== "unloaded") return; // loaded, sleeping (first request wakes it), loading…
+	if (!live || state !== "unloaded") return;
 
 	const { need, measured } = footprint(live);
 	const free = freeGpuBytes();
