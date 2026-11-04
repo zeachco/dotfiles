@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Non-interactive dotfiles update for the work-agent cron task (05:00 daily).
+#
+# Mirrors the `dotfiles_update` shell function in variants/shared/profile.sh
+# without its interactive prompt:
+#   - uncommitted changes to tracked files -> skip (reset --hard would destroy them)
+#   - unpushed local commits               -> skip (same reason)
+#   - nothing new on origin/main           -> skip (nothing to apply)
+#   - otherwise: git reset --hard origin/main, then re-run setup.sh
+#
+# Untracked files never gate the update (reset --hard leaves them alone), same
+# as the interactive function. This runs inside a herdr pane (work-agent
+# `command` runner) so a sudo prompt from setup.sh can be answered by hand.
+
+set -u
+cd ~/dotfiles || { echo "dotfiles-update: cannot cd ~/dotfiles"; exit 1; }
+
+if ! git fetch origin main --quiet; then
+  echo "dotfiles-update: git fetch failed, aborting"
+  exit 1
+fi
+
+DIRTY=$(git diff --name-only HEAD)
+UNPUSHED=$(git log --oneline origin/main..HEAD 2>/dev/null)
+BEHIND=$(git rev-list --count HEAD..origin/main)
+
+if [ -n "$DIRTY" ]; then
+  echo "dotfiles-update: SKIP, uncommitted changes in:"
+  printf '%s\n' "$DIRTY"
+  exit 0
+fi
+if [ -n "$UNPUSHED" ]; then
+  echo "dotfiles-update: SKIP, unpushed local commits:"
+  printf '%s\n' "$UNPUSHED"
+  exit 0
+fi
+if [ "$BEHIND" = "0" ]; then
+  echo "dotfiles-update: already up to date with origin/main, nothing to apply"
+  exit 0
+fi
+
+echo "dotfiles-update: $BEHIND new commit(s) on origin/main, resetting and re-applying"
+git reset --hard origin/main
+bash ~/dotfiles/setup.sh

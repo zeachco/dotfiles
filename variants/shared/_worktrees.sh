@@ -204,6 +204,58 @@ herdr_branch_repo() {
 }
 _set wt "herdr_branch_repo"
 
+# Which forge the current repo lives on: "gitlab" or "github". Reads the
+# origin URL (gitlab.com and self-hosted gitlab.* names) and falls back to
+# the hosts glab is authenticated against, so an unbranded self-hosted
+# GitLab still counts. Anything else is GitHub. Override with GIT_FORGE.
+_git_forge() {
+  if [ -n "$GIT_FORGE" ]; then
+    echo "$GIT_FORGE"
+    return
+  fi
+  local url host
+  url=$(git remote get-url origin 2>/dev/null)
+  case "$url" in
+  *gitlab*)
+    echo gitlab
+    return
+    ;;
+  esac
+  host=$(printf '%s' "$url" | sed -E 's#^[a-z+]+://##; s#^[^@]*@##; s#[:/].*$##')
+  if [ -n "$host" ] && grep -qs "^  ${host}:" "${XDG_CONFIG_HOME:-$HOME/.config}/glab-cli/config.yml"; then
+    echo gitlab
+    return
+  fi
+  echo github
+}
+
+# gh/glab front: `pr_cli checkout 12`, `pr_cli view --web`, `pr_cli list`
+# run `gh pr ...` on GitHub and `glab mr ...` on GitLab. "--mine" is the one
+# portable filter: it becomes --author @me / --author <username>.
+pr_cli() {
+  local forge args=() a
+  forge=$(_git_forge)
+  for a in "$@"; do
+    if [ "$a" = "--mine" ]; then
+      if [ "$forge" = gitlab ]; then
+        args+=(--author "$(glab api user --jq .username </dev/null 2>/dev/null)")
+      else
+        args+=(--author "@me")
+      fi
+    else
+      args+=("$a")
+    fi
+  done
+  if [ "$forge" = gitlab ]; then
+    glab mr "${args[@]}"
+  else
+    gh pr "${args[@]}"
+  fi
+}
+_set pr "pr_cli checkout"
+_set prs "pr_cli list --mine"
+_set opr "pr_cli view --web"
+
 # Fetch all my open PRs for this repo and create a Herdr workspace (wt)
 # for each one, using the PR's actual branch for the worktree
 all_my_prs() {
@@ -218,10 +270,15 @@ all_my_prs() {
 
   echo "Fetching your open PRs..."
   local prs
-  prs=$(gh pr list --author "@me" --state open --json number,headRefName \
-    --jq '.[] | (.number|tostring) + " " + .headRefName' </dev/null)
+  if [ "$(_git_forge)" = gitlab ]; then
+    prs=$(pr_cli list --mine --output json \
+      --jq '.[] | (.iid|tostring) + " " + .source_branch' </dev/null)
+  else
+    prs=$(pr_cli list --mine --state open --json number,headRefName \
+      --jq '.[] | (.number|tostring) + " " + .headRefName' </dev/null)
+  fi
   if [ $? -ne 0 ]; then
-    echo "Error: failed to list PRs (is gh authenticated?)"
+    echo "Error: failed to list PRs (is gh/glab authenticated?)"
     return 1
   fi
   if [ -z "$prs" ]; then

@@ -114,7 +114,6 @@ _set hosts "sudo vim /etc/hosts && sudo /etc/init.d/dns-clean restart && sudo /e
 _set amisafe "ps auxwww | grep sshd"
 _set empty-trash "rm -rf ~/.local/share/Trash/*"
 _set v "nvim"
-_set pr "gh pr checkout $1"
 _set cc "claude --permission-mode auto"
 _set ccc "claude --permission-mode auto"
 _set theirs "git checkout --theirs"
@@ -123,8 +122,7 @@ _set lt "eza --tree --level=2 --long --icons --git --git-ignore --ignore-glob='.
 _set lg "lazygit"
 _set ld "lazydocker"
 _set oo "opencode"
-_set prs "gh pr list  --author \"@me\""
-_set opr "gh pr view --web"
+# pr / prs / opr live in _worktrees.sh: they pick gh or glab per repo
 
 alias e="nvim"
 alias v="nvim"
@@ -207,8 +205,22 @@ node_admin() {
 alias clone="bun ~/dotfiles/advanced/clone.ts"
 
 # List my github + gitlab repos in fzf, cd into ~/dev/<repo> or clone it there first.
-# GitLab needs GITLAB_TOKEN (read_api scope) to see private projects; without it only public ones show.
+# GitLab goes through glab (`glab auth login` once); --member covers projects I
+# belong to, not just the ones I own. Pages past 100 are fetched until one
+# comes back short.
 _gitlab_repos() {
+  local page=1 out
+  while :; do
+    out=$(glab repo list --member --per-page 100 --page "$page" --output json \
+      --jq '.[] | "gitlab.com/\(.path_with_namespace)"' </dev/null 2>/dev/null) || return
+    [ -z "$out" ] && return
+    printf '%s\n' "$out"
+    [ "$(printf '%s\n' "$out" | wc -l)" -lt 100 ] && return
+    page=$((page + 1))
+  done
+}
+
+repos() {
   local url="https://gitlab.com/api/v4/projects?membership=true&simple=true&per_page=100&order_by=last_activity_at"
   local auth=()
   [ -n "$GITLAB_TOKEN" ] && auth=(-H "PRIVATE-TOKEN: $GITLAB_TOKEN")

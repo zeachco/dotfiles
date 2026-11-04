@@ -68,6 +68,7 @@ install_pkg ripgrep # binary is rg; install_pkg queries the PM, so the
 # already-installed case is a silent skip instead of a re-run of apt/pacman
 install fd                    # fast find
 install gh                    # github-cli
+install glab                  # gitlab-cli
 install jq                    # json parser
 install eza                   # list tree for ls
 install lazygit
