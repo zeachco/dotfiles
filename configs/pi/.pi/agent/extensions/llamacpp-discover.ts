@@ -66,7 +66,6 @@ interface LiveModel {
 
 function readStaticModels(provider: string): ModelDef[] {
 	const path = join(getAgentDir(), "models.json");
-	if (!existsSync(path)) return [];
 	try {
 		const parsed = JSON.parse(readFileSync(path, "utf-8"));
 		const models = parsed?.providers?.[provider]?.models;
@@ -155,14 +154,11 @@ function freeGpuBytes(): number | undefined {
 	if (!existsSync(drm)) return undefined;
 	for (const card of readdirSync(drm)) {
 		const total = join(drm, card, "device", "mem_info_gtt_total");
-		if (!existsSync(total)) continue;
 		try {
 			const t = Number(readFileSync(total, "utf-8"));
 			const u = Number(readFileSync(total.replace("_total", "_used"), "utf-8"));
 			if (t > 0) return t - u;
-		} catch {
-			/* next card */
-		}
+		} catch {}
 	}
 	return undefined;
 }
@@ -243,9 +239,7 @@ async function ensureLoaded(baseUrl: string, id: string, notify: Notify): Promis
 			body: JSON.stringify({ model: id }),
 			signal: AbortSignal.timeout(30_000),
 		}); // status is not the verdict (non-2xx for an already-loading model); the poll is
-	} catch {
-		/* poll decides */
-	}
+	} catch {}
 	const deadline = Date.now() + LOAD_TIMEOUT_MS;
 	let polls = 0;
 	while (Date.now() < deadline) {
@@ -321,9 +315,9 @@ export default function (pi: ExtensionAPI) {
 	pi.registerCommand("llamacpp-load", {
 		description: "Load the current llamacpp model on its router if it fits in GPU memory",
 		handler: async (_args, ctx) => {
-			const r = ctx.model && routerOf(ctx.model.provider);
-			if (!r) return ctx.ui.notify("Current model is not a local llamacpp model", "warning");
-			await ensureLoaded(r.baseUrl, ctx.model!.id, (m, level) => ctx.ui.notify(m, level));
+			const r = ctx.model ? routerOf(ctx.model.provider) : undefined;
+			if (!ctx.model || !r) return ctx.ui.notify("Current model is not a local llamacpp model", "warning");
+			await ensureLoaded(r.baseUrl, ctx.model.id, (m, level) => ctx.ui.notify(m, level));
 		},
 	});
 
