@@ -47,12 +47,17 @@ const routerRoot = (baseUrl: string) => baseUrl.replace(/\/v1\/?$/, "");
 const isHeavyRouter = (baseUrl: string) => ROUTERS.some((r) => r.provider === "llamacpp-heavy" && r.baseUrl === baseUrl);
 
 const FETCH_TIMEOUT_MS = 3000;
+const LOAD_POST_TIMEOUT_MS = 30_000;
 const LOAD_POLL_MS = 3000;
+// why: right after POST /models/load the router can still report "unloaded" for a
+// few polls before it flips to "loading"; trusting that early verdict would call
+// every load a failure. ~9 s of grace at LOAD_POLL_MS.
+const LOAD_GRACE_POLLS = 3;
 const LOAD_TIMEOUT_MS = 10 * 60 * 1000;
 /** Written by the `los` menu whenever it sees a model resident: id<TAB>bytes pinned as GTT. */
 const MEASURED_TSV = join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "los-menu", "resident.tsv");
-const DEFAULT_CONTEXT = 131072;
-const DEFAULT_MAX_TOKENS = 16384;
+const DEFAULT_CONTEXT = 131_072;
+const DEFAULT_MAX_TOKENS = 16_384;
 const PI_HIDDEN = /^gemma-4-/i;
 const REASONING_HINT = /(qwen3|deepseek|glm-[45]|gpt-oss|ministral|mistral|kimi|reasoning|think)/i;
 const KEPT_TUNING = ["thinkingLevelMap", "compat", "cost", "samplingParams", "inputLimits"] as const;
@@ -240,7 +245,7 @@ async function ensureLoaded(baseUrl: string, id: string, notify: Notify): Promis
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({ model: id }),
-			signal: AbortSignal.timeout(30_000),
+			signal: AbortSignal.timeout(LOAD_POST_TIMEOUT_MS),
 		}); // status is not the verdict (non-2xx for an already-loading model); the poll is
 	} catch {}
 	const deadline = Date.now() + LOAD_TIMEOUT_MS;
@@ -253,7 +258,7 @@ async function ensureLoaded(baseUrl: string, id: string, notify: Notify): Promis
 			notify(`${id} loaded`, "info");
 			return;
 		}
-		if ((now === "failed" || now === "unloaded") && polls > 3) {
+		if ((now === "failed" || now === "unloaded") && polls > LOAD_GRACE_POLLS) {
 			notify(`${id} failed to load (status ${now}) — usually memory. Check the router log, or run: ${cmd}`, "error");
 			return;
 		}
