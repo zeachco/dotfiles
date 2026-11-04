@@ -439,11 +439,10 @@ The two former false positives are fixed too: the pi web-search package is gone 
 
 ## Phase 0 — Unlock GTT (reboot; blocks everything)
 
-> **Status: STAGED 2026-11-04, awaiting reboot.** `/etc/limine-entry-tool.d/amdgpu-gtt.conf`
-> is in place and `limine-update` rebuilt the UKI; its `.cmdline` section was verified to end
-> with `amdgpu.gttsize=131072 ttm.pages_limit=31457280`. The running kernel (booted before
-> that) still reports `mem_info_gtt_total` = 67148566528 (62.5 GiB). After the next reboot run
-> the two post-reboot checks below. Do NOT raise the light tier's `--models-max` back to 5:
+> **Status: APPLIED 2026-11-04.** `/etc/limine-entry-tool.d/amdgpu-gtt.conf` + `limine-update`,
+> rebooted and verified: `/proc/cmdline` carries `amdgpu.gttsize=131072 ttm.pages_limit=31457280`
+> and `mem_info_gtt_total` = 134297145344 (125 GiB). Light-tier budget notes below that cite
+> the 62.5 GiB cap are historical from here on. Do NOT raise the light tier's `--models-max` back to 5:
 > the plan (2026-11-04) is to run GLM-5.3-Flash + GLM-4.7-Flash on the heavy router instead
 > of qwen3.8, which needs the unlocked cap for itself. Step one is a measured load of 5.3
 > alone (`los-drain`, `los-load GLM-5.3-Flash`); only if it lands well under ~95 GiB does
