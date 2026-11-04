@@ -76,6 +76,14 @@ else
   echo "==> heavy tier skipped (~250 GB). Enable with: LOS_FETCH_HEAVY=1"
 fi
 
+# 17.52 GB (16.32 GiB). GLM-4.7-Flash, the same single-file GGUF the Mac runs as its
+# local default (fetch-models-osx.sh). Reinstated 2026-11-04 on the HEAVY tier, not the
+# light one: ~27 GiB resident beside qwen3.8 is the 2026-10-12 retirement (see the light
+# tier note below), and :7072 runs one model at a time with --no-models-autoload, so it
+# only costs memory when loaded on purpose. Not behind LOS_FETCH_HEAVY: small enough
+# for a routine run. If ~/models/retired/ still holds the file, `mv` it here instead.
+fetch unsloth/GLM-4.7-Flash-GGUF GLM-4.7-Flash-UD-Q4_K_XL.gguf "$HOME/models/heavy"
+
 # --- Laya decision model (not served by llama.cpp) ------------------------------
 # Laya is a ggmlc encoder model, not an autoregressive llama.cpp model. Keep it in
 # its own directory so the llama routers do not advertise or try to load it; the
@@ -114,9 +122,9 @@ fetch unsloth/gemma-4-26B-A4B-it-GGUF mmproj-F16.gguf                   "$HOME/m
 # --- light tier, single-file models (id = filename stem) -----------------------
 # GLM-4.7-Flash-UD-Q4_K_XL (16.32 GiB) was fetched here until 2026-10-12. Retired: its
 # ~27 GiB resident footprint does not fit beside qwen3.8 under the 62.5 GiB GTT cap
-# (light.ini, "Memory warning"). The file is parked in ~/models/retired/ -- do NOT
-# re-add a fetch line into ~/models/light, the router's --models-dir scan would serve
-# it again; reinstating is a `mv` back plus a light.ini section.
+# (light.ini, "Memory warning"). Do NOT re-add a fetch line into ~/models/light, the
+# router's --models-dir scan would serve it again. Since 2026-11-04 it lives in
+# ~/models/heavy (fetch above, heavy.ini section), loaded one at a time on :7072.
 
 # 2.00 GiB. Upstream also ships an mmproj for this one, which we deliberately do NOT
 # take: a projector would force it into a subdirectory per the layout rules above and

@@ -2,7 +2,8 @@
 #
 # The HEAVY tier: ~/models/heavy, ONE model at a time, and nothing loaded until asked.
 # For models that cannot share the GPU with the daily set -- Qwen3.8-Flash-Next (~87 GiB),
-# GLM-5.3-Flash (~101 GiB), and DeepSeek-V4-Flash (90.9 GiB). On the light router such a load happens by LRU *eviction*
+# GLM-5.3-Flash (~101 GiB), DeepSeek-V4-Flash (90.9 GiB) -- and GLM-4.7-Flash, small but
+# a ~27 GiB resident that OOMed beside the light set (light.ini). On the light router such a load happens by LRU *eviction*
 # of qwen3.8 and GLM, and every other live session then pays a multi-minute reload the
 # moment it comes back. Here it is an explicit step instead: `los-drain`, then load.
 #
