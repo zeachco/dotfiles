@@ -81,7 +81,7 @@ fi
 # light one: ~27 GiB resident beside qwen3.8 is the 2026-10-12 retirement (see the light
 # tier note below), and :7072 runs one model at a time with --no-models-autoload, so it
 # only costs memory when loaded on purpose. Not behind LOS_FETCH_HEAVY: small enough
-# for a routine run. If ~/models/retired/ still holds the file, `mv` it here instead.
+# for a routine run. (The retired copy was deleted 2026-11-04 once this one was verified.)
 fetch unsloth/GLM-4.7-Flash-GGUF GLM-4.7-Flash-UD-Q4_K_XL.gguf "$HOME/models/heavy"
 
 # --- Laya decision model (not served by llama.cpp) ------------------------------
