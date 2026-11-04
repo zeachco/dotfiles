@@ -17,6 +17,14 @@
  *   - per-model tuning already in models.json (name, reasoning, thinkingLevelMap,
  *     compat, cost, samplingParams, inputLimits, maxTokens) is preserved
  *
+ * Selecting a llamacpp model that the router reports `unloaded` (the heavy tier runs
+ * --no-models-autoload, so a request would fail with 400 "model is not loaded") loads
+ * it the way `los-load` does — POST /models/load, then poll until `loaded` — but only
+ * when it fits: its footprint (the figure `los` measured when it was last resident, or
+ * its weights on disk) is checked against free GPU memory (amdgpu GTT via sysfs). When
+ * it does not fit, or the check is impossible, pi warns and prints the `los-load`
+ * command to run by hand instead of OOMing the box under someone else's model.
+ *
  * When nothing listens on a router's port (that tier is not installed on this box) the
  * provider is emptied so /model does not offer dead models; a transient failure
  * (timeout, bad response) keeps the models.json definitions in place. models.json is still rewritten by
@@ -24,8 +32,9 @@
  * pi stop needing a sync run after a router change.
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { basename, dirname, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
@@ -35,6 +44,10 @@ const ROUTERS = [
 ];
 
 const FETCH_TIMEOUT_MS = 3000;
+const LOAD_POLL_MS = 3000;
+const LOAD_TIMEOUT_MS = 10 * 60 * 1000;
+/** Written by the `los` menu whenever it sees a model resident: id<TAB>bytes pinned as GTT. */
+const MEASURED_TSV = join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "los-menu", "resident.tsv");
 const DEFAULT_CONTEXT = 131072;
 const DEFAULT_MAX_TOKENS = 16384;
 const PI_HIDDEN = /^gemma-4-/i;
@@ -47,7 +60,7 @@ type ModelDef = Record<string, unknown> & { id: string };
 interface LiveModel {
 	id: string;
 	name?: string;
-	status?: { args?: string[] };
+	status?: { value?: string; args?: string[] };
 	architecture?: { input_modalities?: string[]; output_modalities?: string[] };
 }
 
@@ -131,6 +144,126 @@ function discoverModels(fallback: ModelDef[], live: LiveModel[]): ModelDef[] {
 		.map((m) => buildModel(m, existing.get(m.id)));
 }
 
+// ---- loading on select ------------------------------------------------------------
+
+const GIB = 1 << 30;
+const gib = (n: number) => `${(n / GIB).toFixed(1)} GiB`;
+
+/** Free GPU memory, or undefined when it cannot be read (not amdgpu, not Linux). */
+function freeGpuBytes(): number | undefined {
+	const drm = "/sys/class/drm";
+	if (!existsSync(drm)) return undefined;
+	for (const card of readdirSync(drm)) {
+		const total = join(drm, card, "device", "mem_info_gtt_total");
+		if (!existsSync(total)) continue;
+		try {
+			const t = Number(readFileSync(total, "utf-8"));
+			const u = Number(readFileSync(total.replace("_total", "_used"), "utf-8"));
+			if (t > 0) return t - u;
+		} catch {
+			/* next card */
+		}
+	}
+	return undefined;
+}
+
+/** Weights on disk; sharded models (-00001-of-0000N.gguf) are summed like los does. */
+function weightsBytes(path: string | undefined): number {
+	if (!path || !existsSync(path)) return 0;
+	const name = basename(path);
+	if (!name.includes("-of-")) return statSync(path).size;
+	const stem = name.split("-").slice(0, -3).join("-");
+	return readdirSync(dirname(path))
+		.filter((f) => f.startsWith(`${stem}-`) && f.includes("-of-") && f.endsWith(".gguf"))
+		.reduce((sum, f) => sum + statSync(join(dirname(path), f)).size, 0);
+}
+
+function measuredBytes(id: string): number {
+	if (!existsSync(MEASURED_TSV)) return 0;
+	for (const line of readFileSync(MEASURED_TSV, "utf-8").split("\n")) {
+		const [k, v] = line.split("\t");
+		if (k === id) return Number(v) || 0;
+	}
+	return 0;
+}
+
+/** Bytes the model will pin once loaded: the measured figure when it is credible, else weights. */
+function footprint(live: LiveModel): { need: number; measured: boolean } {
+	const weights = weightsBytes(argValue(live.status?.args ?? [], "--model"));
+	const measured = measuredBytes(live.id);
+	// A figure below the weights was taken while the model slept (weights released).
+	return measured >= weights ? { need: measured, measured: true } : { need: weights, measured: false };
+}
+
+function loadCommand(baseUrl: string, id: string): string {
+	const url = baseUrl.replace(/\/v1\/?$/, "");
+	return url.endsWith(":7072") ? `los-load ${id}` : `LOS_HEAVY_URL=${url} los-load ${id}`;
+}
+
+async function routerStatus(baseUrl: string, id: string): Promise<LiveModel | undefined> {
+	const live = await fetchLive(baseUrl, new AbortController().signal);
+	return live.find((m) => m.id === id);
+}
+
+type Notify = (message: string, level: "info" | "warning" | "error") => void;
+
+/** Load `id` on its router if it is unloaded and fits in free GPU memory; otherwise warn. */
+async function ensureLoaded(baseUrl: string, id: string, notify: Notify): Promise<void> {
+	let live: LiveModel | undefined;
+	try {
+		live = await routerStatus(baseUrl, id);
+	} catch (err) {
+		notify(`${id}: cannot reach ${baseUrl} (${(err as Error).message})`, "warning");
+		return;
+	}
+	const state = live?.status?.value;
+	if (!live || state !== "unloaded") return; // loaded, sleeping (first request wakes it), loading…
+
+	const { need, measured } = footprint(live);
+	const free = freeGpuBytes();
+	const cmd = loadCommand(baseUrl, id);
+	if (free === undefined) {
+		notify(`${id} is not loaded and free GPU memory cannot be read here. Load it by hand: ${cmd}`, "warning");
+		return;
+	}
+	if (need > free) {
+		notify(
+			`${id} is not loaded and needs ~${gib(need)}${measured ? "" : " (weights only, more with KV)"} ` +
+				`but only ${gib(free)} GPU memory is free. Free some (los → drain/unload) then run: ${cmd}`,
+			"warning",
+		);
+		return;
+	}
+
+	notify(`Loading ${id} (~${gib(need)}, ${gib(free)} free)…`, "info");
+	try {
+		await fetch(`${baseUrl.replace(/\/v1\/?$/, "")}/models/load`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ model: id }),
+			signal: AbortSignal.timeout(30_000),
+		}); // status is not the verdict (non-2xx for an already-loading model); the poll is
+	} catch {
+		/* poll decides */
+	}
+	const deadline = Date.now() + LOAD_TIMEOUT_MS;
+	let polls = 0;
+	while (Date.now() < deadline) {
+		await new Promise((r) => setTimeout(r, LOAD_POLL_MS));
+		polls++;
+		const now = (await routerStatus(baseUrl, id).catch(() => undefined))?.status?.value;
+		if (now === "loaded" || now === "sleeping") {
+			notify(`${id} loaded`, "info");
+			return;
+		}
+		if ((now === "failed" || now === "unloaded") && polls > 3) {
+			notify(`${id} failed to load (status ${now}) — usually memory. Check the router log, or run: ${cmd}`, "error");
+			return;
+		}
+	}
+	notify(`${id}: timed out waiting for the load. Check with: ${cmd}`, "error");
+}
+
 export default function (pi: ExtensionAPI) {
 	const register = (provider: string, baseUrl: string, models: ModelDef[]) =>
 		pi.registerProvider(provider, {
@@ -176,6 +309,22 @@ export default function (pi: ExtensionAPI) {
 	// Background, after the session is up; never awaited by pi.
 	pi.on("session_start", () => {
 		void refresh(new AbortController().signal);
+	});
+
+	const routerOf = (provider: string) => routers.find((r) => r.provider === provider);
+
+	pi.on("model_select", (event, ctx) => {
+		const r = routerOf(event.model.provider);
+		if (r) void ensureLoaded(r.baseUrl, event.model.id, (m, level) => ctx.ui.notify(m, level));
+	});
+
+	pi.registerCommand("llamacpp-load", {
+		description: "Load the current llamacpp model on its router if it fits in GPU memory",
+		handler: async (_args, ctx) => {
+			const r = ctx.model && routerOf(ctx.model.provider);
+			if (!r) return ctx.ui.notify("Current model is not a local llamacpp model", "warning");
+			await ensureLoaded(r.baseUrl, ctx.model!.id, (m, level) => ctx.ui.notify(m, level));
+		},
 	});
 
 	pi.registerCommand("llamacpp-refresh", {
