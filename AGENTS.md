@@ -29,6 +29,14 @@ management. This file keeps only the map and the gotchas.
 - **`~/.dotfiles_*` are copies, not links.** `install_profile` copies `profile.sh` at install
   time. A profile change reaches a machine only after re-running `setup.sh` /
   `dotfiles_update` — an already-open shell keeps the old values.
+- **Inside Herdr, `setup.sh` fans out.** With `HERDR_ENV=1` and `herdr` on PATH, `setup.sh`
+  only opens one Herdr workspace per long step (`sysupdate`, `llamacpp`, `profile`, via
+  `bin/dotfiles-job`), waits for their rc files, closes the workspaces that passed and leaves
+  a failed one open. The profile job re-runs `setup.sh` with `DOTFILES_JOB` set plus
+  `DOTFILES_SKIP_SYSUPDATE` / `DOTFILES_SKIP_LLAMACPP`, so a new long step must honour a
+  skip flag of its own or it runs twice. `DOTFILES_PARALLEL=0` forces the serial path.
+  pacman calls wait on `/var/lib/pacman/db.lck` (`pacman_wait_lock`) because the system
+  update and the profile install now share the one pacman database.
 - **Stow packages override per file.** Base (alacritty, tmux) + per-OS packages (alacritty-osx,
   alacritty-omarchy); the last stowed package wins. `stow_link` deletes conflicting targets
   first, so never rely on a stale untracked file in `configs/`.

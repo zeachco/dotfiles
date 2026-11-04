@@ -150,13 +150,14 @@ function install() {
     echo -e "${WARN}installing ${NORM}$pkg_name..."
     sleep 1
     # Check for Termux environment first
-    if [[ -n "$TERMUX_VERSION" ]] || [[ "$PREFIX" == *"com.termux"* ]]; then
+    if [[ -n "${TERMUX_VERSION:-}" ]] || [[ "${PREFIX:-}" == *"com.termux"* ]]; then
       pkg install -y $pkg_name
     elif is_nixos; then
       nix_profile_install "$pkg_name"
     elif command -v apt &>/dev/null; then
       sudo apt install -y $pkg_name
     elif command -v pacman &>/dev/null; then
+      pacman_wait_lock
       sudo pacman -S $pkg_name --needed --noconfirm
     elif command -v brew &>/dev/null; then
       brew install $pkg_name
@@ -173,7 +174,7 @@ function install() {
 function install_pkg() {
   pkg_name="$1"
 
-  if [[ -n "$TERMUX_VERSION" ]] || [[ "$PREFIX" == *"com.termux"* ]]; then
+  if [[ -n "${TERMUX_VERSION:-}" ]] || [[ "${PREFIX:-}" == *"com.termux"* ]]; then
     dpkg-query -W -f='${Status}' "$pkg_name" 2>/dev/null | grep -q "ok installed" && return 0
     print_needs "$pkg_name"
     echo -e "${WARN}installing ${NORM}$pkg_name..."
@@ -192,6 +193,7 @@ function install_pkg() {
     pacman -Q "$pkg_name" &>/dev/null && return 0
     print_needs "$pkg_name"
     echo -e "${WARN}installing ${NORM}$pkg_name..."
+    pacman_wait_lock
     sudo pacman -S "$pkg_name" --needed --noconfirm
   elif command -v brew &>/dev/null; then
     brew list "$pkg_name" &>/dev/null && return 0
@@ -333,4 +335,137 @@ function nudge_alacritty_reload() {
   find "$dir" -maxdepth 1 -name '*.toml' -exec touch {} + 2>/dev/null
   echo -e "${INFO}reloaded ${NORM}alacritty config"
   return 0
+}
+
+# ---- OS detection shared by setup.sh and bin/dotfiles-job --------------------------
+# Prints the variant name (osx | nixos | archlinux | termux) or nothing for a Linux
+# with no OS-specific profile. Same rules as the big picture in docs/ARCHITECTURE.md.
+function dotfiles_variant {
+  # ${var:-} because bin/dotfiles-job runs under set -u.
+  if [[ -n "${TERMUX_VERSION:-}" ]] || [[ "${PREFIX:-}" == *"com.termux"* ]]; then
+    echo termux
+    return
+  fi
+  case "$(uname -s)" in
+  Darwin*) echo osx ;;
+  Linux*)
+    if [[ -f /etc/NixOS ]] || grep -q '^ID=nixos' /etc/os-release 2>/dev/null; then
+      echo nixos
+    elif [[ -f /etc/arch-release ]] || command -v pacman &>/dev/null; then
+      echo archlinux
+    fi
+    ;;
+  esac
+}
+
+# ---- system update ----------------------------------------------------------------
+# Full OS package upgrade. One function so the Arch variant and the parallel
+# `sysupdate` job (bin/dotfiles-job) run exactly the same thing.
+function system_update {
+  echo -e "${WARN}updating system packages...${NORM}"
+  if command -v omarchy &>/dev/null; then
+    # Omarchy handles its own privilege escalation; -y runs unattended like --noconfirm
+    omarchy update -y
+  elif command -v pacman &>/dev/null; then
+    sudo pacman -Syu --noconfirm
+  else
+    echo -e "${INFO}no system update step for this OS${NORM}"
+  fi
+}
+
+# pacman takes one database lock. When the sysupdate job runs next to the profile
+# job (herdr_fan_out) every `install` would otherwise die with "unable to lock
+# database", so wait for the lock to clear first. A stale lock from a crashed pacman
+# is reported, not removed -- that is a decision for a human.
+function pacman_wait_lock {
+  local lock=/var/lib/pacman/db.lck waited=0
+  while [[ -e "$lock" ]]; do
+    if ((waited == 0)); then
+      echo -e "${INFO}waiting ${NORM}for pacman ($lock held by another process)..."
+    fi
+    sleep 5
+    waited=$((waited + 5))
+    if ((waited >= 3600)); then
+      echo -e "${FAIL}$lock still held after 1h; remove it by hand if pacman is not running${NORM}"
+      return 1
+    fi
+  done
+}
+
+# ---- parallel update inside Herdr ----------------------------------------------------
+# When setup.sh runs in a Herdr pane, the long steps run side by side, one Herdr
+# workspace each (bin/dotfiles-job): the system update, the llama.cpp rebuild and
+# the profile installation. Each job writes <rc-dir>/<job>.rc when it exits; this
+# polls those files, prints a summary, closes the workspaces of the jobs that passed
+# and leaves a failed one open so its output can be read. Returns non-zero when any
+# job failed, and 1 immediately when a workspace disappears (closed by hand).
+#
+# Opt out with DOTFILES_PARALLEL=0. Never recurses: the profile job runs setup.sh
+# with DOTFILES_JOB set, which herdr_fan_out_available refuses.
+function herdr_fan_out_available {
+  [[ "${DOTFILES_PARALLEL:-1}" != "0" ]] || return 1
+  [[ -z "${DOTFILES_JOB:-}" ]] || return 1
+  [[ "${HERDR_ENV:-}" = 1 ]] || return 1
+  command -v herdr &>/dev/null && command -v jq &>/dev/null || return 1
+  herdr status server &>/dev/null
+}
+
+function herdr_fan_out {
+  local variant jobs=() job rc_dir result ws pane
+  variant="$(dotfiles_variant)"
+  [[ "$variant" == archlinux ]] && jobs+=(sysupdate)
+  [[ -n "$variant" && -f "$DOT_DIR/llamacpp/$variant/setup.sh" ]] && jobs+=(llamacpp)
+  jobs+=(profile)
+
+  rc_dir="$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-update.XXXXXX")"
+  declare -A ws_of pane_of
+  echo -e "${INFO}herdr ${NORM}running in parallel: ${jobs[*]}"
+  for job in "${jobs[@]}"; do
+    result=$(herdr workspace create --cwd "$DOT_DIR" --label "dotfiles: $job" --no-focus) || {
+      echo -e "${FAIL}herdr workspace create failed for $job${NORM}"
+      return 1
+    }
+    ws=$(echo "$result" | jq -r '.result.workspace.workspace_id')
+    pane=$(echo "$result" | jq -r '.result.root_pane.pane_id')
+    ws_of[$job]="$ws"
+    pane_of[$job]="$pane"
+    herdr pane run "$pane" "bash '$DOT_DIR/bin/dotfiles-job' $job '$rc_dir'" >/dev/null || {
+      echo -e "${FAIL}herdr pane run failed for $job${NORM}"
+      return 1
+    }
+    echo -e "  ${INFO}$job${NORM} -> workspace $ws"
+  done
+
+  local pending=("${jobs[@]}") still=() failed=()
+  while ((${#pending[@]})); do
+    still=()
+    for job in "${pending[@]}"; do
+      if [[ -f "$rc_dir/$job.rc" ]]; then
+        rc=$(<"$rc_dir/$job.rc")
+        if [[ "$rc" == 0 ]]; then
+          echo -e "${PASS}done ${NORM}$job"
+          herdr workspace close "${ws_of[$job]}" >/dev/null
+        else
+          echo -e "${FAIL}failed ${NORM}$job (rc $rc), workspace ${ws_of[$job]} left open:"
+          herdr pane read "${pane_of[$job]}" --source recent-unwrapped --lines 15 2>/dev/null | sed 's/^/    /'
+          echo
+          failed+=("$job")
+        fi
+      elif ! herdr workspace get "${ws_of[$job]}" &>/dev/null; then
+        echo -e "${FAIL}workspace for $job was closed before it finished${NORM}"
+        failed+=("$job")
+      else
+        still+=("$job")
+      fi
+    done
+    pending=("${still[@]}")
+    ((${#pending[@]})) && sleep 3
+  done
+  rm -rf "$rc_dir"
+
+  if ((${#failed[@]})); then
+    echo -e "${FAIL}update finished with failures: ${failed[*]}${NORM}"
+    return 1
+  fi
+  echo -e "${PASS}all parallel jobs done${NORM}"
 }

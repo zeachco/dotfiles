@@ -16,6 +16,7 @@ absolute path (`$HOME/dotfiles/bin/…`), and a few are exposed as shell aliases
 | `converse`             | Push-to-talk voice loop: `listen` → opencode → `say` in one terminal                                                       | Linux / macOS   |
 | `gpu-cap`              | Pin/release the iGPU shader clock (amdgpu DPM masking) via pkexec — global to the GPU, used to throttle llama.cpp         | Strix Halo only |
 | `bt-controller-refresh`| Power-cycles the MT7925 Bluetooth controller on earbud disconnect (watch mode, systemd service; `--now` = alias `btfix`) | Linux (the Framework) |
+| `dotfiles-job`         | One step of a parallel update (`sysupdate`, `llamacpp`, `profile`), run by `setup.sh` in its own Herdr workspace when the update starts inside Herdr; writes its exit code to the rc dir the main thread polls | Cross-platform |
 | `phone`                | Uses an Android phone over USB adb as a webcam and/or second display (wlr-randr for the Hyprland gotchas)                  | Linux (Omarchy) |
 
 Voice pipeline install (one-time, per script header). `~/dotfiles/setup.sh`

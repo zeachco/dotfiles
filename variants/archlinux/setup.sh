@@ -43,13 +43,10 @@ else
   fc-cache -f -v
 fi
 
-# System update
-echo -e "${WARN}updating system packages...${NORM}"
-if command -v omarchy &>/dev/null; then
-  # Omarchy handles its own privilege escalation; -y runs unattended like --noconfirm
-  omarchy update -y
-else
-  sudo pacman -Syu --noconfirm
+# System update (utils.sh). Skipped when the `sysupdate` job already runs it in a
+# parallel Herdr workspace (bin/dotfiles-job).
+if [[ -z "${DOTFILES_SKIP_SYSUPDATE:-}" ]]; then
+  system_update
 fi
 
 # Install yay (AUR helper) if not present
@@ -89,6 +86,9 @@ unfold_dir "$HOME/.config/opencode/skills"
 stow_link opencode
 
 # All llama.cpp setup (router install, model fetch check) lives in llamacpp/.
-bash "$DOT_DIR/llamacpp/archlinux/setup.sh"
+# Skipped when the `llamacpp` job runs it in a parallel Herdr workspace.
+if [[ -z "${DOTFILES_SKIP_LLAMACPP:-}" ]]; then
+  bash "$DOT_DIR/llamacpp/archlinux/setup.sh"
+fi
 
 echo -e "${PASS}Arch Linux setup complete!${NORM}"

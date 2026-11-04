@@ -3,6 +3,13 @@
 
 echo "Will install using $SHELL ($0)"
 
+# Inside Herdr the long steps (system update, llama.cpp rebuild, profile install)
+# run in parallel workspaces; this thread only waits on them. See herdr_fan_out.
+if herdr_fan_out_available; then
+  herdr_fan_out
+  exit $?
+fi
+
 # run the correct setup file
 unameOut="$(uname -s)"
 case "${unameOut}" in
