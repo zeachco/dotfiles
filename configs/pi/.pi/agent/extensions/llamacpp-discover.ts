@@ -154,12 +154,8 @@ export default function (pi: ExtensionAPI) {
 	};
 
 	// Background, after the session is up; never awaited by pi.
-	pi.on("session_start", (_e, ctx) => {
-		void refresh(new AbortController().signal).then((notes) => {
-			const ids = ctx.modelRegistry.getAvailable().filter((m) => m.provider === "llamacpp").map((m) => m.id);
-			require("node:fs").appendFileSync("/tmp/claude-1000/-home-olivier-dotfiles/c28f6eca-412d-4a11-81be-0bd2f29f2b28/scratchpad/trace.log", JSON.stringify({ notes, ids }) + "
-");
-		});
+	pi.on("session_start", () => {
+		void refresh(new AbortController().signal);
 	});
 
 	pi.registerCommand("llamacpp-refresh", {
