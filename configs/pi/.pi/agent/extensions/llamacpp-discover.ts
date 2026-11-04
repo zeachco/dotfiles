@@ -117,10 +117,10 @@ function buildModel(live: LiveModel, existing: ModelDef | undefined): ModelDef {
 	return model;
 }
 
-async function fetchLive(baseUrl: string, signal: AbortSignal): Promise<LiveModel[]> {
+async function fetchLive(baseUrl: string): Promise<LiveModel[]> {
 	const response = await fetch(`${baseUrl.replace(/\/$/, "")}/models`, {
 		headers: { Accept: "application/json" },
-		signal: AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]),
+		signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 	});
 	if (!response.ok) throw new Error(`HTTP ${response.status}`);
 	const payload = (await response.json()) as { data?: unknown };
@@ -197,7 +197,7 @@ function loadCommand(baseUrl: string, id: string): string {
 }
 
 async function routerStatus(baseUrl: string, id: string): Promise<LiveModel | undefined> {
-	const live = await fetchLive(baseUrl, new AbortController().signal);
+	const live = await fetchLive(baseUrl);
 	return live.find((m) => m.id === id);
 }
 
@@ -273,12 +273,12 @@ export default function (pi: ExtensionAPI) {
 	// Instant: the static list, so startup never waits on the router.
 	for (const { provider, baseUrl, fallback } of routers) register(provider, baseUrl, fallback);
 
-	const refresh = async (signal: AbortSignal): Promise<string[]> => {
+	const refresh = async (): Promise<string[]> => {
 		const notes: string[] = [];
 		await Promise.all(
 			routers.map(async ({ provider, baseUrl, fallback }) => {
 				try {
-					const live = await fetchLive(baseUrl, signal);
+					const live = await fetchLive(baseUrl);
 					const models = discoverModels(fallback, live);
 					if (!models.length) throw new Error("no chat models");
 					register(provider, baseUrl, models);
@@ -302,7 +302,7 @@ export default function (pi: ExtensionAPI) {
 
 	// Background, after the session is up; never awaited by pi.
 	pi.on("session_start", () => {
-		void refresh(new AbortController().signal);
+		void refresh();
 	});
 
 	const routerOf = (provider: string) => routers.find((r) => r.provider === provider);
@@ -324,7 +324,7 @@ export default function (pi: ExtensionAPI) {
 	pi.registerCommand("llamacpp-refresh", {
 		description: "Re-read the local llama.cpp router's model list now",
 		handler: async (_args, ctx) => {
-			for (const note of await refresh(new AbortController().signal)) ctx.ui.notify(note, "info");
+			for (const note of await refresh()) ctx.ui.notify(note, "info");
 		},
 	});
 }
