@@ -240,14 +240,27 @@ async function ensureLoaded(baseUrl: string, id: string, notify: Notify): Promis
 	}
 
 	notify(`Loading ${id} (~${gib(need)}, ${gib(free)} free)…`, "info");
+	await requestLoad(baseUrl, id);
+	await waitForLoaded(baseUrl, id, cmd, notify);
+}
+
+/** Ask the router to load `id`. The HTTP status is not the verdict; the poll is. */
+async function requestLoad(baseUrl: string, id: string): Promise<void> {
+	// why: the router answers non-2xx (or hangs past the timeout) for a model that is
+	// already loading, and that load still completes — so the result is ignored and
+	// waitForLoaded decides.
 	try {
 		await fetch(`${routerRoot(baseUrl)}/models/load`, {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({ model: id }),
 			signal: AbortSignal.timeout(LOAD_POST_TIMEOUT_MS),
-		}); // status is not the verdict (non-2xx for an already-loading model); the poll is
+		});
 	} catch {}
+}
+
+/** Poll the router until `id` is loaded, failed, or LOAD_TIMEOUT_MS has passed; notify the outcome. */
+async function waitForLoaded(baseUrl: string, id: string, cmd: string, notify: Notify): Promise<void> {
 	const deadline = Date.now() + LOAD_TIMEOUT_MS;
 	let polls = 0;
 	while (Date.now() < deadline) {
