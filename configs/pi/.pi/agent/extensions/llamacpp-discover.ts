@@ -1,5 +1,5 @@
 /**
- * llamacpp-discover — refresh the local llama.cpp router's models after pi starts.
+ * llamacpp-discover — refresh the local llama.cpp routers' models after pi starts.
  *
  * Boot never waits on the router: the `llamacpp` provider is registered from the
  * models.json definitions at load time, and once the session is up a background fetch
@@ -28,7 +28,10 @@ import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
-const ROUTERS = [{ provider: "llamacpp", baseUrl: "http://127.0.0.1:7070/v1" }];
+const ROUTERS = [
+	{ provider: "llamacpp", baseUrl: "http://127.0.0.1:7070/v1" },
+	{ provider: "llamacpp-heavy", baseUrl: "http://127.0.0.1:7072/v1" },
+];
 
 const FETCH_TIMEOUT_MS = 3000;
 const DEFAULT_CONTEXT = 131072;
