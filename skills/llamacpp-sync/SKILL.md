@@ -29,6 +29,12 @@ Runs automatically at the end of `dotfiles_update` / `setup.sh` on the Strix Hal
 (llamacpp/archlinux/setup.sh, after the router units are installed), and is the
 `sync-models` action in the `los` menu. Run it by hand after adding or removing models.
 
+pi's `llamacpp` provider (light router, :7070) no longer waits for a sync: the
+`llamacpp-discover.ts` extension (configs/pi/.pi/agent/extensions) re-reads `/v1/models`
+on every pi startup, `/reload` and `/model`, with the same filtering rules, and falls back to
+models.json when the router is down. A sync is still what updates opencode, the
+`llamacpp-heavy` provider and the offline fallback itself.
+
 ```sh
 ~/dotfiles/bin/llamacpp-sync                  # both clients, local + OpenRouter
 ~/dotfiles/bin/llamacpp-sync --dry-run        # preview, write nothing

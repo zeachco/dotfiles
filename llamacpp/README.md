@@ -66,6 +66,7 @@ fetch missing  bin/llamacpp-fetch-missing            same recipe, plan pass firs
 verify         llamacpp/shared/verify-models.sh      SHA-256 vs the HF sidecar recorded at fetch
 serve          router autoloads from --models-dir    (LLAMA_CACHE per tier keeps tiers isolated)
 sync clients   bin/llamacpp-sync  (los → sync-models) rebuilds pi/opencode model defs from /v1/models
+pi discovery   configs/pi/.pi/agent/extensions/llamacpp-discover.ts  pi re-reads the light router's /v1/models itself at startup (models.json = offline fallback)
 restart all    los-restart-all    (los → restart) restarts every installed tier's daemon, reachable or not; skips tiers not installed here
 audit          bin/llamacpp-audit                    ~/models vs INI presets vs client configs must agree
 ```
