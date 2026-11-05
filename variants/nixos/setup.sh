@@ -32,6 +32,7 @@ if ! grep -qs 'dotfiles.nix' /etc/nixos/configuration.nix; then
 fi
 
 # User-level tools (same set as archlinux, minus what dotfiles.nix provides).
+install alacritty
 install unzip
 install curl
 install gcc
@@ -40,6 +41,7 @@ install cmake
 install zsh
 install s-tui
 install nvtop
+install btop
 install flatpak
 install fd
 install fzf
