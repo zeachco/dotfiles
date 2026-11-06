@@ -117,7 +117,7 @@ gguf_header() {
 
   # A model with no tensors is a vocab-only file, never something the router can serve
   # -- EXCEPT the first shard of a split. unsloth keeps shard 00001 of its large splits
-  # to metadata and vocab: Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf is 10.9 MB,
+  # to metadata and vocab: Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00004.gguf is 10.9 MB,
   # 0 tensors, split.tensors.count = 1224, and llama.cpp reads every tensor from shards
   # 00002/00003. That file is byte-identical to upstream, yet this check failed it on
   # 2026-10-17 and fetch_verify then told the operator to delete and re-download it --

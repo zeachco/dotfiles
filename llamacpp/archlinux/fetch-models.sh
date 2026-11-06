@@ -63,11 +63,13 @@ if [ "${LOS_FETCH_HEAVY:-0}" = "1" ]; then
   fetch ggml-org/gpt-oss-120b-GGUF eagle3-gpt-oss-120b-Q8_0.gguf "$HOME/models/drafts"
 
   # 87.3 GiB. Qwen3.8-Flash-Next: 125B + 51B n-gram embedding, 6B active.
-  # Three shards MUST share one subdirectory; the directory name is the model id.
+  # Four shards (unsloth re-sharded from three on 2026-11-06; the old 3-shard paths
+  # 404) MUST share one subdirectory; the directory name is the model id.
   # Plain fetch per shard keeps interrupted multi-shard downloads resumable.
-  fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf "$HOME/models/llama/Qwen3.8-Flash-Next"
-  fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00002-of-00003.gguf "$HOME/models/llama/Qwen3.8-Flash-Next"
-  fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00003-of-00003.gguf "$HOME/models/llama/Qwen3.8-Flash-Next"
+  fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00004.gguf "$HOME/models/llama/Qwen3.8-Flash-Next"
+  fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00002-of-00004.gguf "$HOME/models/llama/Qwen3.8-Flash-Next"
+  fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00003-of-00004.gguf "$HOME/models/llama/Qwen3.8-Flash-Next"
+  fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00004-of-00004.gguf "$HOME/models/llama/Qwen3.8-Flash-Next"
 
   # ~101 GiB. GLM-5.3-Flash: use UD-Q2_K_XL so it fits the 128 GiB Ryzen box.
   # It is a multimodal model, so keep the F16 projector beside the four shards.
