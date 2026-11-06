@@ -241,9 +241,11 @@ repos() {
   repo=$( (gh repo list --limit 500 --json nameWithOwner -q '.[] | "github.com/\(.nameWithOwner)"' & _gitlab_repos & wait) | sort | fzf )
   [ -z "$repo" ] && return 1
 
-  local host="${repo%%/*}" path="${repo#*/}"
+  # "slug", not "path": in zsh `path` is the array tied to $PATH, so `local path=`
+  # emptied PATH for the rest of the function (basename/mkdir: command not found).
+  local host="${repo%%/*}" slug="${repo#*/}"
   local name
-  name=$(basename "$path")
+  name=$(basename "$slug")
   mkdir -p "$dev_dir"
 
   if [ -d "$dev_dir/$name" ]; then
@@ -251,9 +253,9 @@ repos() {
   else
     cd "$dev_dir" || return 1
     if [ "$host" = "github.com" ]; then
-      gh repo clone "$path" || return 1
+      gh repo clone "$slug" || return 1
     else
-      git clone "git@$host:$path.git" || return 1
+      git clone "git@$host:$slug.git" || return 1
     fi
     cd "$dev_dir/$name" || return 1
     secrets
