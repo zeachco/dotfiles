@@ -188,7 +188,7 @@ fi
 
 # ---- build --------------------------------------------------------------------------
 # Half the cores, same "leave headroom" reasoning as the router's CPUQuota in
-# install.sh: this can run while the routers are serving.
+# install.sh: this can run while the router is serving.
 JOBS="${LLAMACPP_BUILD_JOBS:-$(( $(nproc) / 2 ))}"
 ((JOBS < 1)) && JOBS=1
 say "building with -j$JOBS (this takes a while)..."
@@ -217,7 +217,7 @@ good "built $(git rev-parse --short "$HEAD_SHA")"
 # Never silently: a restart drops in-flight generation, and a long prompt ingest can be
 # minutes of work. But an un-restarted router is the exact state that hid the qwen4exp
 # problem, and the router forks a child per model, so once libllama.so is replaced a
-# NEWLY autoloaded child runs the new code under a parent still mapped to the old.
+# child loaded afterwards (los) runs the new code under a parent still mapped to the old.
 #
 # So: ask, default No, and only when a human is on the terminal. A non-interactive run
 # (a herdr pane, cron, a pipe) gets the reminder and nothing else; so does a prompt
@@ -247,14 +247,11 @@ print(busy)' 2>/dev/null)
   [[ "$n" =~ ^[0-9]+$ ]] && echo "$n" || echo "?"
 }
 
-RESTART_NEEDED=()
-if systemctl --user is-active --quiet llama-router.service 2>/dev/null; then
-  RESTART_NEEDED+=(llama-router.service)
-fi
-((${#RESTART_NEEDED[@]} == 0)) && exit 0
+UNIT=llama-router.service
+systemctl --user is-active --quiet "$UNIT" 2>/dev/null || exit 0
 
 echo
-warn "llama-router.service is still running the PREVIOUS binary"
+warn "$UNIT is still running the PREVIOUS binary"
 
 answer=
 case "${LLAMACPP_RESTART:-}" in
@@ -274,14 +271,14 @@ esac
 
 case "$answer" in
   y|Y|yes|YES)
-    say "restarting ${RESTART_NEEDED[*]}..."
-    if systemctl --user restart "${RESTART_NEEDED[@]}"; then
+    say "restarting $UNIT..."
+    if systemctl --user restart "$UNIT"; then
       good "restarted -- nothing is loaded now; bring models back with los"
     else
-      bad "restart failed -- systemctl --user status ${RESTART_NEEDED[*]}"
+      bad "restart failed -- systemctl --user status $UNIT"
       exit 1
     fi ;;
   *)
     warn "not restarted -- when idle:"
-    warn "  systemctl --user restart ${RESTART_NEEDED[*]}" ;;
+    warn "  systemctl --user restart $UNIT" ;;
 esac
