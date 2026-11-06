@@ -2,12 +2,7 @@
 """Cross-check the three sources of truth for the local llama.cpp model set.
 
 One router since 2026-11-06: ~/models/llama served on :7070 with
-llamacpp/archlinux/models.ini. The light/cheap/heavy tiers are gone; "tier" below
-means the one served directory.
-
-One router since 2026-11-06: ~/models/llama served on :7070 with
-llamacpp/archlinux/models.ini. The light/cheap/heavy tiers are gone; "tier" below
-means the one served directory.
+llamacpp/archlinux/models.ini.
 
 Read-only. Exists because they drifted apart silently and it took a manual
 investigation to notice:
@@ -20,8 +15,8 @@ investigation to notice:
   * Qwen3-Coder-Next was deleted along with its preset section, but opencode's
     generate-code subagent still pointed at it -- and the router kept a child with
     --alias and no --model stuck in `loading` forever. pick_victim() skips anything
-    not ready, so that child could never be evicted and permanently held one of the
-    five --models-max slots.
+    not ready, so that child could never be evicted and permanently held a
+    --models-max slot.
   * raising np without kv-unified silently quartered a model's per-slot context
     below what the clients advertised, which surfaces as
     ERROR_TYPE_EXCEED_CONTEXT_SIZE mid-conversation rather than a clean refusal.
@@ -42,8 +37,9 @@ import urllib.request
 HOME = os.path.expanduser("~")
 DOT = os.path.join(HOME, "dotfiles")
 MODELS = os.path.join(HOME, "models")
-TIERS = ("llama",)
-INI = {"llama": os.path.join(DOT, "llamacpp", "archlinux", "models.ini")}
+SERVED = os.path.join(MODELS, "llama")
+INI = os.path.join(DOT, "llamacpp", "archlinux", "models.ini")
+ROUTER = "http://127.0.0.1:7070"
 FETCH_SCRIPTS = [
     os.path.join(DOT, "llamacpp", "archlinux", "fetch-models.sh"),
     os.path.join(DOT, "llamacpp", "osx", "fetch-models-osx.sh"),
@@ -74,19 +70,18 @@ def read_json_lenient(path):
     return json.loads(body)
 
 
-def tier_models(tier):
-    """Map model id -> main gguf path, mirroring llama.cpp's --models-dir scan.
+def served_models():
+    """Map model id -> main gguf path, mirroring llama.cpp's --models-dir scan of SERVED.
 
     scan_subdir()/load_from_models_dir() in common/preset.cpp: a top-level *.gguf
     gets the filename stem as its id; a subdirectory is one model whose id is the
     DIRECTORY name, pairing its main gguf with an mmproj*/shard sidecar.
     """
-    root = os.path.join(MODELS, tier)
     out = {}
-    if not os.path.isdir(root):
+    if not os.path.isdir(SERVED):
         return out
-    for entry in sorted(os.listdir(root)):
-        path = os.path.join(root, entry)
+    for entry in sorted(os.listdir(SERVED)):
+        path = os.path.join(SERVED, entry)
         if os.path.isdir(path):
             # First non-mmproj GGUF stands for the model. For a split model any shard
             # identifies it, and the id is the directory name either way.
@@ -102,9 +97,9 @@ def tier_models(tier):
 def all_ggufs():
     for dirpath, dirnames, files in os.walk(MODELS):
         # ~/models/archive and ~/models/retired are the parking lots for retired weights
-        # (Flash-Next -> archive, 2026-09-09; GLM-4.7-Flash and qwen3.8's mmproj -> retired,
-        # 2026-10-12): kept so reinstating is a `mv`, not a 17-87 GB download, and
-        # deliberately WITHOUT a fetch recipe. Auditing them would flag every retirement forever.
+        # (qwen3.8's mmproj since 2026-10-12): kept so reinstating is a `mv`, not a
+        # download, and deliberately WITHOUT a fetch recipe. Auditing them would flag
+        # every retirement forever.
         # ~/models/light, heavy and cheap are the pre-2026-11-06 tier directories; anything
         # still there after install.sh's migration is a leftover the operator must look at,
         # not a model to audit against the recipe.
@@ -118,11 +113,12 @@ def all_ggufs():
 
 
 # ---------------------------------------------------------------- 1. recipes
+def read_recipes():
+    return "".join(open(s).read() for s in FETCH_SCRIPTS if os.path.exists(s))
+
+
 def check_recipes():
-    recipe_text = ""
-    for s in FETCH_SCRIPTS:
-        if os.path.exists(s):
-            recipe_text += open(s).read()
+    recipe_text = read_recipes()
     for path in sorted(all_ggufs()):
         name = os.path.basename(path)
         if os.path.islink(path):
@@ -143,17 +139,30 @@ def check_recipes():
 
 
 # ---------------------------------------------------------- 2. presets/files
-def preset_sections(tier):
-    """Return {section: {key: value}} with [*] cascaded in, as the router does."""
-    path = INI.get(tier)
-    if not path or not os.path.exists(path):
-        return {}
+def read_ini():
+    """models.ini as a ConfigParser, or None when the file is missing."""
+    if not os.path.exists(INI):
+        return None
     cp = configparser.ConfigParser(strict=False)
-    # These files carry a top-level `version = 1` ahead of any section header, which
+    # The file carries a top-level `version = 1` ahead of any section header, which
     # llama.cpp's own preset parser accepts and configparser does not. Give it a
     # synthetic header rather than reformatting a git-tracked file to suit the audit.
-    cp.read_string("[__top__]\n" + open(path).read(), source=path)
-    base = dict(cp["*"]) if cp.has_section("*") else {}
+    cp.read_string("[__top__]\n" + open(INI).read(), source=INI)
+    return cp
+
+
+def base_section():
+    """The [*] block a sectionless, auto-discovered model inherits."""
+    cp = read_ini()
+    return dict(cp["*"]) if cp is not None and cp.has_section("*") else {}
+
+
+def preset_sections():
+    """Return {section: {key: value}} with [*] cascaded in, as the router does."""
+    cp = read_ini()
+    if cp is None:
+        return {}
+    base = base_section()
     out = {}
     for sec in cp.sections():
         if sec in ("*", "__top__"):
@@ -164,37 +173,25 @@ def preset_sections(tier):
     return out
 
 
-def base_section(tier):
-    """The [*] block a sectionless, auto-discovered model inherits."""
-    path = INI.get(tier)
-    if not path or not os.path.exists(path):
-        return {}
-    cp = configparser.ConfigParser(strict=False)
-    cp.read_string("[__top__]\n" + open(path).read(), source=path)
-    return dict(cp["*"]) if cp.has_section("*") else {}
-
-
 def check_presets():
-    for tier in TIERS:
-        present = tier_models(tier)
-        for sec, keys in preset_sections(tier).items():
-            explicit = keys.get("model")
-            if explicit:
-                p = os.path.expandvars(explicit.replace("~", HOME))
-                if not os.path.exists(p):
-                    finding("preset", f"models.ini [{sec}] model = {explicit} does not exist")
-            elif sec not in present:
-                # A declared-but-absent model is only a provenance problem if there is
-                # no way to get it back. The big models are deliberately opt-in
-                # (LOS_FETCH_HEAVY=1), so "not downloaded" is a state, not drift.
-                recipe_text = "".join(open(f).read() for f in FETCH_SCRIPTS
-                                      if os.path.exists(f))
-                if sec in recipe_text:
-                    note(f"models.ini [{sec}] is declared but not downloaded; a recipe "
-                         f"exists (big models are opt-in: LOS_FETCH_HEAVY=1)")
-                else:
-                    finding("preset", f"models.ini [{sec}] has no matching file in "
-                                      f"~/models/{tier} AND no fetch recipe")
+    present = served_models()
+    recipes = read_recipes()
+    for sec, keys in preset_sections().items():
+        explicit = keys.get("model")
+        if explicit:
+            p = os.path.expandvars(explicit.replace("~", HOME))
+            if not os.path.exists(p):
+                finding("preset", f"models.ini [{sec}] model = {explicit} does not exist")
+        elif sec not in present:
+            # A declared-but-absent model is only a provenance problem if there is
+            # no way to get it back. The big models are deliberately opt-in
+            # (LOS_FETCH_HEAVY=1), so "not downloaded" is a state, not drift.
+            if sec in recipes:
+                note(f"models.ini [{sec}] is declared but not downloaded; a recipe "
+                     f"exists (big models are opt-in: LOS_FETCH_HEAVY=1)")
+            else:
+                finding("preset", f"models.ini [{sec}] has no matching file in "
+                                  f"~/models/llama AND no fetch recipe")
 
 
 # --------------------------------------------------------------- 3. clients
@@ -233,9 +230,7 @@ def client_models():
 
 
 def check_clients(rows):
-    on_disk = {}
-    for t in TIERS:
-        on_disk.update(tier_models(t))
+    on_disk = served_models()
     for client, pname, base, mid, _ctx in rows:
         if mid not in on_disk:
             finding("client", f"{client}/{pname} advertises '{mid}' but no such model "
@@ -266,20 +261,19 @@ def check_context(rows):
         return min(int(c), int(cap)) if cap.isdigit() and int(cap) > 0 else int(c)
 
     eff = {}
-    for tier in TIERS:
-        secs = preset_sections(tier)
-        # A model with no section is still served: --models-dir auto-discovers it and
-        # it inherits [*]. Those are exactly the ones a section-only scan misses.
-        base = base_section(tier)
-        for mid in tier_models(tier):
-            keys = secs.get(mid, base)
-            v = per_slot(keys)
-            if v is not None:
-                eff[mid] = v
-        for sec, keys in secs.items():
-            v = per_slot(keys)
-            if v is not None:
-                eff.setdefault(sec, v)
+    secs = preset_sections()
+    # A model with no section is still served: --models-dir auto-discovers it and
+    # it inherits [*]. Those are exactly the ones a section-only scan misses.
+    base = base_section()
+    for mid in served_models():
+        keys = secs.get(mid, base)
+        v = per_slot(keys)
+        if v is not None:
+            eff[mid] = v
+    for sec, keys in secs.items():
+        v = per_slot(keys)
+        if v is not None:
+            eff.setdefault(sec, v)
     for client, pname, base, mid, ctx in rows:
         if not ctx or mid not in eff:
             continue
@@ -309,16 +303,15 @@ def check_runtime():
                                f"never finish loading, and pick_victim() skips models that "
                                f"are not ready, so it holds a --models-max slot forever. "
                                f"Restart the router to clear it.")
-    for port in (7070,):
-        try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}/v1/models", timeout=5) as r:
-                data = json.load(r)
-        except Exception:
-            continue
-        for m in data.get("data", []):
-            if (m.get("status") or {}).get("value") == "loading":
-                finding("runtime", f":{port} model '{m.get('id')}' is stuck in 'loading' "
-                                   f"(unevictable while in this state)")
+    try:
+        with urllib.request.urlopen(f"{ROUTER}/v1/models", timeout=5) as r:
+            data = json.load(r)
+    except Exception:
+        return
+    for m in data.get("data", []):
+        if (m.get("status") or {}).get("value") == "loading":
+            finding("runtime", f"router model '{m.get('id')}' is stuck in 'loading' "
+                               f"(unevictable while in this state)")
 
 
 # ---------------------------------------------------------------- 6. remote
