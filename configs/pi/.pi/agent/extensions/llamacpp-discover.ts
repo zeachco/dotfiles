@@ -27,8 +27,8 @@
  *
  * When nothing listens on the router's port (not installed on this box) the
  * provider is emptied so /model does not offer dead models; a transient failure
- * (timeout, bad response) keeps the models.json definitions in place. models.json is still rewritten by
- * `llamacpp-sync` for opencode and as the offline fallback; this extension only makes
+ * (timeout, bad response) keeps the models.json definitions in place. `llamacpp-sync`
+ * still rewrites models.json (the offline fallback) and opencode.json; this extension only makes
  * pi stop needing a sync run after a router change.
  */
 

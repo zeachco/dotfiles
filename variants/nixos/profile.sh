@@ -115,5 +115,5 @@ nixi() {
 ZVM="$HOME/.nix-profile/share/zsh-vi-mode/zsh-vi-mode.plugin.zsh"
 [[ -n "$ZSH_VERSION" && -f "$ZVM" ]] && source "$ZVM"
 
-# Same single-router layout as archlinux (2026-11-06): the shell helpers use the
-# default :7070 and need their model loaded with `los`. See the archlinux profile.
+# llama.cpp: no AI_LLAMA_URL export; the shell helpers use the one router on :7070
+# (see _ai_url() in variants/shared/_ai_tools.sh).

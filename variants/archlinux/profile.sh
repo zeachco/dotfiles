@@ -275,12 +275,5 @@ yayi() {
     [[ "$install" == "y" ]] && yayin $package
 }
 
-# --- llama.cpp: the shell helpers talk to the one router ---------------------------
-# _ai_url() in variants/shared/_ai_tools.sh resolves
-# ${AI_LLAMA_URL:-${LOS_URL:-http://127.0.0.1:7070}} at call time. Until 2026-11-06 this
-# exported AI_LLAMA_URL=:7071, a separate "cheap" router whose only job was to keep
-# summarize()/tab_autoname() traffic from making qwen3.8 the LRU-eviction victim on the
-# autoloading light router. The router no longer autoloads anything, so there is no
-# eviction to dodge: the helpers use the default :7070, and work whenever their model
-# (gemma-4-E2B, models.ini) has been loaded with `los`; otherwise they time out
-# gracefully and the tab keeps its name.
+# llama.cpp: the shell helpers (summarize/tab_autoname) use the one router on :7070;
+# AI_LLAMA_URL is no longer exported here. See _ai_url() in variants/shared/_ai_tools.sh.

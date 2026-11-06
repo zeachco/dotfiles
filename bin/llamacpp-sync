@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""llamacpp-sync -- rebuild the local clients' llama.cpp model defs from the live routers.
+"""llamacpp-sync -- rebuild the local clients' llama.cpp model defs from the live router.
 
-Rebuilds model definitions for the local llama.cpp routers and OpenRouter. For every
+Rebuilds model definitions for the local llama.cpp router and OpenRouter. For every
 `llamacpp*` or `openrouter` provider in pi and opencode it:
 
   * queries GET {baseUrl}/models (OpenAI-compatible API)
@@ -128,8 +128,8 @@ _LIVE_CACHE = {}
 def live_models(base_url, timeout, kind):
     """Validated model list for one router, or (None, reason).
 
-    Cached by URL: pi and opencode point their llamacpp providers at the SAME routers,
-    so a single pass over both clients would otherwise ask each router the same question
+    Cached by URL: pi and opencode point their llamacpp providers at the SAME router,
+    so a single pass over both clients would otherwise ask it the same question
     twice -- and on a busy box each of those calls waits behind whatever is generating.
     """
     url = models_url(base_url)

@@ -31,7 +31,7 @@ Sonnet 5.5 via OpenRouter) and brings the description back.
      or asks about one → continue.
 2. Never route this to a local model: the router's `gemma-4-*`
    vision models are kept out of pi's catalog (`llamacpp-sync`, `PI_HIDDEN`),
-   and they were cold and 16k-context anyway. The `planner` agent targets
+   and they are cold and small-context (8k-32k per slot) anyway. The `planner` agent targets
    Claude Sonnet 5.5 via OpenRouter (`openrouter/anthropic/claude-sonnet-5.5`),
    which reads images natively.
 

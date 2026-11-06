@@ -1,7 +1,7 @@
 ---
 name: llamacpp-sync
 description: >
-  Sync pi's and opencode's model definitions with the live llama.cpp routers and
+  Sync pi's and opencode's model definitions with the live llama.cpp router and
   OpenRouter. Use when a local model list changed, when asked to reload/update/sync
   models, or when a model is missing from /model. Runs llamacpp-sync, which rebuilds
   the llamacpp* and openrouter providers in both client configs from GET /v1/models.
@@ -19,15 +19,14 @@ current model catalog:
 | opencode | `~/.config/opencode/opencode.json`| `provider.<name>.models` object     |
 
 The local provider is `llamacpp` (the one router on :7070, `--no-models-autoload`; it
-still lists models when nothing is loaded). `llamacpp-heavy` (:7072) was retired on
-2026-11-06 along with the three-tier layout, and its models live under `llamacpp`. The
+still lists models when nothing is loaded; big and small models alike). The
 `openrouter` provider is filtered to text-output chat models and uses the public
 OpenRouter catalog; requests use `OPENROUTER_API_KEY` or the client's stored login.
 
 ## Run
 
 Runs automatically at the end of `dotfiles_update` / `setup.sh` on the Strix Halo box
-(llamacpp/archlinux/setup.sh, after the router units are installed), and is the
+(llamacpp/archlinux/setup.sh, after the router unit is installed), and is the
 `sync-models` action in the `los` menu. Run it by hand after adding or removing models.
 
 pi's `llamacpp` provider no longer waits for a sync: the
