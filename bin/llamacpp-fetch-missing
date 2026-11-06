@@ -6,12 +6,21 @@
 #             pre-check and lists every file that is absent or differs from upstream,
 #             with its size. Nothing is written under ~/models.
 #   2. fetch  the same recipe for real, which skips what the plan skipped, resumes
-#             partial files, verifies digests and asks the routers to rescan.
+#             partial files, verifies digests and asks the router to rescan.
 # Between the two, the plan is printed and the run waits for a `y`. Decline, no answer
 # within LOS_FETCH_TIMEOUT (default 300 s) or no terminal at all = nothing fetched,
 # exit 0 -- so the Herdr `models` job (bin/dotfiles-job) can leave this unattended
 # and still close its workspace. LOS_FETCH_YES=1 skips the prompt (non-interactive
-# installs). The Arch heavy tier keeps its own opt-in, LOS_FETCH_HEAVY=1.
+# installs). The big models keep their own opt-in, LOS_FETCH_HEAVY=1.
+#
+# FIRST INSTALL (2026-11-06): when the served directory holds no model at all -- a box
+# where llama.cpp was just set up, or ~/models wiped -- and fzf plus a terminal are
+# there, the plan is made with the big models included and shown as an fzf
+# multi-selection, one row per model with its size. Only what is picked is fetched
+# (LOS_FETCH_SELECT, see _fetch-lib.sh). This runs as the LAST step of setup, after the
+# router is installed, so the choice is made once and by hand rather than by a script
+# starting a 250 GB download. Nothing picked = nothing fetched, exit 0; the next
+# dotfiles_update offers the same picker again as long as the directory is empty.
 #
 # Runs with literal bash on purpose (see llamacpp/README.md) and stays bash 3.2 clean:
 # the Mac runs it too.
@@ -21,8 +30,8 @@ DOT_DIR="$HOME/dotfiles"
 . "$DOT_DIR/llamacpp/shared/_hw-gate.sh"
 
 case "$(uname -s)" in
-Darwin) recipe="$DOT_DIR/llamacpp/osx/fetch-models-osx.sh"; gate=is_apple_silicon ;;
-Linux)  recipe="$DOT_DIR/llamacpp/archlinux/fetch-models.sh"; gate=is_ryzen_ai_max ;;
+Darwin) recipe="$DOT_DIR/llamacpp/osx/fetch-models-osx.sh"; gate=is_apple_silicon; served="${LOS_MODELS_DIR:-$HOME/models}" ;;
+Linux)  recipe="$DOT_DIR/llamacpp/archlinux/fetch-models.sh"; gate=is_ryzen_ai_max; served="$HOME/models/llama" ;;
 *)      echo "llama.cpp models: unsupported OS $(uname -s), nothing to do"; exit 0 ;;
 esac
 
@@ -32,18 +41,82 @@ if ! "$gate"; then
 fi
 
 plan="$(mktemp "${TMPDIR:-/tmp}/llamacpp-plan.XXXXXX")"
-trap 'rm -f "$plan"' EXIT
+select_file="$(mktemp "${TMPDIR:-/tmp}/llamacpp-select.XXXXXX")"
+trap 'rm -f "$plan" "$select_file"' EXIT
+
+# A box with no served model at all is a first install: plan with everything the recipe
+# knows, the opt-in big models included, so the picker can offer them.
+first_install=0
+if [ -z "$(find "$served" -name '*.gguf' -print 2>/dev/null | head -1)" ]; then
+  first_install=1
+fi
 
 echo "==> checking ~/models against $recipe"
-LOS_FETCH_PLAN="$plan" bash "$recipe" >/dev/null 2>&1
+if [ "$first_install" = 1 ]; then
+  LOS_FETCH_PLAN="$plan" LOS_FETCH_HEAVY=1 bash "$recipe" >/dev/null 2>&1
+else
+  LOS_FETCH_PLAN="$plan" bash "$recipe" >/dev/null 2>&1
+fi
 
 if [ ! -s "$plan" ]; then
   echo "All models are on disk; nothing to download."
   exit 0
 fi
 
-# bytes -> GiB with one decimal; awk rather than bash arithmetic because the sizes
-# exceed 2^31 and bash 3.2 has no printf %f.
+# One row per MODEL, not per file: a subdirectory model (shards + projector) is one
+# choice. The grouping key is the destination directory's basename, or the filename
+# stem when the destination is a top-level directory (~/models/llama, ~/models/drafts,
+# ~/models/laya, or the Mac's flat ~/models) -- the same rule the router uses to name
+# models. bytes -> GiB in awk: the sizes exceed 2^31 and bash 3.2 has no printf %f.
+plan_groups() {
+  awk -F '\t' -v served="$served" -v home="$HOME" '
+    function key(dest, file,   n, parts, base, d) {
+      n = split(file, parts, "/"); base = parts[n]; sub(/\.gguf$/, "", base)
+      n = split(dest, parts, "/"); d = parts[n]
+      if (dest == served || d == "llama" || d == "drafts" || d == "laya" || dest == home "/models") return base
+      return d
+    }
+    { k = key($3, $2); size[k] += $4; files[k]++
+      if (!(k in where)) { where[k] = $3; sub("^" home "/", "~/", where[k]); order[++n] = k } }
+    END { for (i = 1; i <= n; i++) { k = order[i]
+            printf "%s\t%7.1f GiB\t%d file(s)\t%s\n", k, size[k] / 1073741824, files[k], where[k] } }' "$plan"
+}
+
+if [ "$first_install" = 1 ] && [ -t 0 ] && [ -t 1 ] && command -v fzf >/dev/null 2>&1 && [ "${LOS_FETCH_YES:-0}" != "1" ]; then
+  echo
+  echo "No models on this box yet. Pick what to download (tab marks several, enter confirms,"
+  echo "esc downloads nothing -- the picker comes back on the next dotfiles_update)."
+  echo
+  picked="$(plan_groups | fzf --multi --delimiter='\t' --with-nth=1,2,3 \
+      --height=100% --reverse --prompt='download > ' \
+      --header=$'model\tsize\tfiles   (gpt-oss-120b needs its eagle3 draft; big models are 60-100 GiB each)' \
+      --preview='printf "%s\n\nfiles:\n" {4}; awk -F"\t" -v k={1} '"'"'{ n=split($2,p,"/"); printf "  %s\n", p[n] }'"'"' '"$plan"' | sort -u' \
+      --preview-window='right:45%:wrap' | cut -f1)" || picked=""
+  if [ -z "$picked" ]; then
+    echo "Nothing picked. Nothing fetched. Re-run: bash $DOT_DIR/bin/llamacpp-fetch-missing"
+    exit 0
+  fi
+  # The selection file lists exact plan rows ("<repo>\t<file>") so the fetch lib can
+  # match without re-deriving the grouping.
+  awk -F '\t' -v served="$served" -v home="$HOME" -v picked="$picked" '
+    BEGIN { n = split(picked, p, "\n"); for (i = 1; i <= n; i++) want[p[i]] = 1 }
+    function key(dest, file,   n, parts, base, d) {
+      n = split(file, parts, "/"); base = parts[n]; sub(/\.gguf$/, "", base)
+      n = split(dest, parts, "/"); d = parts[n]
+      if (dest == served || d == "llama" || d == "drafts" || d == "laya" || dest == home "/models") return base
+      return d
+    }
+    key($3, $2) in want { printf "%s\t%s\n", $1, $2 }' "$plan" >"$select_file"
+  echo
+  echo "Downloading:"
+  plan_groups | awk -F '\t' -v picked="$picked" '
+    BEGIN { n = split(picked, p, "\n"); for (i = 1; i <= n; i++) want[p[i]] = 1 }
+    $1 in want { printf "  %s  %s  (%s)\n", $2, $1, $3; total += $2 }'
+  echo
+  LOS_FETCH_HEAVY=1 LOS_FETCH_SELECT="$select_file" bash "$recipe"
+  exit $?
+fi
+
 echo
 echo "Missing or out-of-date files:"
 awk -F '\t' '{ gib = $4 / 1073741824; total += $4
@@ -74,4 +147,10 @@ if [ "${LOS_FETCH_YES:-0}" != "1" ]; then
   esac
 fi
 
-bash "$recipe"
+# A first install that got here (no fzf, or LOS_FETCH_YES=1) fetches the plan it printed,
+# which included the big models; keep that honest by enabling them for the real run too.
+if [ "$first_install" = 1 ]; then
+  LOS_FETCH_HEAVY=1 bash "$recipe"
+else
+  bash "$recipe"
+fi

@@ -78,14 +78,7 @@
             "cacheRead": 0,
             "cacheWrite": 0
           }
-        }
-      ]
-    },
-    "llamacpp-heavy": {
-      "api": "openai-completions",
-      "apiKey": "llamacpp",
-      "baseUrl": "http://oli-llms.local:7072/v1",
-      "models": [
+        },
         {
           "id": "DeepSeek-V4-Flash-chat-v2",
           "name": "DeepSeek-V4-Flash-chat-v2",

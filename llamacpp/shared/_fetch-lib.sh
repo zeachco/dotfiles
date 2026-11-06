@@ -17,6 +17,17 @@ FETCH_FAILURES=0
 # legacy quant on disk never shows up as "missing".
 FETCH_PLAN="${LOS_FETCH_PLAN:-}"
 
+# SELECT MODE (LOS_FETCH_SELECT=<file>): only the files listed in it, one "<repo>\t<file>"
+# per line exactly as the plan wrote them, are fetched; every other fetch() call is a
+# silent skip. bin/llamacpp-fetch-missing writes it from an fzf multi-selection over the
+# plan on a box with no models yet, so a first install downloads what was picked and
+# nothing else. Plan mode and select mode are never active together.
+FETCH_SELECT="${LOS_FETCH_SELECT:-}"
+fetch_selected() { # repo file
+  [ -n "$FETCH_SELECT" ] || return 0
+  grep -qxF "$(printf '%s\t%s' "$1" "$2")" "$FETCH_SELECT" 2>/dev/null
+}
+
 # fetch <repo> <file> <destdir>
 #
 # Resumable AND idempotent. The idempotence guard is the point: plain `curl -C -` on
@@ -28,6 +39,8 @@ fetch() {
   local out="$dest/${file##*/}"
   local url="$HF/$repo/resolve/main/$file"
   local remote local_size remote_meta remote_sha
+
+  fetch_selected "$repo" "$file" || return 0
 
   # HF sets x-linked-size for LFS objects, which is the true object size;
   # content-length on the redirect chain is the fallback. tolower($1) rather than
@@ -151,12 +164,12 @@ fetch_report() {
 #     directory therefore make that id resolve nondeterministically. fetch()'s per-file
 #     size pre-check cannot see a differently-named sibling.
 #  2. A model and its projector must come from the SAME source. Guarding only the model
-#     file would still let the projector be replaced: ~/models/light/qwen3.8 holds a
+#     file would still let the projector be replaced: ~/models/llama/qwen3.8 holds a
 #     legacy mmproj-F16.gguf of 931146016 bytes where unsloth ships 927607488,
 #     so fetch() would see a size mismatch and overwrite a working projector, leaving a
 #     legacy model paired with an unsloth one.
 #
-# The case that needs it: ~/models/light/qwen3.8 is a legacy plain Q4_K_M named
+# The case that needs it: ~/models/llama/qwen3.8 is a legacy plain Q4_K_M named
 # qwen3.8-Q4_K_M.gguf, predating this recipe, which yields Qwen3.8-27B-UD-Q4_K_M.gguf.
 # Same model, different quant. A fresh machine gets the unsloth pair; this one keeps
 # what it has. The id is `qwen3.8` either way, because it is the directory name.
@@ -213,9 +226,8 @@ fetch_verify() {
   verify="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/verify-models.sh"
   for dir in "$@"; do
     [ -d "$dir" ] || continue
-    # -type f, matching verify-models.sh: the cheap tier holds only a symlink into
-    # light, whose target is verified there. Counting the link here would turn an
-    # empty verify run into a false failure.
+    # -type f, matching verify-models.sh: a symlinked model is verified at its target,
+    # and counting the link here would turn an empty verify run into a false failure.
     [ -n "$(find "$dir" -type f -name '*.gguf' -print 2>/dev/null | head -1)" ] || continue
     echo
     echo "==> verifying $dir against upstream digests"
@@ -226,30 +238,12 @@ fetch_verify() {
   done
 }
 
-# link_cheap_tier
-#
-# Arch only. cheap.ini serves gemma-4-E2B-it from ~/models/cheap, as a SYMLINK to the
-# light tier's weights (text only, no mmproj -- see cheap.ini for why). Nothing used
-# to create it: install.sh printed the ln -s and left it to the operator, and on the
-# 2026-09-14 reinstall the cheap router came up advertising a model it could not load.
-# Idempotent and silent when the source is not on disk yet.
-link_cheap_tier() {
-  [ -n "$FETCH_PLAN" ] && return 0
-  [ "$(uname -s)" = Darwin ] && return 0
-  local src="$HOME/models/light/gemma-4-E2B-it-GGUF/gemma-4-E2B-it-Q4_K_M.gguf"
-  local dir="$HOME/models/cheap/gemma-4-E2B-it"
-  [ -f "$src" ] || return 0
-  [ -e "$dir/${src##*/}" ] && return 0
-  mkdir -p "$dir" && ln -s "$src" "$dir/" &&
-    echo "==> cheap tier: linked ${src##*/} into $dir"
-}
-
 # routers_reload <port> [port...]
 #
-# Ask each running router to rescan --models-dir instead of restarting it: a restart
+# Ask the running router to rescan --models-dir instead of restarting it: a restart
 # drops in-flight generation, a reload (server-models.cpp, GET /v1/models?reload=1)
-# only adds what is new and drops what is gone. Unreachable routers are reported, not
-# treated as errors -- on a first install they may not be up yet.
+# only adds what is new and drops what is gone. An unreachable router is reported, not
+# treated as an error -- on a first install it may not be up yet.
 routers_reload() {
   local p
   [ -z "$FETCH_PLAN" ] || return 0

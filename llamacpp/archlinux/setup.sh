@@ -2,7 +2,7 @@
 #
 # All llama.cpp setup for Arch: install the router as a systemd --user service
 # (WantedBy=default.target, so it comes back on every login) and point at the
-# model fetch script if ~/models/light is empty.
+# model fetch script if ~/models/llama is empty.
 #
 # Skips itself when ~/dev/llama.cpp/build/bin/llama-server has not been built yet
 # (see docs/ryzen-llm-setup.md), so this is harmless on an Arch box without that setup.
@@ -47,20 +47,18 @@ bash "$SCRIPT_DIR/update.sh" ||
 bash "$SCRIPT_DIR/install.sh" ||
   echo -e "\033[0;31mllama router install failed\033[0m"
 
-# Refresh pi's llamacpp* providers from the live routers. Only on the Strix Halo box
+# Refresh pi's llamacpp provider from the live router. Only on the Strix Halo box
 # -- the CPU half of that gate is the hardware gate at the top of this file, so only
-# the omarchy half is left here: the providers point at THIS machine, and on any other
-# host the routers are simply not there. Forgetting this step is how pi ended up listing a
+# the omarchy half is left here: the provider points at THIS machine, and on any other
+# host the router is simply not there. Forgetting this step is how pi ended up listing a
 # model set that no router served (2026-09-09: heavy tier had DeepSeek, pi did not).
 if [[ -d /usr/share/omarchy ]]; then
-  # install.sh may have just started a router; give /health a moment before syncing,
+  # install.sh may have just started the router; give /health a moment before syncing,
   # otherwise the sync warns "unreachable" and keeps the stale list.
-  for port in 7070 7072; do
-    for _ in $(seq 1 20); do
-      curl -sf -m 2 "http://127.0.0.1:$port/health" >/dev/null 2>&1 && break
-      sleep 1
-    done
+  for _ in $(seq 1 20); do
+    curl -sf -m 2 "http://127.0.0.1:7070/health" >/dev/null 2>&1 && break
+    sleep 1
   done
   "$SCRIPT_DIR/../../bin/llamacpp-sync" ||
-    echo -e "\033[0;33mllamacpp-sync failed; run it by hand once the routers are up\033[0m"
+    echo -e "\033[0;33mllamacpp-sync failed; run it by hand once the router is up\033[0m"
 fi

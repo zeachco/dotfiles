@@ -11,32 +11,38 @@ Local model serving. Only two machines in this repo run local models — an Appl
 | ----------------- | -------------------------------------------------------------------------------------------------------------- |
 | `shared/`         | Cross-OS, sourced by the shell profile: `_llama.sh` (foreground launchers + verbs), `_los_menu.sh` (the `los` fzf menu), `_fetch-lib.sh` (HuggingFace download helper), `verify-models.sh` (GGUF integrity vs HF SHA-256), `clone.sh` (clones `~/dev/llama.cpp`, starts initial downloads), `_hw-gate.sh` |
 | `osx/`            | `setup.sh` (brew install + launchd user agent + wired-memory cap daemon), `osx.ini` presets, `install*.sh` + plist templates, `fetch-models-osx.sh` (opt-in via `LOS_FETCH_MODELS=1`), `update.sh` (build sync) |
-| `archlinux/`      | `setup.sh` (installs the three router units), `*.service` templates, `light/cheap/heavy.ini` presets, `fetch-models.sh`, `install.sh`, `update.sh` (checkout + Vulkan build sync, gated to the Strix Halo box) |
+| `archlinux/`      | `setup.sh` (installs the router unit), `llama-router.service` template, `models.ini` presets, `fetch-models.sh`, `install.sh` (also retires the pre-2026-11-06 tier units and migrates `~/models/{light,heavy,cheap}` into `~/models/llama`), `update.sh` (checkout + Vulkan build sync, gated to the Strix Halo box) |
 
 Everything is invoked with literal `bash` (not `$SHELL`) because the setup scripts are run
 through the user's shell, which would ignore the shebangs.
 
-## Tiers and ports (Arch box)
+## The router (Arch box)
 
-| Port   | Tier  | Unit                      | Bind        | Models          | Notes                                            |
-| ------ | ----- | ------------------------- | ----------- | --------------- | ------------------------------------------------ |
-| `:7070` | light | `llama-router.service`    | `0.0.0.0` (LAN) | `~/models/light` | `--models-max 4` (5 after Phase 0), several models coexist |
-| `:7071` | cheap | `llama-router-cheap.service` | `127.0.0.1` | `~/models/cheap` | Isolation tier for high-frequency shell traffic (summarize/tab-autoname), one model, loopback only |
-| `:7072` | heavy | `llama-router-heavy.service` | `0.0.0.0` (LAN) | `~/models/heavy` | One model at a time, `--no-models-autoload`      |
+| Port   | Unit                   | Bind            | Models           | Notes |
+| ------ | ---------------------- | --------------- | ---------------- | ----- |
+| `:7070` | `llama-router.service` | `0.0.0.0` (LAN) | `~/models/llama` | `--no-models-autoload`, `--models-max 8`: nothing loads until `los` / `los-load` / pi's model picker asks, nothing is evicted behind your back; memory is the only budget |
 
-The routers are independent processes that **share no memory budget** — a heavy load while the
-light tier is busy is a global OOM. The full argument, the 2026-09-09 OOM incident, and the
-rules for running heavy sessions live in
-[docs/ryzen-llm-setup.md](../docs/ryzen-llm-setup.md) ("The heavy tier", "The cheap tier").
+One router since 2026-11-06. Before that there were three (light `:7070` with autoload,
+cheap `:7071` for the shell helpers, heavy `:7072` one-at-a-time) whose whole reason was
+to keep the autoloading tier's LRU eviction away from the daily model and the shell
+helpers; with autoload off everywhere the split had nothing left to do, and routers that
+shared no memory budget were the shape of two global OOMs. The history and the incidents
+live in [docs/ryzen-llm-setup.md](../docs/ryzen-llm-setup.md).
 
-The Mac runs a single router (launchd agent, `osx.ini`) — no tiering.
+Everything under `~/models/llama` is advertised, so that directory holds ONLY served
+models: drafts live in `~/models/drafts`, the Laya encoder in `~/models/laya`, parked
+weights in `~/models/retired`.
+
+The Mac runs a single router too (launchd agent, `osx.ini`), with autoload.
 
 ## How a request flows
 
-`llama-server` runs in **router mode** (no `-m`): it loads nothing until a request names a
-model, spawns a **child process per model** (a crash/OOM kills that child, not the endpoint),
-and autoloads on first request. Model ids come from the directory/preset entry name, not the
-filename — check `GET /v1/models` rather than guessing.
+`llama-server` runs in **router mode** (no `-m`): it spawns a **child process per model** (a
+crash/OOM kills that child, not the endpoint) and proxies by the request's `model` field. On
+the Arch box a model has to be loaded first (`los`, `los-load`, `POST /models/load`, or picking
+it in pi); a request for an unloaded model is refused with 400. The Mac autoloads on first
+request. Model ids come from the directory/preset entry name, not the filename — check
+`GET /v1/models` rather than guessing.
 
 ## Presets (`.ini`)
 
@@ -47,12 +53,12 @@ matches nothing is ignored *without warning* and the model silently falls back t
 Three preset-only keys are not CLI args: `load-on-startup`, `stop-timeout`, `dedup-cache-models`.
 
 Two ordinary CLI args do most of the work of sharing one GPU between agents, and both are set
-per model in the Arch inis (2026-10-11): `sleep-idle-seconds` makes an idle child release its
+per model in `models.ini` (2026-10-11): `sleep-idle-seconds` makes an idle child release its
 weights and KV and reload on the next request (so idle fan-out models stop pinning GTT; the
 router reports such a model as `sleeping`, which the `los` menu and `framework-rgb` must never
 probe with `/slots`, because that wakes it), and `kv-unified-per-slot` caps what one chat can
 take out of a shared KV pool (so one long conversation cannot starve the other slots).
-`light.ini`'s header comments carry the measured load and re-ingest costs behind the values.
+`models.ini`'s comments carry the measured load and re-ingest costs behind the values.
 
 Per-slot context is `c / np` unless `kv-unified = true` — raising `np` without `kv-unified`
 silently quarters what a slot can actually hold, while clients keep advertising the full window
@@ -61,13 +67,13 @@ and fail mid-conversation. `bin/llamacpp-audit` enforces this invariant.
 ## Model lifecycle
 
 ```
-fetch          llamacpp/<os>/fetch-models*.sh        resumable HF downloads into ~/models/<tier> (plus non-router models such as `~/models/laya`)
-fetch missing  bin/llamacpp-fetch-missing            same recipe, plan pass first (LOS_FETCH_PLAN): lists what is missing, asks [y/N]; the `models` Herdr job of dotfiles_update
+fetch          llamacpp/<os>/fetch-models*.sh        resumable HF downloads into ~/models/llama (plus non-router models such as `~/models/laya`)
+fetch missing  bin/llamacpp-fetch-missing            same recipe, plan pass first (LOS_FETCH_PLAN): lists what is missing, asks [y/N]; the `models` Herdr job of dotfiles_update, i.e. the LAST step of setup. On a box with no model yet it is an fzf multi-select over every model the recipe knows (big ones included) and fetches only what was picked (LOS_FETCH_SELECT)
 verify         llamacpp/shared/verify-models.sh      SHA-256 vs the HF sidecar recorded at fetch
-serve          router autoloads from --models-dir    (LLAMA_CACHE per tier keeps tiers isolated)
+serve          router serves --models-dir            loads on request only (Arch); LLAMA_CACHE pinned so the cache cannot add models
 sync clients   bin/llamacpp-sync  (los → sync-models) rebuilds pi/opencode model defs from /v1/models
-pi discovery   configs/pi/.pi/agent/extensions/llamacpp-discover.ts  pi re-reads the light router's /v1/models itself at startup (models.json = offline fallback)
-restart all    los-restart-all    (los → restart) restarts every installed tier's daemon, reachable or not; skips tiers not installed here
+pi discovery   configs/pi/.pi/agent/extensions/llamacpp-discover.ts  pi re-reads the router's /v1/models itself at startup (models.json = offline fallback) and loads a picked model when it fits
+restart all    los-restart-all    (los → restart) restarts the router daemon, reachable or not
 audit          bin/llamacpp-audit                    ~/models vs INI presets vs client configs must agree
 ```
 
@@ -77,7 +83,7 @@ checkpoint to `~/models/laya`; run it with `bash ~/dotfiles/llamacpp/archlinux/f
 Install the matching runner from the ggmlc release with the Linux Vulkan artifact. Use
 `/usr/bin/install`, not bare `install`: the dotfiles define `install()` as a package helper.
 
-**Decision models are a different case.** `Bespoke-Nimble-9B-v3` (fetched into the light tier)
+**Decision models are a different case.** `Bespoke-Nimble-9B-v3`
 is a real llama.cpp model whose GGUF carries `<arch>.decision.type = nimble`. The router reports
 it in `/v1/models` with `architecture.output_modalities = ["decisions"]` without loading it, so
 pi's built-in llama.cpp provider lists it **only** as a classifier — llama.cpp's `/v1/systemone`
@@ -85,9 +91,8 @@ endpoint, the `typesafe-system-one` API, and never in `/model`. `bin/llamacpp-sy
 models from the chat defs it writes (pi re-discovers them from the router; opencode has no
 classifier concept). To use a local classifier in pi you must be logged into the built-in
 `llama.cpp` provider (`/login llama.cpp`, or `LLAMA_BASE_URL=http://127.0.0.1:7070`) — the
-custom `llamacpp` provider in `models.json` only serves chat. It shares the light router's
-`--models-max`/LRU budget, so its first load can evict `qwen3.8`; see `light.ini` and the fetch
-recipe note before pointing high-frequency traffic at it.
+custom `llamacpp` provider in `models.json` only serves chat. A classify call does not load
+it (no autoload): load it beside `qwen3.8` with `los` when a session wants it.
 
 **Every GGUF under `~/models` must have a line in the fetch script** — the audit exists because
 that invariant was broken silently before (the default model was a hardlink out of a retired
@@ -110,5 +115,5 @@ checkout, and only new-architecture models failed.
 
 - [docs/ryzen-llm-setup.md](../docs/ryzen-llm-setup.md) — the Strix Halo runbook: GTT unlock,
   backend choice (Vulkan vs ROCm), speculative decoding, per-model measurements, incidents.
-- File headers are the local manual: `cheap.ini` explains the cheap tier, `_los_menu.sh`
+- File headers are the local manual: `models.ini` explains every model's budget, `_los_menu.sh`
   explains the menu's safety properties, `install.sh` (per-OS) explains the service contract.

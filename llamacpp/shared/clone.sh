@@ -47,14 +47,21 @@ clone_llama_cpp() {
     git clone https://github.com/ggml-org/llama.cpp.git "$target" || return 1
   fi
 
-  # Gate on CONTENT, not on the directory existing. The Arch install.sh mkdir -p's
-  # ~/models/{light,cheap,heavy} for the systemd units, so on any box where it has run
+  # Linux: no unattended download. A box with no models yet gets the fzf picker at
+  # the END of setup (bin/llamacpp-fetch-missing, the `models` job), once the router
+  # is installed, so the choice of what to pull -- the daily set alone, or a 90 GiB
+  # model too -- is made by the person at the keyboard, not by this script.
+  if [[ "$(uname -s)" != Darwin ]]; then
+    echo "llama.cpp: model downloads are chosen at the end of setup (bin/llamacpp-fetch-missing)"
+    return 0
+  fi
+
+  # Gate on CONTENT, not on the directory existing: on any box where setup has run
   # once an existence test is always true and the download never starts -- which is
-  # exactly what happened on the 2026-09-14 reinstall: three empty tier dirs, three
-  # routers advertising light.ini names with no --model, every load spinning forever.
+  # exactly what happened on the 2026-09-14 reinstall: empty model dirs, routers
+  # advertising preset names with no --model, every load spinning forever.
   # Same directory logic as fetch-initial-models.sh, which is what gets launched.
-  local models="$HOME/models/light"
-  [[ "$(uname -s)" == Darwin ]] && models="${LOS_MODELS_DIR:-$HOME/models}"
+  local models="${LOS_MODELS_DIR:-$HOME/models}"
   if [[ -n "$(find "$models" -name '*.gguf' -print -quit 2>/dev/null)" ]]; then
     echo "llama.cpp: found models under $models; skipping model downloads"
     return 0

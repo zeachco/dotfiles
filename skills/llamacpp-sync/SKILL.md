@@ -18,8 +18,9 @@ current model catalog:
 | pi       | `~/.pi/agent/models.json`         | `providers.<name>.models` array     |
 | opencode | `~/.config/opencode/opencode.json`| `provider.<name>.models` object     |
 
-The local providers are `llamacpp` (light tier, :7070) and `llamacpp-heavy`
-(:7072, `--no-models-autoload`; it still lists models when nothing is loaded). The
+The local provider is `llamacpp` (the one router on :7070, `--no-models-autoload`; it
+still lists models when nothing is loaded). `llamacpp-heavy` (:7072) was retired on
+2026-11-06 along with the three-tier layout, and its models live under `llamacpp`. The
 `openrouter` provider is filtered to text-output chat models and uses the public
 OpenRouter catalog; requests use `OPENROUTER_API_KEY` or the client's stored login.
 
@@ -29,13 +30,13 @@ Runs automatically at the end of `dotfiles_update` / `setup.sh` on the Strix Hal
 (llamacpp/archlinux/setup.sh, after the router units are installed), and is the
 `sync-models` action in the `los` menu. Run it by hand after adding or removing models.
 
-pi's `llamacpp` provider (light router, :7070) no longer waits for a sync: the
+pi's `llamacpp` provider no longer waits for a sync: the
 `llamacpp-discover.ts` extension (configs/pi/.pi/agent/extensions) registers the
 models.json list instantly, then re-reads `/v1/models` in the background after every
 session start (`/llamacpp-refresh` does it on demand) with the same filtering rules, and
-empties a provider whose router port refuses connections (tier not installed on this box);
-only transient failures keep the models.json list. A sync is still what updates opencode, the
-`llamacpp-heavy` provider and the offline fallback itself.
+empties a provider whose router port refuses connections (router not installed on this box);
+only transient failures keep the models.json list. A sync is still what updates opencode and
+the offline fallback itself.
 
 ```sh
 ~/dotfiles/bin/llamacpp-sync                  # both clients, local + OpenRouter
@@ -54,7 +55,7 @@ sync. opencode reads its config at startup, so restart it.
   dropped), the per-slot context (`contextWindow` for pi, `limit.context` for
   opencode — `--ctx-size` divided by `--parallel` unless `--kv-unified`), and
   image input (`input` / `attachment`).
-- **Hidden from pi:** the light tier's `gemma-4-*` models never enter pi's
+- **Hidden from pi:** the router's `gemma-4-*` models never enter pi's
   `llamacpp` provider (`PI_HIDDEN` in the script; the sync prints which ones it
   kept out). pi routes nothing to them and `enabledModels` hides them from
   `/model`; opencode still lists them.
@@ -86,11 +87,6 @@ sync. opencode reads its config at startup, so restart it.
 - Router state per model (loaded/unloaded, launch args) can be inspected
   with `curl -s http://localhost:7070/v1/models | jq .data`, or by hovering a
   model in the `los` menu.
-- Per-server model pools live in `~/dotfiles/llamacpp/<os>/<tier>.ini`.
+- Per-model presets live in `~/dotfiles/llamacpp/archlinux/models.ini` (Mac: `osx/osx.ini`).
 - `bin/llamacpp-audit` cross-checks `~/models`, the INI presets and both client
   configs; run it after a sync that added a model.
-- The cheap tier on :7071 (`llama-router-cheap.service`) is deliberately NOT a
-  client provider: it exists for high-frequency shell calls, and adding it back as
-  an agent-selectable model would reintroduce the LRU eviction problem it was
-  split out to solve. No provider points at :7071, so the sync ignores it. See
-  docs/ryzen-llm-setup.md "The cheap tier".

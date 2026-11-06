@@ -35,7 +35,9 @@ management. This file keeps only the map and the gotchas.
   leaves a failed one open. The `models` job (local-LLM boxes only) runs
   `bin/llamacpp-fetch-missing`: it lists what the per-OS fetch recipe wants and is not on
   disk, then waits for a `y` in its pane before downloading — so the whole update blocks on
-  that prompt until it is answered or times out (5 min = no). `DOTFILES_SKIP_MODELS=1` drops
+  that prompt until it is answered or times out (5 min = no). On a box with no model at all
+  (first install) that pane is an fzf multi-select of every model in the recipe instead, and
+  only the picks are fetched; esc = nothing, and it is offered again next time. `DOTFILES_SKIP_MODELS=1` drops
   the job. The profile job re-runs `setup.sh` with `DOTFILES_JOB` set plus
   `DOTFILES_SKIP_SYSUPDATE` / `DOTFILES_SKIP_LLAMACPP`, so a new long step must honour a
   skip flag of its own or it runs twice. `DOTFILES_PARALLEL=0` forces the serial path.

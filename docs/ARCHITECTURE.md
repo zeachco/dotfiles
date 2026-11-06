@@ -108,7 +108,7 @@ a profile (e.g. a new port in `AI_LLAMA_URL`) reaches you only after re-running 
 executing), `dotfiles_update`, `repos`, `killport`, devbox auto-entry (`ds` /
 `check_for_devbox`), one-shot shell init (`DOTFILES_INIT_CMD`), and it sources the partials:
 
-- `variants/shared/_ai_tools.sh` — `summarize`, `tab_autoname` (cheap-tier traffic)
+- `variants/shared/_ai_tools.sh` — `summarize`, `tab_autoname` (gemma-4-E2B on the router)
 - `variants/shared/_worktrees.sh` — git-worktree + Herdr helpers
 - `variants/shared/_streaming.sh` — media streaming helpers
 - `llamacpp/shared/_llama.sh` then `llamacpp/shared/_los_menu.sh` — llama.cpp launchers, verbs,
@@ -157,17 +157,18 @@ Local model serving for exactly two machines — an Apple Silicon Mac (Metal) an
 box (Vulkan) — gated by `llamacpp/shared/_hw-gate.sh` so no other host that runs
 `dotfiles_update` brew-installs llama.cpp or burns cores on a rebuild.
 
-- **`shared/`** — cross-OS: the foreground launchers (`los-server-light/cheap/heavy`) and
-  verbs (`los-load`, `los-drain`) in `_llama.sh`; the `los` fzf menu over all tiers; the
+- **`shared/`** — cross-OS: the foreground launcher (`los-server`) and
+  verbs (`los-load`, `los-drain`) in `_llama.sh`; the `los` fzf menu over the router; the
   HuggingFace fetch library + GGUF integrity verification; `clone.sh` (clones `~/dev/llama.cpp`
   and starts initial downloads).
 - **`osx/`** — brew install, the router as a launchd *user agent*, the root LaunchDaemon that
   raises Metal's wired-memory cap, `osx.ini` presets, `fetch-models-osx.sh` (opt-in).
-- **`archlinux/`** — the router as three systemd *user* units (one per tier), INI presets,
-  `fetch-models.sh`, and `update.sh` (keeps the checkout + Vulkan build current on
-  `dotfiles_update`, gated to the Strix Halo box).
+- **`archlinux/`** — the router as one systemd *user* unit on `:7070` (`--no-models-autoload`:
+  every load is a `los` action; one `models.ini`, one `~/models/llama`), `fetch-models.sh`, and
+  `update.sh` (keeps the checkout + Vulkan build current on `dotfiles_update`, gated to the
+  Strix Halo box). The three-tier layout (light/cheap/heavy) was retired 2026-11-06.
 
-Tiers and ports, model lifecycle, and client integration: [`llamacpp/README.md`](../llamacpp/README.md).
+The router, model lifecycle, and client integration: [`llamacpp/README.md`](../llamacpp/README.md).
 The Strix Halo machine runbook (GTT unlock, backend choice, incidents, per-model numbers):
 [ryzen-llm-setup.md](ryzen-llm-setup.md).
 

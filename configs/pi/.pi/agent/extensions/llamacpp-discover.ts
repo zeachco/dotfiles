@@ -1,5 +1,5 @@
 /**
- * llamacpp-discover — refresh the local llama.cpp routers' models after pi starts.
+ * llamacpp-discover — refresh the local llama.cpp router's models after pi starts.
  *
  * Boot never waits on the router: the `llamacpp` provider is registered from the
  * models.json definitions at load time, and once the session is up a background fetch
@@ -10,14 +10,14 @@
  *
  *   - decision/classifier models (output_modalities contains "decisions") are dropped
  *     — pi's built-in llama.cpp provider lists them as classifiers, not chat models
- *   - the light tier's gemma-4 models stay hidden (see PI_HIDDEN in llamacpp-sync)
+ *   - the router's gemma-4 models stay hidden (see PI_HIDDEN in llamacpp-sync)
  *   - contextWindow is the per-slot context derived from the preset args
  *     (ctx-size / parallel, or the full pool under --kv-unified, capped by
  *     --kv-unified-per-slot), never the pool size
  *   - per-model tuning already in models.json (name, reasoning, thinkingLevelMap,
  *     compat, cost, samplingParams, inputLimits, maxTokens) is preserved
  *
- * Selecting a llamacpp model that the router reports `unloaded` (the heavy tier runs
+ * Selecting a llamacpp model that the router reports `unloaded` (the router runs
  * --no-models-autoload, so a request would fail with 400 "model is not loaded") loads
  * it the way `los-load` does — POST /models/load, then poll until `loaded` — but only
  * when it fits: its footprint (the figure `los` measured when it was last resident, or
@@ -25,7 +25,7 @@
  * it does not fit, or the check is impossible, pi warns and prints the `los-load`
  * command to run by hand instead of OOMing the box under someone else's model.
  *
- * When nothing listens on a router's port (that tier is not installed on this box) the
+ * When nothing listens on the router's port (not installed on this box) the
  * provider is emptied so /model does not offer dead models; a transient failure
  * (timeout, bad response) keeps the models.json definitions in place. models.json is still rewritten by
  * `llamacpp-sync` for opencode and as the offline fallback; this extension only makes
@@ -38,13 +38,13 @@ import { basename, dirname, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
-const ROUTERS = [
-	{ provider: "llamacpp", baseUrl: "http://127.0.0.1:7070/v1" },
-	{ provider: "llamacpp-heavy", baseUrl: "http://127.0.0.1:7072/v1" },
-];
+// One router since 2026-11-06 (the `llamacpp-heavy` provider on :7072 is gone: every
+// model, big or small, is served on :7070 and loaded only on request). Still a list so
+// a second router can be added without touching the code.
+const ROUTERS = [{ provider: "llamacpp", baseUrl: "http://127.0.0.1:7070/v1" }];
 /** The router's own endpoints (POST /models/load, …) live beside /v1, not under it. */
 const routerRoot = (baseUrl: string) => baseUrl.replace(/\/v1\/?$/, "");
-const isHeavyRouter = (baseUrl: string) => ROUTERS.some((r) => r.provider === "llamacpp-heavy" && r.baseUrl === baseUrl);
+const DEFAULT_ROUTER = ROUTERS[0].baseUrl;
 
 const FETCH_TIMEOUT_MS = 3000;
 const LOAD_POST_TIMEOUT_MS = 30_000;
@@ -203,8 +203,8 @@ function footprint(live: LiveModel): { need: number; measured: boolean } {
 }
 
 function loadCommand(baseUrl: string, id: string): string {
-	// los-load targets the heavy router by default; any other router needs the override.
-	return isHeavyRouter(baseUrl) ? `los-load ${id}` : `LOS_HEAVY_URL=${routerRoot(baseUrl)} los-load ${id}`;
+	// los-load targets :7070 by default; any other router needs the override.
+	return baseUrl === DEFAULT_ROUTER ? `los-load ${id}` : `LOS_URL=${routerRoot(baseUrl)} los-load ${id}`;
 }
 
 async function routerStatus(baseUrl: string, id: string): Promise<LiveModel | undefined> {
@@ -292,8 +292,8 @@ async function refreshRouter({ provider, baseUrl, fallback }: Router, register: 
 		live = await fetchLive(baseUrl);
 	} catch (err) {
 		if (isRefused(err)) {
-			// Nothing listens on that port: this box does not run the tier at all
-			// (e.g. no heavy router), so do not offer models that cannot answer.
+			// Nothing listens on that port: this box does not run the router at all,
+			// so do not offer models that cannot answer.
 			register(provider, baseUrl, []);
 			return `${provider}: no router on ${baseUrl}; provider emptied`;
 		}

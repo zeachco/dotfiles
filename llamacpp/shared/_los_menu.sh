@@ -1,11 +1,12 @@
-# `los` -- one discoverable fzf menu over the llama.cpp routers.
+# `los` -- one discoverable fzf menu over the llama.cpp router.
 #
 # The los-* verbs in _llama.sh are still the scriptable interface (and this menu calls
-# them). This exists because remembering which of los-load / los-drain / los-server-heavy
+# them). This exists because remembering which of los-load / los-drain / los-server
 # does what is the actual friction: one entry point, everything hovering with a preview
-# that explains itself.
+# that explains itself. Since the router loads nothing on its own (--no-models-autoload,
+# 2026-11-06), this menu IS how models become resident.
 #
-# Everything shown comes from ONE `/v1/models` call per tier. The router reports
+# Everything shown comes from ONE `/v1/models` call per router. The router reports
 # `status.args` and `status.preset` for UNLOADED models too, so context size, slot count,
 # KV layout and the .ini section are all previewable without loading anything -- hovering
 # a 91 GiB model costs nothing. `meta` (n_ctx, byte size) appears only once a model is
@@ -15,15 +16,16 @@
 # outside any process's RSS, so `ps` shows ~42 MiB for a 91 GiB model. See
 # docs/ryzen-llm-setup.md "Incident: the OOM of 2026-09-09".
 
-# tier:port:unit -- the three routers in llamacpp/archlinux. Override to add a box.
-LOS_MENU_TIERS="${LOS_MENU_TIERS:-light:7070:llama-router.service cheap:7071:llama-router-cheap.service heavy:7072:llama-router-heavy.service}"
+# name:port:unit -- one router since 2026-11-06 (the light/cheap/heavy triple is gone).
+# Still a list so a second router (another box, a foreground run on another LOS_PORT)
+# can be added without touching the code: every loop below walks it.
+LOS_MENU_TIERS="${LOS_MENU_TIERS:-router:7070:llama-router.service}"
 
 # Loops over LOS_MENU_TIERS go through $(printf ...): zsh does not word-split an unquoted
 # $var (shwordsplit is off), but it does split command substitution, and bash does both.
-# Is this tier's daemon installed on this box at all? The Mac only installs the light
-# router (llamacpp/osx), and the Arch installer skips the heavy tier on a box without
-# the RAM for it, so a missing unit is information, not a failure: the menu lists it
-# as "not installed" and restart skips it instead of erroring on it.
+# Is this router's daemon installed on this box at all? A missing unit is information,
+# not a failure: the menu lists it as "not installed" and restart skips it instead of
+# erroring on it.
 # launchd target for a systemd unit name: llama-router.service -> gui/501/com.zeachco.llama-router
 _los_launchd_target() { echo "gui/$(id -u)/com.zeachco.${1%.service}"; }
 
@@ -232,60 +234,58 @@ held = sum(r["gtt"] for r in loaded if r["slots"] and r["slots"][1] == 0)
 emit("%sdrain idle%s        %sunload what nobody is generating on%s" % (BOLD, OFF, DIM, OFF),
      "drain-idle",
      "drain idle\n\n"
-     "  Unloads every model that has NO slot currently generating, on every reachable\n"
-     "  router, leaving the routers themselves up.\n\n"
+     "  Unloads every model that has NO slot currently generating, leaving the router\n"
+     "  itself up.\n\n"
      "  Right now: %d of %d loaded model(s) are idle, holding %s of GPU memory.\n\n"
      "  Caveat -- idle is not abandoned. An idle model still holds its slots' cached\n"
      "  conversations; unloading discards them, and the next message from that client\n"
      "  re-ingests the whole prompt. The per-model preview shows how many slots hold a\n"
-     "  cached context, so check before draining a tier someone is parked on.\n\n"
-     "  Caveat -- this is not a fence. --models-max autoload means the next request for\n"
-     "  a model pulls it straight back. To keep a tier down for a heavy session, stop\n"
-     "  its unit instead. See docs/ryzen-llm-setup.md \"Incident: the OOM of 2026-09-09\".\n"
+     "  cached context, so check before draining a model someone is parked on.\n\n"
+     "  Nothing comes back on its own: the router runs --no-models-autoload, so what\n"
+     "  you drain stays down until 'load'.\n"
      % (idle_n, len(loaded), gib(held)))
 
 emit("%sload%s              %spick from the models that are not resident%s" % (BOLD, OFF, DIM, OFF),
      "load",
      "load\n\n"
-     "  Lists every UNLOADED model across all routers and loads what you pick, waiting\n"
-     "  until each actually reports 'loaded' rather than trusting the POST.\n\n"
+     "  Lists every UNLOADED model and loads what you pick, waiting until each actually\n"
+     "  reports 'loaded' rather than trusting the POST.\n\n"
      "  Tab marks several; they load in the order shown. A failed load stops the batch --\n"
      "  the cause is almost always memory, so the rest would fail the same way.\n\n"
-     "  The heavy tier runs --no-models-autoload, so this is the only way to bring a\n"
-     "  heavy model up from a shell; light/cheap would also autoload on first request.\n\n"
-     "  Nothing coordinates memory between the routers. Loading a 91 GiB model with the\n"
-     "  light tier resident fails on the GPU -- drain first. Each model's preview shows\n"
-     "  what it needs against what is free.\n")
+     "  The router runs --no-models-autoload, so this (los-load in a shell, or picking\n"
+     "  the model in pi) is the only way anything becomes resident.\n\n"
+     "  Nothing refuses a load that does not fit: loading a 91 GiB model with the daily\n"
+     "  set resident fails on the GPU, or worse, OOMs the box -- drain first. Each\n"
+     "  model's preview shows what it needs against what is free.\n")
 
 emit("%sunload%s            %spick from the models that are resident%s" % (BOLD, OFF, DIM, OFF),
      "unload",
      "unload\n\n"
-     "  Lists every LOADED model across all routers and unloads what you pick, keeping\n"
-     "  the routers up. This is how GPU memory is given back. Tab marks several.\n\n"
+     "  Lists every LOADED model and unloads what you pick, keeping the router up.\n"
+     "  This is how GPU memory is given back. Tab marks several.\n\n"
      "  Unlike 'drain idle' this does not care whether the model is busy: unloading one\n"
      "  mid-generation kills that request. The preview marks which models are working.\n")
 
-emit("%slogs%s              %sfollow a router's journal%s" % (BOLD, OFF, DIM, OFF),
+emit("%slogs%s              %sfollow the router's journal%s" % (BOLD, OFF, DIM, OFF),
      "logs",
      "logs\n\n"
-     "  Pick a tier and follow its DAEMON's journal (journalctl --user -u <unit> -f) -- the\n"
-     "  systemd --user unit that normally serves that tier.\n\n"
-     "  A tier started by hand with los-server-<tier> is not a unit and has no journal; its\n"
+     "  Follow the DAEMON's journal (journalctl --user -u <unit> -f) -- the systemd\n"
+     "  --user unit that normally serves the router.\n\n"
+     "  A router started by hand with los-server is not a unit and has no journal; its\n"
      "  output goes to the terminal you ran it in.\n\n"
      "  Model load failures land here, not in the client: an oversized load shows up as\n"
      "  a Vulkan/GGML allocation error in the router's log while the client just sees a\n"
      "  400. Ctrl-C to stop following.\n")
 
-emit("%srestart%s           %srestart every router daemon%s" % (BOLD, OFF, DIM, OFF),
+emit("%srestart%s           %srestart the router daemon%s" % (BOLD, OFF, DIM, OFF),
      "restart",
      "restart\n\n"
-     "  Restarts the DAEMON of every tier (systemctl --user restart <unit>; launchctl\n"
-     "  kickstart -k on macOS), reachable or not -- this is the way to bring back a tier\n"
-     "  the header lists as unreachable, or to pick up an edited .ini. Tiers whose unit\n"
-     "  is not installed on this box (the header's 'not installed') are skipped.\n\n"
-     "  Every model on every router is unloaded by this: in-flight requests die and all\n"
-     "  cached contexts are gone. Models come back on demand (light/cheap autoload) or\n"
-     "  through 'load' (heavy runs --no-models-autoload).\n\n"
+     "  Restarts the DAEMON (systemctl --user restart <unit>; launchctl kickstart -k on\n"
+     "  macOS), reachable or not -- this is the way to bring back a router the header\n"
+     "  lists as unreachable, or to pick up an edited .ini. A router whose unit is not\n"
+     "  installed on this box (the header's 'not installed') is skipped.\n\n"
+     "  Every model is unloaded by this: in-flight requests die and all cached contexts\n"
+     "  are gone. Nothing comes back on its own (--no-models-autoload): use 'load'.\n\n"
      "  Same thing as `los-restart-all` in a shell, which also works when the menu\n"
      "  cannot open because no router answers.\n")
 
@@ -334,7 +334,7 @@ for r in sorted(rows, key=lambda r: ({"loaded": 0, "sleeping": 1}.get(r["state"]
     display = "%-6s %-*s  %-18s %s" % (r["tier"], wid, r["id"], badge, size)
 
     p = ["%s%s%s" % (BOLD, r["id"], OFF), ""]
-    p.append("  tier       %s  (:%d, %s)" % (r["tier"], r["port"], r["unit"]))
+    p.append("  router     %s  (:%d, %s)" % (r["tier"], r["port"], r["unit"]))
     p.append("  state      %s" % r["state"])
     p.append("  weights    %s%s" % (gib(r["bytes"]), "" if r["meta"].get("size") else "  (on disk)"))
     if r["gtt"]:
@@ -380,7 +380,7 @@ for r in sorted(rows, key=lambda r: ({"loaded": 0, "sleeping": 1}.get(r["state"]
         p.append("  %s%s%s" % (DIM, mpath, OFF))
     if r["preset"].strip():
         p.append("")
-        p.append("  %s---- %s.ini ----%s" % (DIM, r["tier"], OFF))
+        p.append("  %s---- preset section ----%s" % (DIM, OFF))
         for line in r["preset"].strip().splitlines():
             p.append("  %s%s%s" % (DIM, line, OFF))
     if r["state"] == "sleeping":
@@ -402,7 +402,7 @@ _los_menu_meta() {  # $1=dir $2=key $3=field-number
 
 # One model in or out. Load reuses los-load's poll (the router answers a load for an
 # already-loading model with a non-2xx, so the POST status is not the verdict).
-_los_menu_load()   { LOS_HEAVY_URL="http://127.0.0.1:$1" los-load "$2"; }
+_los_menu_load()   { LOS_URL="http://127.0.0.1:$1" los-load "$2"; }
 _los_menu_unload() {
   printf 'unload %s ... ' "$2"
   curl -sf -m 30 -X POST "http://127.0.0.1:$1/models/unload" \
@@ -458,7 +458,7 @@ _los_menu_toggle_many() {
   return 0
 }
 
-# Unload only what has no slot generating, everywhere.
+# Unload only what has no slot generating.
 _los_menu_drain_idle() {
   local spec tier port unit any=
   for spec in $(printf "%s\n" $LOS_MENU_TIERS); do
@@ -486,7 +486,7 @@ except Exception: print(-1)' 2>/dev/null)
 
 # Point pi's llamacpp* providers at loopback when THIS box serves the models.
 #
-# ~/models present means the routers are local. The configured host names the OTHER box
+# ~/models present means the router is local. The configured host names the OTHER box
 # (oli-llms.local), which from here resolves to a different machine or, as on the mac, to
 # nothing -- so pi would sync from, and then talk to, a router that is not the one running.
 #
@@ -536,9 +536,9 @@ _los_menu_sync_models() {
   return $rc
 }
 
-# Restart every tier's daemon, reachable or not. Public (not _los_menu_*) because it is
+# Restart the router daemon(s), reachable or not. Public (not _los_menu_*) because it is
 # the verb to reach for precisely when the menu refuses to open: `los` bails out when no
-# router answers, and a crashed set of routers is exactly that situation.
+# router answers, and a crashed router is exactly that situation.
 los-restart-all() {
   local spec tier unit rc=0
   for spec in $(printf "%s\n" $LOS_MENU_TIERS); do
@@ -578,13 +578,13 @@ _los_menu_logs() {
 los() {
   case "${1:-}" in
     -h|--help)
-      echo "los                            interactive menu over the llama.cpp routers"
+      echo "los                            interactive menu over the llama.cpp router"
       echo "los-load <model>               load a model and wait until it reports loaded"
-      echo "los-drain [url]                unload everything on a router (default :7070)"
-      echo "los-restart-all                restart every router daemon (the menu's 'restart')"
+      echo "los-drain [url]                unload everything on the router (default :7070)"
+      echo "los-restart-all                restart the router daemon (the menu's 'restart')"
       echo "llamacpp-sync                  the menu's sync-models action, non-interactive"
-      echo "los-server-{light,cheap,heavy} run a router in the FOREGROUND (the daemons'"
-      echo "                               journals are the menu's 'logs' action instead)"
+      echo "los-server                     run the router in the FOREGROUND (the daemon's"
+      echo "                               journal is the menu's 'logs' action instead)"
       return 0 ;;
   esac
   _los_menu_deps || return 1

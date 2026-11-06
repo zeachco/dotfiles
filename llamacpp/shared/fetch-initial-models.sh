@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Initial Qwen download (+ GLM on the Mac), also runnable manually to resume after a failure.
+# On the Arch box a first install goes through bin/llamacpp-fetch-missing's fzf picker
+# instead (clone.sh no longer launches this there); this stays the Mac's unattended path.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/_fetch-lib.sh"
 
 main() {
-  local models="$HOME/models/light" qwen_id=qwen3.8 projector=mmproj-F16.gguf
+  local models="$HOME/models/llama" qwen_id=qwen3.8 projector=mmproj-F16.gguf
   if [[ "$(uname -s)" == Darwin ]]; then
     models="${LOS_MODELS_DIR:-$HOME/models}"
     qwen_id=Qwen3.8-27B
@@ -27,10 +29,8 @@ main() {
     fi
   fi
 
-  # Mac only since 2026-10-12: on the Arch box GLM-4.7-Flash was retired from the light
-  # tier (it does not fit beside qwen3.8 under the 62.5 GiB GTT cap -- see
-  # llamacpp/archlinux/light.ini) and is parked in ~/models/retired/, where a fresh
-  # download into ~/models/light would put it straight back into the router's scan.
+  # Mac only: on the Arch box GLM-4.7-Flash is part of fetch-models.sh (loaded on
+  # purpose, never on its own) rather than the initial download.
   if [[ "$(uname -s)" == Darwin ]]; then
     staging="$HOME/models/.initial-downloads/glm"
     target="$models/GLM-4.7-Flash-UD-Q4_K_XL.gguf"
@@ -43,9 +43,9 @@ main() {
     fi
   fi
 
-  # Arch only: cheap.ini's one model. 2.9 + 0.9 GB, so it costs the initial download
-  # almost nothing, and without it the cheap router (:7071) comes up advertising a
-  # model it cannot load. The Mac has no cheap tier and gets it from fetch-models-osx.sh.
+  # Arch only: the shell helpers' summarize/tab_autoname model (_ai_tools.sh). 2.9 +
+  # 0.9 GB, so it costs the initial download almost nothing. The Mac gets it from
+  # fetch-models-osx.sh.
   if [[ "$(uname -s)" != Darwin ]]; then
     staging="$HOME/models/.initial-downloads/gemma-4-E2B-it-GGUF"
     target="$models/gemma-4-E2B-it-GGUF"
@@ -58,18 +58,17 @@ main() {
   fi
 
   # Bytes are proven before anything is served: sha256 of every download against the
-  # digest HF returned, then the cheap-tier symlink, then a live rescan on the routers
-  # -- a reload, not a restart, so a fresh install needs no manual step afterwards.
+  # digest HF returned, then a live rescan on the router -- a reload, not a restart, so
+  # a fresh install needs no manual step afterwards.
   fetch_verify "$models"
-  link_cheap_tier
-  if [[ "$(uname -s)" == Darwin ]]; then routers_reload 7070; else routers_reload 7070 7071; fi
+  routers_reload 7070
   fetch_report
 }
 
 echo "Initial model downloads started: $(date)"
 if main; then
   echo "Initial model downloads complete and verified: $(date)"
-  echo "Routers were asked to reload; run llamacpp-sync to refresh clients."
+  echo "The router was asked to reload; run llamacpp-sync to refresh clients (and los to load)."
 else
   echo "Initial model downloads failed or did not verify: $(date)"
   echo "Resume with: bash $SCRIPT_DIR/fetch-initial-models.sh"

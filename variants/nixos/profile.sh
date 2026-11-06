@@ -115,7 +115,5 @@ nixi() {
 ZVM="$HOME/.nix-profile/share/zsh-vi-mode/zsh-vi-mode.plugin.zsh"
 [[ -n "$ZSH_VERSION" && -f "$ZVM" ]] && source "$ZVM"
 
-# Same two-router layout as archlinux: the cheap tier serves the shell helpers so
-# a tab rename can never evict the big model from the light router. See the
-# archlinux profile for the LRU reasoning.
-export AI_LLAMA_URL="http://127.0.0.1:7071"
+# Same single-router layout as archlinux (2026-11-06): the shell helpers use the
+# default :7070 and need their model loaded with `los`. See the archlinux profile.

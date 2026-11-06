@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetch the model set into the router's tier directories. Resumable: rerun to continue
+# Fetch the model set into the router's directory, ~/models/llama. Resumable: rerun to continue
 # an interrupted download (curl -C -). New models are picked up on the next router
 # restart, or immediately with `curl -s 'localhost:7070/v1/models?reload=1'`.
 #
@@ -15,7 +15,7 @@
 # now checks this invariant; keep it true.
 #
 # THE ONE EXCEPTION, and it cannot be fixed:
-#   ~/models/heavy/DeepSeek-V4-Flash-chat-v2/DeepSeek-V4-Flash-Layers37-42Q4KExperts-…
+#   ~/models/llama/DeepSeek-V4-Flash-chat-v2/DeepSeek-V4-Flash-Layers37-42Q4KExperts-…
 #   -imatrix-fixed.gguf  (90.89 GiB)
 # is a hand-tuned mixed quant (layers 37-42 experts Q4_K, other expert layers IQ2_XXS
 # gate/up, Q2_K down, attn-proj/shared-experts/output Q8) built against a custom
@@ -24,15 +24,17 @@
 # separately if you care about it.
 #
 # LAYOUT RULES (llama.cpp tools/server/README.md, and scan_subdir() in common/preset.cpp):
-#   * a single-file GGUF at the TOP LEVEL of a tier dir gets the FILENAME STEM as its id
+#   * a single-file GGUF at the TOP LEVEL of ~/models/llama gets the FILENAME STEM as its id
 #   * a multimodal or multi-shard model MUST live in a SUBDIRECTORY, and the projector
 #     filename MUST start with "mmproj". The id is then the DIRECTORY NAME
 #   * so the subdirectory names below are the exact strings that must appear as section
-#     headers in light.ini and as model ids in any client config
+#     headers in models.ini and as model ids in any client config
 #   * every gemma repo names its projector `mmproj-F16.gguf`, which is a second reason
 #     the subdirectories are mandatory: they would collide at the top level
-#   * draft models live OUTSIDE the tier dirs, in ~/models/drafts, so the directory
-#     scanner doesn't try to pair them with a model as a shard/projector
+#   * draft models live OUTSIDE ~/models/llama, in ~/models/drafts, so the directory
+#     scanner doesn't try to pair them with a model as a shard/projector. Same for
+#     ~/models/laya (not a llama.cpp model) and ~/models/retired: anything under
+#     ~/models/llama is advertised, so the served directory holds ONLY served models
 #
 # NOTE these take mmproj-F16 where fetch-models-osx.sh takes mmproj-BF16. That is not an
 # oversight -- F16 is what is already on disk here, and matching it keeps re-runs free.
@@ -45,44 +47,44 @@ set -uo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
 . "$SCRIPT_DIR/../shared/_fetch-lib.sh"
 
-# --- heavy tier: one at a time, OPT-IN ------------------------------------------
-# Heavy downloads are intentionally gated: enabling this block fetches roughly 250 GB
-# across gpt-oss, Qwen3.8-Flash-Next, and GLM-5.3-Flash. Routine setup runs must not
-# silently start that download on a box whose light tier is already usable.
+# --- the big models, OPT-IN -----------------------------------------------------
+# Intentionally gated: enabling this block fetches roughly 250 GB across gpt-oss,
+# Qwen3.8-Flash-Next, and GLM-5.3-Flash. Routine setup runs must not silently start
+# that download on a box whose daily set is already usable. (A first install goes
+# through bin/llamacpp-fetch-missing's picker, which plans with this enabled and then
+# fetches only what was selected.)
 #
 # Same opt-in idiom as fetch-models-osx.sh's LOS_FETCH_MODELS.
 #   LOS_FETCH_HEAVY=1 bash fetch-models.sh
 if [ "${LOS_FETCH_HEAVY:-0}" = "1" ]; then
   # 63.4 GB. Workhorse: best capability-per-token-rate on this box (~55 t/s).
-  fetch ggml-org/gpt-oss-120b-GGUF gpt-oss-120b-MXFP4.gguf "$HOME/models/heavy"
-  # 0.8 GB EAGLE3 draft for the above -> spec-type = draft-eagle3 in heavy.ini.
+  fetch ggml-org/gpt-oss-120b-GGUF gpt-oss-120b-MXFP4.gguf "$HOME/models/llama"
+  # 0.8 GB EAGLE3 draft for the above -> spec-type = draft-eagle3 in models.ini.
   fetch ggml-org/gpt-oss-120b-GGUF eagle3-gpt-oss-120b-Q8_0.gguf "$HOME/models/drafts"
 
   # 87.3 GiB. Qwen3.8-Flash-Next: 125B + 51B n-gram embedding, 6B active.
   # Three shards MUST share one subdirectory; the directory name is the model id.
   # Plain fetch per shard keeps interrupted multi-shard downloads resumable.
-  fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf "$HOME/models/heavy/Qwen3.8-Flash-Next"
-  fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00002-of-00003.gguf "$HOME/models/heavy/Qwen3.8-Flash-Next"
-  fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00003-of-00003.gguf "$HOME/models/heavy/Qwen3.8-Flash-Next"
+  fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf "$HOME/models/llama/Qwen3.8-Flash-Next"
+  fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00002-of-00003.gguf "$HOME/models/llama/Qwen3.8-Flash-Next"
+  fetch unsloth/Qwen3.8-Flash-Next-GGUF UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00003-of-00003.gguf "$HOME/models/llama/Qwen3.8-Flash-Next"
 
   # ~101 GiB. GLM-5.3-Flash: use UD-Q2_K_XL so it fits the 128 GiB Ryzen box.
   # It is a multimodal model, so keep the F16 projector beside the four shards.
-  fetch unsloth/GLM-5.3-Flash-GGUF UD-Q2_K_XL/GLM-5.3-Flash-UD-Q2_K_XL-00001-of-00004.gguf "$HOME/models/heavy/GLM-5.3-Flash"
-  fetch unsloth/GLM-5.3-Flash-GGUF UD-Q2_K_XL/GLM-5.3-Flash-UD-Q2_K_XL-00002-of-00004.gguf "$HOME/models/heavy/GLM-5.3-Flash"
-  fetch unsloth/GLM-5.3-Flash-GGUF UD-Q2_K_XL/GLM-5.3-Flash-UD-Q2_K_XL-00003-of-00004.gguf "$HOME/models/heavy/GLM-5.3-Flash"
-  fetch unsloth/GLM-5.3-Flash-GGUF UD-Q2_K_XL/GLM-5.3-Flash-UD-Q2_K_XL-00004-of-00004.gguf "$HOME/models/heavy/GLM-5.3-Flash"
-  fetch unsloth/GLM-5.3-Flash-GGUF mmproj-F16.gguf "$HOME/models/heavy/GLM-5.3-Flash"
+  fetch unsloth/GLM-5.3-Flash-GGUF UD-Q2_K_XL/GLM-5.3-Flash-UD-Q2_K_XL-00001-of-00004.gguf "$HOME/models/llama/GLM-5.3-Flash"
+  fetch unsloth/GLM-5.3-Flash-GGUF UD-Q2_K_XL/GLM-5.3-Flash-UD-Q2_K_XL-00002-of-00004.gguf "$HOME/models/llama/GLM-5.3-Flash"
+  fetch unsloth/GLM-5.3-Flash-GGUF UD-Q2_K_XL/GLM-5.3-Flash-UD-Q2_K_XL-00003-of-00004.gguf "$HOME/models/llama/GLM-5.3-Flash"
+  fetch unsloth/GLM-5.3-Flash-GGUF UD-Q2_K_XL/GLM-5.3-Flash-UD-Q2_K_XL-00004-of-00004.gguf "$HOME/models/llama/GLM-5.3-Flash"
+  fetch unsloth/GLM-5.3-Flash-GGUF mmproj-F16.gguf "$HOME/models/llama/GLM-5.3-Flash"
 else
-  echo "==> heavy tier skipped (~250 GB). Enable with: LOS_FETCH_HEAVY=1"
+  echo "==> big models skipped (~250 GB). Enable with: LOS_FETCH_HEAVY=1"
 fi
 
 # 17.52 GB (16.32 GiB). GLM-4.7-Flash, the same single-file GGUF the Mac runs as its
-# local default (fetch-models-osx.sh). Reinstated 2026-11-04 on the HEAVY tier, not the
-# light one: ~27 GiB resident beside qwen3.8 is the 2026-10-12 retirement (see the light
-# tier note below), and :7072 runs one model at a time with --no-models-autoload, so it
-# only costs memory when loaded on purpose. Not behind LOS_FETCH_HEAVY: small enough
-# for a routine run. (The retired copy was deleted 2026-11-04 once this one was verified.)
-fetch unsloth/GLM-4.7-Flash-GGUF GLM-4.7-Flash-UD-Q4_K_XL.gguf "$HOME/models/heavy"
+# local default (fetch-models-osx.sh). Reinstated 2026-11-04; ~27 GiB resident, which
+# only costs memory when loaded on purpose (no autoload). Not behind LOS_FETCH_HEAVY:
+# small enough for a routine run.
+fetch unsloth/GLM-4.7-Flash-GGUF GLM-4.7-Flash-UD-Q4_K_XL.gguf "$HOME/models/llama"
 
 # --- Laya decision model (not served by llama.cpp) ------------------------------
 # Laya is a ggmlc encoder model, not an autoregressive llama.cpp model. Keep it in
@@ -90,7 +92,7 @@ fetch unsloth/GLM-4.7-Flash-GGUF GLM-4.7-Flash-UD-Q4_K_XL.gguf "$HOME/models/hea
 # directory is still covered by provenance verification and the model audit.
 fetch mys/laya-GGUF laya_english_q8_0.gguf "$HOME/models/laya"
 
-# --- light tier, subdirectory models (id = directory name) ---------------------
+# --- daily set, subdirectory models (id = directory name) ----------------------
 # 16.5 + 0.93 GB. THE DEFAULT MODEL: opencode's `model`/`small_model` and four of its
 # agents, plus pi's defaultModel, all resolve to `qwen3.8`. 27.3B, qwen35 arch, vision
 # via a qwen3vl_merger projector.
@@ -101,42 +103,36 @@ fetch mys/laya-GGUF laya_english_q8_0.gguf "$HOME/models/laya"
 # would see both size mismatches and replace a working, self-consistent pair. The guard
 # skips the whole directory when it already holds a model. A fresh machine gets the
 # unsloth pair; the id is `qwen3.8` either way, because it is the directory name.
-fetch_dir_model unsloth/Qwen3.8-27B-GGUF "$HOME/models/light/qwen3.8" \
+fetch_dir_model unsloth/Qwen3.8-27B-GGUF "$HOME/models/llama/qwen3.8" \
   Qwen3.8-27B-UD-Q4_K_M.gguf \
   mmproj-F16.gguf
 
-# 2.89 + 0.92 GB. Vision. The cheapest thing here: classification, OCR, fan-out.
-# ALSO the cheap tier's model -- ~/models/cheap/gemma-4-E2B-it/ symlinks the weights
-# below (text only, no projector). See cheap.ini for why that tier exists.
-fetch unsloth/gemma-4-E2B-it-GGUF gemma-4-E2B-it-Q4_K_M.gguf "$HOME/models/light/gemma-4-E2B-it-GGUF"
-fetch unsloth/gemma-4-E2B-it-GGUF mmproj-F16.gguf            "$HOME/models/light/gemma-4-E2B-it-GGUF"
+# 2.89 + 0.92 GB. Vision. The cheapest thing here: classification, OCR, fan-out, and
+# the shell helpers' summarize/tab_autoname model (variants/shared/_ai_tools.sh).
+fetch unsloth/gemma-4-E2B-it-GGUF gemma-4-E2B-it-Q4_K_M.gguf "$HOME/models/llama/gemma-4-E2B-it-GGUF"
+fetch unsloth/gemma-4-E2B-it-GGUF mmproj-F16.gguf            "$HOME/models/llama/gemma-4-E2B-it-GGUF"
 
 # 4.64 + 0.92 GB. Vision. 8B total params; there is no separate E8B release.
-fetch unsloth/gemma-4-E4B-it-GGUF gemma-4-E4B-it-Q4_K_M.gguf "$HOME/models/light/gemma-4-E4B-it-GGUF"
-fetch unsloth/gemma-4-E4B-it-GGUF mmproj-F16.gguf            "$HOME/models/light/gemma-4-E4B-it-GGUF"
+fetch unsloth/gemma-4-E4B-it-GGUF gemma-4-E4B-it-Q4_K_M.gguf "$HOME/models/llama/gemma-4-E4B-it-GGUF"
+fetch unsloth/gemma-4-E4B-it-GGUF mmproj-F16.gguf            "$HOME/models/llama/gemma-4-E4B-it-GGUF"
 
 # 15.78 + 1.11 GB. Vision, 26B total / 4B active.
-fetch unsloth/gemma-4-26B-A4B-it-GGUF gemma-4-26B-A4B-it-UD-Q4_K_M.gguf "$HOME/models/light/gemma-4-26B-A4B-it-GGUF"
-fetch unsloth/gemma-4-26B-A4B-it-GGUF mmproj-F16.gguf                   "$HOME/models/light/gemma-4-26B-A4B-it-GGUF"
+fetch unsloth/gemma-4-26B-A4B-it-GGUF gemma-4-26B-A4B-it-UD-Q4_K_M.gguf "$HOME/models/llama/gemma-4-26B-A4B-it-GGUF"
+fetch unsloth/gemma-4-26B-A4B-it-GGUF mmproj-F16.gguf                   "$HOME/models/llama/gemma-4-26B-A4B-it-GGUF"
 
-# --- light tier, single-file models (id = filename stem) -----------------------
-# GLM-4.7-Flash-UD-Q4_K_XL (16.32 GiB) was fetched here until 2026-10-12. Retired: its
-# ~27 GiB resident footprint does not fit beside qwen3.8 under the 62.5 GiB GTT cap
-# (light.ini, "Memory warning"). Do NOT re-add a fetch line into ~/models/light, the
-# router's --models-dir scan would serve it again. Since 2026-11-04 it lives in
-# ~/models/heavy (fetch above, heavy.ini section), loaded one at a time on :7072.
+# --- daily set, single-file models (id = filename stem) ------------------------
 
 # 2.00 GiB. Upstream also ships an mmproj for this one, which we deliberately do NOT
 # take: a projector would force it into a subdirectory per the layout rules above and
 # change its id from the filename stem to a directory name. Text-only here.
-fetch unsloth/Ministral-3-3B-Instruct-2512-GGUF Ministral-3-3B-Instruct-2512-Q4_K_M.gguf "$HOME/models/light"
+fetch unsloth/Ministral-3-3B-Instruct-2512-GGUF Ministral-3-3B-Instruct-2512-Q4_K_M.gguf "$HOME/models/llama"
 
 # 2.33 GiB. Small fast generalist.
-fetch unsloth/Qwen3-4B-GGUF Qwen3-4B-Q4_K_M.gguf "$HOME/models/light"
+fetch unsloth/Qwen3-4B-GGUF Qwen3-4B-Q4_K_M.gguf "$HOME/models/llama"
 
 # 0.46 GiB. Official Qwen repo rather than unsloth -- hence the lowercase filename,
 # which is also the model id. Tiny; useful as a draft/spec model or a smoke test.
-fetch Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF qwen2.5-coder-0.5b-instruct-q4_k_m.gguf "$HOME/models/light"
+fetch Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF qwen2.5-coder-0.5b-instruct-q4_k_m.gguf "$HOME/models/llama"
 
 # 6.32 GiB. DECISION MODEL (Qwen3.5-9B base) -- not a chat model. llama.cpp reports it
 # with `architecture.output_modalities = ["decisions"]`, and pi's built-in llama.cpp
@@ -144,32 +140,28 @@ fetch Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF qwen2.5-coder-0.5b-instruct-q4_k_m.g
 # `typesafe-system-one` API), never in /model. It is the local counterpart to the
 # OpenRouter Jev/Clef/Laya classifiers.
 #
-# It lives in the light tier because that is the router pi's classifier discovery
-# reads; that also means it shares the light router's --models-max count and pure-LRU
-# eviction with qwen3.8, so a classify call that loads it can evict the default model.
-# Keep classifier traffic off a busy coding session; if it ever bites, the fix is a
-# dedicated router (cheap.ini's isolation argument), not a bigger --models-max.
+# pi's classifier discovery reads it off the router; a classify call does NOT load it
+# (no autoload), so load it beside qwen3.8 when a session wants the local classifier.
 # Single file, so it sits at the top level and its id is the filename stem.
-fetch ggml-org/Bespoke-Nimble-9B-v3-GGUF Bespoke-Nimble-9B-v3-Q4_K_M.gguf "$HOME/models/light"
+fetch ggml-org/Bespoke-Nimble-9B-v3-GGUF Bespoke-Nimble-9B-v3-Q4_K_M.gguf "$HOME/models/llama"
 
 # --- removed ------------------------------------------------------------------
 # Qwen3-Coder-Next-UD-IQ4_XS (38.4 GB) was dropped by `c901081 clean unusable models`,
-# which deleted the file and its light.ini section but left opencode's generate-code
+# which deleted the file and its preset section but left opencode's generate-code
 # subagent pointing at it. The router then held a child with `--alias
 # Qwen3-Coder-Next-UD-IQ4_XS` and no `--model`, stuck in `loading` forever -- and since
 # pick_victim() skips anything not ready, that child could never be evicted and
 # permanently occupied one of the five --models-max slots. Re-add a recipe here if you
 # ever want it back; do not re-add a client reference without one.
 
-# Prove the bytes, wire the cheap tier, and have the routers rescan -- no restart, so
-# nothing in flight is dropped. A verify failure makes fetch_report exit non-zero.
-fetch_verify "$HOME/models/laya" "$HOME/models/light" "$HOME/models/heavy" "$HOME/models/drafts"
-link_cheap_tier
-routers_reload 7070 7071 7072
+# Prove the bytes and have the router rescan -- no restart, so nothing in flight is
+# dropped. A verify failure makes fetch_report exit non-zero.
+fetch_verify "$HOME/models/laya" "$HOME/models/llama" "$HOME/models/drafts"
+routers_reload 7070
 
 echo
-echo "Done. New models are live on the routers that were reachable above; a router that"
-echo "was down picks them up on start. Then check nothing has drifted:"
+echo "Done. New models are listed on the router if it was reachable above (a router that"
+echo "was down picks them up on start); load them with los. Then check nothing has drifted:"
 echo "  bash $HOME/dotfiles/bin/llamacpp-audit"
 
 # Non-zero exit if any download failed, so a 404'd filename cannot pass as success.

@@ -13,9 +13,9 @@ description: >
 
 # Vision relay
 
-The active model here is usually text-only (`qwen3.8` on the light router
+The active model here is usually text-only (`qwen3.8` on the local router
 lost its vision projector on 2026-10-12 -- retired for prefix KV reuse, see
-light.ini). It receives pasted images as a placeholder (typically
+models.ini). It receives pasted images as a placeholder (typically
 "Read image file [image/png]") with **no file path and no pixels**. This
 skill gets the image to a vision model (the `planner` subagent, Claude
 Sonnet 5.5 via OpenRouter) and brings the description back.
@@ -29,7 +29,7 @@ Sonnet 5.5 via OpenRouter) and brings the description back.
      directly.
    - Text-only (`qwen3.8`, Nimble, …) and the user pasted/attached an image
      or asks about one → continue.
-2. Never route this to a local light-tier model: the router's `gemma-4-*`
+2. Never route this to a local model: the router's `gemma-4-*`
    vision models are kept out of pi's catalog (`llamacpp-sync`, `PI_HIDDEN`),
    and they were cold and 16k-context anyway. The `planner` agent targets
    Claude Sonnet 5.5 via OpenRouter (`openrouter/anthropic/claude-sonnet-5.5`),

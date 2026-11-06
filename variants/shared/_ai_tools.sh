@@ -17,17 +17,14 @@ _ai_debug() {
 # at source time: variants/osx/profile.sh defines LOS_URL and there is no guaranteed
 # source order between the two files.
 #
-# Which router that is differs per host, on purpose:
-#   Linux  -- AI_LLAMA_URL=http://127.0.0.1:7071, the CHEAP tier
-#             (llama-router-cheap.service), exported by variants/archlinux/profile.sh.
-#   macOS  -- unset, so it falls back to LOS_URL :7070, the single router on that box.
+# One router per box on :7070 (Linux since 2026-11-06; the Mac always). AI_LLAMA_URL
+# is an override hook, unset by default. On Linux the router loads nothing on its own,
+# so these helpers only answer while gemma-4-E2B is resident (`los`); every call is
+# bounded by SUMMARIZE_TIMEOUT and a miss falls back to the plain tab name.
 #
-# The Linux split is not a nicety. The light router on :7070 evicts by pure LRU on
-# last_used with no way to pin a model (the `pin` preset key is commented out in
-# llama.cpp's common/arg.cpp), and every POST refreshes its target's timestamp. These
-# helpers POST on every herdr tab rename, which kept the small model freshest and made
-# the ~28 GiB qwen3.8 the eviction victim. Do not point them back at :7070.
-# See docs/ryzen-llm-setup.md "The cheap tier".
+# History: Linux pointed this at a separate :7071 "cheap" router from 2026-09 to
+# 2026-11-06, because the autoloading light router evicted by pure LRU and these
+# high-frequency POSTs kept making qwen3.8 the victim. No autoload, no eviction.
 _ai_url() {
   printf '%s' "${AI_LLAMA_URL:-${LOS_URL:-http://127.0.0.1:7070}}"
 }
@@ -108,11 +105,10 @@ debug() {
 # messages); anything else keeps the generic wording. --hint=... strongly
 # steers the title toward a specific aspect of the work.
 # Prints only the summary (exit 0), or a failure message at the end (exit 1).
-# Runs on whichever router _ai_url() resolves to (the cheap tier on Linux) against the
-# cheapest model on the box: gemma 4 E2B, overridable with SUMMARIZE_MODEL. The name is
-# resolved against GET /v1/models, so the host's own id for it ("gemma-4-E2B-it" on the
-# cheap tier and on macOS, "gemma-4-E2B-it-GGUF" on the Linux light tier) is picked
-# automatically.
+# Runs on whichever router _ai_url() resolves to against the cheapest model on the
+# box: gemma 4 E2B, overridable with SUMMARIZE_MODEL. The name is resolved against
+# GET /v1/models, so the host's own id for it ("gemma-4-E2B-it" on macOS,
+# "gemma-4-E2B-it-GGUF" on Linux) is picked automatically.
 # Each model call is bounded by --timeout= seconds (SUMMARIZE_TIMEOUT).
 summarize() {
   local max_length=80 retries=3 content="" kind="" hint=""

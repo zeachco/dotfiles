@@ -275,18 +275,12 @@ yayi() {
     [[ "$install" == "y" ]] && yayin $package
 }
 
-# --- llama.cpp: route the shell helpers to the cheap tier --------------------------
+# --- llama.cpp: the shell helpers talk to the one router ---------------------------
 # _ai_url() in variants/shared/_ai_tools.sh resolves
-# ${AI_LLAMA_URL:-${LOS_URL:-http://127.0.0.1:7070}} at call time, so this points
-# summarize()/tab_autoname() at :7071 without touching their code.
-#
-# Why not just let them hit :7070: the light router evicts by pure LRU on last_used
-# (llama.cpp tools/server/server-models.cpp pick_victim) and there is NO way to pin a
-# model -- the `pin` preset key is commented out in common/arg.cpp. Every proxied
-# request refreshes its target's last_used, so a tab rename firing every few seconds
-# kept the small model freshest and made the ~28 GiB qwen3.8 the eviction victim
-# during idle gaps in a coding session. A tab title cost a multi-minute reload.
-#
-# This is Linux-only on purpose: the macOS box runs a single router and no cheap tier,
-# so there AI_LLAMA_URL stays unset and _ai_url() falls back to LOS_URL on :7070.
-export AI_LLAMA_URL="http://127.0.0.1:7071"
+# ${AI_LLAMA_URL:-${LOS_URL:-http://127.0.0.1:7070}} at call time. Until 2026-11-06 this
+# exported AI_LLAMA_URL=:7071, a separate "cheap" router whose only job was to keep
+# summarize()/tab_autoname() traffic from making qwen3.8 the LRU-eviction victim on the
+# autoloading light router. The router no longer autoloads anything, so there is no
+# eviction to dodge: the helpers use the default :7070, and work whenever their model
+# (gemma-4-E2B, models.ini) has been loaded with `los`; otherwise they time out
+# gracefully and the tab keeps its name.

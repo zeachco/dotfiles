@@ -69,15 +69,6 @@
     }
   },
   "provider": {
-    "llamacpp-heavy": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "llama.cpp (heavy tier :7072 -- los-drain first)",
-      "options": {
-        "baseURL": "http://oli-llms.local:7072/v1",
-        "timeout": false
-      },
-      "models": {}
-    },
     "llamacpp": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "llama.cpp",

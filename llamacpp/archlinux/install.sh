@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 #
-# Install the llama.cpp routers as systemd --user services:
-#   llama-router.service        light tier, :7070, LAN-reachable
-#   llama-router-cheap.service  cheap tier, :7071, loopback only
-#   llama-router-heavy.service  heavy tier, :7072, LAN-reachable, one model, no autoload
+# Install THE llama.cpp router as a systemd --user service:
+#   llama-router.service   :7070, LAN-reachable, ~/models/llama, models.ini,
+#                          --no-models-autoload -- every load is an explicit `los`
 #
-# The cheap tier is an isolation boundary, not a performance tier -- it keeps
-# high-frequency shell traffic off the light router, whose eviction is pure LRU
-# with no way to pin a model. See llamacpp/archlinux/cheap.ini for the argument.
+# Until 2026-11-06 there were three (light :7070 / cheap :7071 / heavy :7072). This
+# script retires the two extra units when it finds them installed, and moves the old
+# per-tier model directories (~/models/light, ~/models/heavy, the ~/models/cheap
+# symlinks) into ~/models/llama -- but only once those units are STOPPED, because a
+# router keeps its start-time file paths and respawns a sleeping child against them.
 #
 # Mirrors llamacpp/osx/install.sh: guard, render the template, cmp -s it
 # against what is already installed, and skip BEFORE touching the running service
@@ -22,9 +23,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
 USER_UNIT_DIR="$HOME/.config/systemd/user"
+UNIT="llama-router.service"
+LEGACY_UNITS=(llama-router-cheap.service llama-router-heavy.service)
+MODELS_DIR="$HOME/models/llama"
 
 # ---- guard: never install a unit pointing at a binary that is not there -----------
-# The units themselves use %h (systemd's own specifier), so this checks the same path
+# The unit itself uses %h (systemd's own specifier), so this checks the same path
 # the rendered ExecStart will use without needing to substitute it.
 if [[ ! -x "$HOME/dev/llama.cpp/build/bin/llama-server" ]]; then
   echo "llama router skipped: llama-server not built at $HOME/dev/llama.cpp/build/bin/llama-server"
@@ -51,8 +55,8 @@ _require_positive() { # name value
   fi
 }
 
-# Light tier. Default 90%: leaves headroom for the rest of the desktop during
-# CPU-side work (warmup, tokenization, prompt processing that spills off the GPU).
+# Default 90%: leaves headroom for the rest of the desktop during CPU-side work
+# (warmup, tokenization, prompt processing that spills off the GPU).
 CPU_QUOTA="${LOS_CPU_QUOTA:-90}"
 _require_percent LOS_CPU_QUOTA "$CPU_QUOTA"
 
@@ -63,125 +67,134 @@ HALF_CORES=$(($(nproc) / 2))
 THREADS="${LOS_THREADS:-$HALF_CORES}"
 _require_positive LOS_THREADS "$THREADS"
 
-# Cheap tier: deliberately small on both axes. A tab-title summary must never
-# compete with interactive generation on :7070, and nothing here is latency-critical.
-CHEAP_CPU_QUOTA="${LOS_CHEAP_CPU_QUOTA:-25}"
-_require_percent LOS_CHEAP_CPU_QUOTA "$CHEAP_CPU_QUOTA"
-CHEAP_THREADS="${LOS_CHEAP_THREADS:-4}"
-_require_positive LOS_CHEAP_THREADS "$CHEAP_THREADS"
-
-# Heavy tier: same headroom defaults as the light tier. One model, no autoload -- the
-# quota only matters during a deliberate load and the session that follows.
-HEAVY_CPU_QUOTA="${LOS_HEAVY_CPU_QUOTA:-90}"
-_require_percent LOS_HEAVY_CPU_QUOTA "$HEAVY_CPU_QUOTA"
-HEAVY_THREADS="${LOS_HEAVY_THREADS:-$HALF_CORES}"
-_require_positive LOS_HEAVY_THREADS "$HEAVY_THREADS"
-
-# ---- directories the units depend on -----------------------------------------------
-# Per-tier LLAMA_CACHE is load-bearing, not tidy: cached models are enumerated
-# unconditionally and ahead of --models-dir, so a shared cache would leak the light
-# tier's models into the cheap router.
-mkdir -p \
-  "$HOME/models/light" \
-  "$HOME/models/cheap" \
-  "$HOME/models/heavy" \
-  "$HOME/.cache/llama.cpp-light" \
-  "$HOME/.cache/llama.cpp-cheap" \
-  "$HOME/.cache/llama.cpp-heavy" \
-  "$USER_UNIT_DIR"
-
-# ---- render + install one unit ------------------------------------------------------
-# One scratch dir for every render, cleaned up on any exit -- including the error
-# paths below, which `exit` rather than return.
-WORK_DIR="$(mktemp -d)"
-trap 'rm -rf "$WORK_DIR"' EXIT
-
-# Sets CHANGED=1 when it actually wrote something, so daemon-reload runs at most once.
-CHANGED=0
-install_unit() { # unit-name, then sed -e expressions
-  local unit="$1"; shift
-  local template="$SCRIPT_DIR/$unit"
-  local installed="$USER_UNIT_DIR/$unit"
-  local rendered="$WORK_DIR/$unit"
-
-  if [[ ! -f "$template" ]]; then
-    echo "llama router: missing template $template" >&2
-    exit 1
+# ---- retire the tier units ---------------------------------------------------------
+# A unit file left behind would come back on the next login (WantedBy=default.target)
+# and advertise models out of a directory this script is about to empty.
+legacy_active=()
+for u in "${LEGACY_UNITS[@]}"; do
+  if systemctl --user is-active --quiet "$u" 2>/dev/null; then
+    legacy_active+=("$u")
+    continue
   fi
-
-  sed "$@" "$template" >"$rendered"
-
-  if grep -q '@[A-Z_]*@' "$rendered"; then
-    echo "llama router: unsubstituted token left in $unit:" >&2
-    grep -n '@[A-Z_]*@' "$rendered" >&2
-    exit 1
+  if [[ -f "$USER_UNIT_DIR/$u" ]] || systemctl --user is-enabled --quiet "$u" 2>/dev/null; then
+    systemctl --user disable --now "$u" 2>/dev/null || true
+    rm -f "$USER_UNIT_DIR/$u"
+    echo "llama router: retired $u"
   fi
+done
 
-  # Idempotence: bail out before touching the running service.
-  if [[ -f "$installed" ]] \
-    && cmp -s "$rendered" "$installed" \
-    && systemctl --user is-active --quiet "$unit"; then
-    echo "llama router: $unit is already installed and running"
+# ---- one model directory -----------------------------------------------------------
+# Renames on one filesystem, so an 88 GiB model moves instantly. Refused while any
+# router that was started against the old paths is still up: the light unit has the
+# same name as the new one, so "stopped" there means "not running the pre-merge
+# ExecStart", which the template cmp below cannot tell apart from a plain restart --
+# hence the explicit check on --models-dir in the live process.
+_live_models_dir() {
+  # The router's argv, straight from /proc: `systemctl show` only reports the unit's
+  # ExecStart as written, not what the running process was started with.
+  local pid
+  pid="$(systemctl --user show -p MainPID --value "$UNIT" 2>/dev/null || true)"
+  [[ -n "$pid" && "$pid" != 0 ]] || return 1
+  tr '\0' '\n' <"/proc/$pid/cmdline" 2>/dev/null | awk '/^--models-dir$/ { getline; print; exit }'
+}
+
+migrate_models() {
+  local legacy=() d entry
+  for d in "$HOME/models/light" "$HOME/models/heavy"; do
+    [[ -d "$d" ]] && [[ -n "$(ls -A "$d" 2>/dev/null)" ]] && legacy+=("$d")
+  done
+  [[ -d "$HOME/models/cheap" ]] && legacy+=("$HOME/models/cheap")
+  ((${#legacy[@]})) || return 0
+
+  if ((${#legacy_active[@]})); then
+    echo "llama router: NOT moving ~/models/{light,heavy,cheap} into ~/models/llama while" >&2
+    echo "              ${legacy_active[*]} still run(s) against the old paths. Stop them, then" >&2
+    echo "              re-run: systemctl --user stop ${legacy_active[*]}; bash $SCRIPT_DIR/install.sh" >&2
+    return 0
+  fi
+  local live
+  if live="$(_live_models_dir)" && [[ -n "$live" && "$live" != "$MODELS_DIR" ]]; then
+    echo "llama router: NOT moving models while $UNIT serves $live. Stop it (this ends every" >&2
+    echo "              loaded model), then re-run: systemctl --user stop $UNIT; bash $SCRIPT_DIR/install.sh" >&2
     return 0
   fi
 
-  install -m 644 "$rendered" "$installed"
-  CHANGED=1
-  echo "llama router: installed $unit"
+  mkdir -p "$MODELS_DIR"
+  for d in "${legacy[@]}"; do
+    if [[ "$d" == "$HOME/models/cheap" ]]; then
+      # Only ever held symlinks into light (link_cheap_tier, retired with the tier).
+      if [[ -z "$(find "$d" -type f -print -quit 2>/dev/null)" ]]; then
+        rm -rf "$d" && echo "llama router: removed ~/models/cheap (symlinks only)"
+      else
+        echo "llama router: ~/models/cheap holds real files; left for you to sort out" >&2
+      fi
+      continue
+    fi
+    for entry in "$d"/* "$d"/.provenance; do
+      [[ -e "$entry" || -L "$entry" ]] || continue
+      local base="${entry##*/}"
+      if [[ "$base" == .provenance ]]; then
+        # Per-directory TSV keyed on basename: append rows, never overwrite.
+        cat "$entry" >>"$MODELS_DIR/.provenance" && rm -f "$entry"
+        continue
+      fi
+      if [[ -e "$MODELS_DIR/$base" ]]; then
+        echo "llama router: $MODELS_DIR/$base already exists; left $entry in place" >&2
+        continue
+      fi
+      mv "$entry" "$MODELS_DIR/" && echo "llama router: moved ${entry#$HOME/} -> ~/models/llama/"
+    done
+    rmdir "$d" 2>/dev/null || true
+  done
 }
+migrate_models
 
-install_unit "llama-router.service" \
-  -e "s|@CPU_QUOTA@|$CPU_QUOTA|g" \
-  -e "s|@THREADS@|$THREADS|g"
+mkdir -p "$MODELS_DIR" "$HOME/.cache/llama.cpp-router" "$USER_UNIT_DIR"
 
-install_unit "llama-router-cheap.service" \
-  -e "s|@CHEAP_CPU_QUOTA@|$CHEAP_CPU_QUOTA|g" \
-  -e "s|@CHEAP_THREADS@|$CHEAP_THREADS|g"
+# ---- render + install the unit ------------------------------------------------------
+WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "$WORK_DIR"' EXIT
 
-install_unit "llama-router-heavy.service" \
-  -e "s|@HEAVY_CPU_QUOTA@|$HEAVY_CPU_QUOTA|g" \
-  -e "s|@HEAVY_THREADS@|$HEAVY_THREADS|g"
+template="$SCRIPT_DIR/$UNIT"
+installed="$USER_UNIT_DIR/$UNIT"
+rendered="$WORK_DIR/$UNIT"
+[[ -f "$template" ]] || { echo "llama router: missing template $template" >&2; exit 1; }
 
-if ((CHANGED)); then
+sed -e "s|@CPU_QUOTA@|$CPU_QUOTA|g" -e "s|@THREADS@|$THREADS|g" "$template" >"$rendered"
+
+if grep -q '@[A-Z_]*@' "$rendered"; then
+  echo "llama router: unsubstituted token left in $UNIT:" >&2
+  grep -n '@[A-Z_]*@' "$rendered" >&2
+  exit 1
+fi
+
+# Idempotence: bail out before touching the running service.
+if [[ -f "$installed" ]] && cmp -s "$rendered" "$installed" && systemctl --user is-active --quiet "$UNIT"; then
+  echo "llama router: $UNIT is already installed and running"
+else
+  install -m 644 "$rendered" "$installed"
   systemctl --user daemon-reload
+  echo "llama router: installed $UNIT"
 fi
 
 # enable --now is idempotent and cheap; it also recovers a unit that was installed
 # on a previous run but has since been stopped or disabled.
-systemctl --user enable --now "llama-router.service"
-systemctl --user enable --now "llama-router-cheap.service"
-systemctl --user enable --now "llama-router-heavy.service"
+systemctl --user enable --now "$UNIT"
 
-echo "llama router: light tier -> http://localhost:7070 (CPUQuota=${CPU_QUOTA}%, threads=${THREADS})"
-echo "llama router: cheap tier -> http://127.0.0.1:7071 (CPUQuota=${CHEAP_CPU_QUOTA}%, threads=${CHEAP_THREADS})"
-echo "llama router: heavy tier -> http://localhost:7072 (CPUQuota=${HEAVY_CPU_QUOTA}%, threads=${HEAVY_THREADS}, loads on request only)"
+echo "llama router: http://localhost:7070 (CPUQuota=${CPU_QUOTA}%, threads=${THREADS}, loads on request only: los)"
 # A changed unit is installed but NOT restarted: enable --now is a no-op for a running
 # unit, and a restart drops in-flight generation. Say so instead of doing it.
-for u in llama-router.service llama-router-cheap.service llama-router-heavy.service; do
-  systemctl --user is-active --quiet "$u" || continue
-  started="$(systemctl --user show -p ExecMainStartTimestamp --value "$u" 2>/dev/null)"
-  [[ -n "$started" ]] || continue
-  if (( $(date -d "$started" +%s 2>/dev/null || echo 0) < $(stat -c %Y "$USER_UNIT_DIR/$u") )); then
-    echo "llama router: $u changed since it started -- restart when idle: systemctl --user restart $u"
+if systemctl --user is-active --quiet "$UNIT"; then
+  started="$(systemctl --user show -p ExecMainStartTimestamp --value "$UNIT" 2>/dev/null)"
+  if [[ -n "$started" ]] && (( $(date -d "$started" +%s 2>/dev/null || echo 0) < $(stat -c %Y "$installed") )); then
+    echo "llama router: $UNIT changed since it started -- restart when idle: systemctl --user restart $UNIT"
   fi
-done
-echo "llama router: logs with: journalctl --user -u llama-router.service -f"
-
-if [[ -z "$(ls -A "$HOME/models/light" 2>/dev/null || true)" ]]; then
-  echo "llama router: ~/models/light is empty. Fetch the model set with:"
-  echo "              bash ${DOT_DIR:-$HOME/dotfiles}/llamacpp/archlinux/fetch-models.sh"
 fi
+echo "llama router: logs with: journalctl --user -u $UNIT -f"
 
-# Shared with the fetch scripts: the cheap-tier symlink and the model verifier.
-. "$SCRIPT_DIR/../shared/_fetch-lib.sh"
-
-# Wire the cheap tier whenever its source weights exist -- idempotent, so every
-# dotfiles_update heals a missing link. Only when the source is absent is there
-# anything left for the operator to do.
-link_cheap_tier || true
-if [[ -z "$(ls -A "$HOME/models/cheap" 2>/dev/null || true)" ]]; then
-  echo "llama router: ~/models/cheap is empty. It is populated automatically once"
-  echo "              ~/models/light/gemma-4-E2B-it-GGUF/ is fetched (see cheap.ini)."
+if [[ -z "$(ls -A "$MODELS_DIR" 2>/dev/null || true)" ]]; then
+  echo "llama router: ~/models/llama is empty. Fetch the model set with:"
+  echo "              bash ${DOT_DIR:-$HOME/dotfiles}/llamacpp/archlinux/fetch-models.sh"
 fi
 
 # Cheap integrity pass on every setup run: header + size of each GGUF against the

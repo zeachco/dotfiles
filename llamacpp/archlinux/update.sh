@@ -204,7 +204,7 @@ if [[ "${PIPESTATUS[0]}" != 0 ]]; then
   bad "build FAILED -- stamp left at '$BUILT_SHA', next run will retry"
   bad "  full log: $BUILD_LOG -- first errors:"
   grep -n -E 'error:|Error [0-9]|undefined reference' "$BUILD_LOG" | head -8 | sed 's/^/    /'
-  bad "  the routers keep running the previous binary, which is the safe outcome"
+  bad "  the router keeps running the previous binary, which is the safe outcome"
   exit 1
 fi
 
@@ -225,51 +225,36 @@ good "built $(git rev-parse --short "$HEAD_SHA")"
 # and dotfiles_update must not hang behind it.
 #   LLAMACPP_RESTART=1   restart without asking        LLAMACPP_RESTART=0   never ask
 #
-# The unit list is explicit, not a glob: it has to match install.sh, and a glob would
-# also catch a foreground los-server-* run that is not a unit at all.
+# The unit name is explicit, not a glob: it has to match install.sh, and a glob would
+# also catch a foreground los-server run that is not a unit at all.
 
-# Busy slots across the units about to be restarted, for the prompt. Best effort: any
-# failure reads as "?", never as idle. Probes only models that report "loaded" -- a
-# "sleeping" child (sleep-idle-seconds in the .ini) would be RELOADED by /slots.
+# Busy slots on the router, for the prompt. Best effort: any failure reads as "?",
+# never as idle. Probes only models that report "loaded" -- a "sleeping" child
+# (sleep-idle-seconds in models.ini) would be RELOADED by /slots.
 _busy_slots() {
-  local unit port n total=0 unknown=0
+  local n
   command -v python3 >/dev/null 2>&1 || { echo "?"; return; }
-  for unit in "$@"; do
-    case "$unit" in
-      llama-router.service)       port=7070 ;;
-      llama-router-cheap.service) port=7071 ;;
-      llama-router-heavy.service) port=7072 ;;
-      *) unknown=1; continue ;;
-    esac
-    n=$(curl -sf -m 3 "http://127.0.0.1:$port/v1/models" 2>/dev/null | python3 -c '
+  n=$(curl -sf -m 3 "http://127.0.0.1:7070/v1/models" 2>/dev/null | python3 -c '
 import sys, json, urllib.request, urllib.parse
-port, busy = sys.argv[1], 0
+busy = 0
 for m in json.load(sys.stdin).get("data", []):
     if ((m.get("status") or {}).get("value")) != "loaded":
         continue
-    url = "http://127.0.0.1:%s/slots?model=%s&autoload=false" % (port, urllib.parse.quote(m["id"]))
+    url = "http://127.0.0.1:7070/slots?model=%s&autoload=false" % urllib.parse.quote(m["id"])
     with urllib.request.urlopen(url, timeout=3) as r:
         busy += sum(1 for s in json.load(r) if s.get("is_processing"))
-print(busy)' "$port" 2>/dev/null)
-    [[ "$n" =~ ^[0-9]+$ ]] || { unknown=1; continue; }
-    total=$((total + n))
-  done
-  ((unknown)) && echo "${total}+?" || echo "$total"
+print(busy)' 2>/dev/null)
+  [[ "$n" =~ ^[0-9]+$ ]] && echo "$n" || echo "?"
 }
 
 RESTART_NEEDED=()
-for unit in llama-router.service llama-router-cheap.service llama-router-heavy.service; do
-  if systemctl --user is-active --quiet "$unit" 2>/dev/null; then
-    RESTART_NEEDED+=("$unit")
-  fi
-done
+if systemctl --user is-active --quiet llama-router.service 2>/dev/null; then
+  RESTART_NEEDED+=(llama-router.service)
+fi
 ((${#RESTART_NEEDED[@]} == 0)) && exit 0
 
 echo
-warn "these are still running the PREVIOUS binary:"
-for unit in "${RESTART_NEEDED[@]}"; do
-  warn "  $unit"
-done
+warn "llama-router.service is still running the PREVIOUS binary"
 
 answer=
 case "${LLAMACPP_RESTART:-}" in
@@ -277,13 +262,13 @@ case "${LLAMACPP_RESTART:-}" in
   0|n|no)  answer=n ;;
   *)
     if [[ -t 0 && -t 1 ]]; then
-      busy="$(_busy_slots "${RESTART_NEEDED[@]}")"
+      busy="$(_busy_slots)"
       case "$busy" in
         0) say "no slot is generating right now" ;;
         *) warn "$busy slot(s) generating -- a restart kills those requests" ;;
       esac
       # read returns >128 on timeout and 1 on EOF; both mean No.
-      read -r -t 120 -p "$(echo -e "${INFO}llama.cpp:${NORM} restart them now? [y/N] ")" answer || { echo; answer=n; }
+      read -r -t 120 -p "$(echo -e "${INFO}llama.cpp:${NORM} restart it now? [y/N] ")" answer || { echo; answer=n; }
     fi ;;
 esac
 
@@ -291,7 +276,7 @@ case "$answer" in
   y|Y|yes|YES)
     say "restarting ${RESTART_NEEDED[*]}..."
     if systemctl --user restart "${RESTART_NEEDED[@]}"; then
-      good "restarted -- light/cheap models autoload on their next request; the heavy tier loads only via los"
+      good "restarted -- nothing is loaded now; bring models back with los"
     else
       bad "restart failed -- systemctl --user status ${RESTART_NEEDED[*]}"
       exit 1

@@ -12,7 +12,11 @@
   "enabledModels": [
     "openai-codex/gpt-5.6-luna",
     "llamacpp/qwen3.8",
-    "llamacpp-heavy/*",
+    "llamacpp/GLM-4.7-Flash-UD-Q4_K_XL",
+    "llamacpp/Qwen3.8-Flash-Next",
+    "llamacpp/gpt-oss-120b-MXFP4",
+    "llamacpp/GLM-5.3-Flash",
+    "llamacpp/DeepSeek-V4-Flash-chat-v2",
     "openrouter/*"
   ],
   "packages": [

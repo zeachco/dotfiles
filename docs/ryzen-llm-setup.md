@@ -7,18 +7,30 @@ Priorities this setup optimizes for, in order: **flexibility** (switch models fr
 small ones, still able to run the big ones), **stability** (long autonomous loops must not time out
 or die), then speed.
 
+## 2026-11-06: one router
+
+The three routers below (light `:7070`, cheap `:7071`, heavy `:7072`) are **gone**. One
+`llama-router.service` on `:7070` serves `~/models/llama` with `llamacpp/archlinux/models.ini`,
+runs `--no-models-autoload` and `--models-max 8`: nothing loads until `los` / `los-load` /
+pi's model picker asks, and nothing is evicted behind a session. The tiers existed to keep
+the autoloading light router's LRU eviction away from `qwen3.8` and the shell helpers; with
+autoload off there was nothing left to fence, and routers that shared no memory budget were
+the shape of both OOM incidents below. `install.sh` retires the old units and moves
+`~/models/{light,heavy}` into `~/models/llama` once they are stopped. Everything below that
+says "tier", "light", "cheap" or "heavy" is history: the incidents, measurements and
+budgets still hold, the ports and files do not.
+
 ## Where things stand
 
 - `~/dev/llama.cpp` on **`master`**, built in `build/` with **`GGML_VULKAN=ON`,
   `GGML_HIP=OFF`** — Vulkan only. `llamacpp/archlinux/update.sh` fast-forwards and
   rebuilds it on every `dotfiles_update`; see "Keeping the build current" below.
-- `llamacpp/shared/_llama.sh` defines the three foreground **server** launchers over one
-  `_los_router` helper — `los-server-light` (:7070), `los-server-cheap` (:7071),
-  `los-server-heavy` (one model at a time) — plus the verbs `los-load` / `los-drain`, which talk
-  to a router that is already running. The original fzf launcher over the old inference
+- `llamacpp/shared/_llama.sh` defines the foreground **server** launcher `los-server` over the
+  `_los_router` helper, plus the verbs `los-load` / `los-drain`, which talk to a router that is
+  already running. The original fzf launcher over the old inference
   daemon's model list was deleted along with that daemon — see "Retiring the old inference
   daemon".
-- `llamacpp/shared/_los_menu.sh` defines **`los`**, one fzf menu over all three routers: drain
+- `llamacpp/shared/_los_menu.sh` defines **`los`**, one fzf menu over the router: drain
   idle / load / unload / logs, then every model with its state. Hovering previews the model's
   `.ini` section, context and slot layout, KV layout, and what it costs to load. See "The `los`
   menu" below. (Plain `los` was the light-tier launcher until 2026-09-10; it is now
@@ -155,24 +167,22 @@ five requests killed at once) -- the `kv-unified-per-slot` tradeoff in `light.in
 
 ## Ports
 
-| Port | Tier | Unit | Host | Models |
-|---|---|---|---|---|
-| `:7070` | light | `llama-router.service` | `0.0.0.0` (LAN) | `~/models/light`, `--models-max 5` |
-| `:7071` | cheap | `llama-router-cheap.service` | `127.0.0.1` | `~/models/cheap`, gemma-E2B only |
-| `:7072` | heavy | `llama-router-heavy.service` | `0.0.0.0` (LAN) | `~/models/heavy`, `--models-max 1`, `--no-models-autoload` |
+| Port | Unit | Host | Models |
+|---|---|---|---|
+| `:7070` | `llama-router.service` | `0.0.0.0` (LAN) | `~/models/llama`, `--models-max 8`, `--no-models-autoload` |
 
-Moved off 8080/8081 on 2026-09-08 because 8080 is a common dev-server port. A port change
-only takes effect when the unit restarts; `install.sh` deliberately does not do that
+Until 2026-11-06: `:7071` cheap (`llama-router-cheap.service`, gemma-E2B only, loopback) and
+`:7072` heavy (`llama-router-heavy.service`, one model, no autoload) beside the light router
+on `:7070`. Moved off 8080/8081 on 2026-09-08 because 8080 is a common dev-server port. A port
+change only takes effect when the unit restarts; `install.sh` deliberately does not do that
 (`enable --now` is a no-op for a running unit), so after pulling this: `systemctl --user
-restart llama-router.service llama-router-cheap.service` when idle. Clients (`pi` `models.json`,
-opencode, `AI_LLAMA_URL`) already point at the new ports.
+restart llama-router.service` when idle.
 
 Two things a port move does NOT update by itself, both bitten on 2026-09-09: `~/.dotfiles_*`
 are *copies* made by `install_profile` (re-run `setup.sh`/`dotfiles_update`, or `cp` the profile,
 then open a new shell — an existing shell keeps the old `AI_LLAMA_URL`); and
-`framework-ryzen/framework-rgb` bakes its default `LLAMACPP_URL` into the binary, so it needs
-`cargo build --release` + `sudo framework-ryzen/install-root.sh $USER`. Until then the LEDs blink
-red ("llama-router active, endpoint unavailable"). That daemon also polls `/v1/models` and
+`framework-ryzen/framework-rgb` bakes its default `LLAMACPP_URL` into the binary (`:7070`,
+`llama-router.service` — unchanged by the merge). That daemon also polls `/v1/models` and
 `/slots?model=…&autoload=false` every 2 s (`POLL_SECONDS`) — that is the steady "proxying
 request" line in the router journal, not a client.
 
