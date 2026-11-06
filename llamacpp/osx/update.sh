@@ -59,6 +59,7 @@ good() { echo -e "${PASS}llama.cpp:${NORM} $*"; }
 # binary it has no use for. _hw_sysctl comes from here too -- /usr/sbin is not on PATH
 # inside a devbox shell, and those are auto-entered on cd.
 . "$SCRIPT_DIR/../shared/_hw-gate.sh"
+. "$SCRIPT_DIR/../shared/_herdr-diff.sh"
 
 if ! is_apple_silicon; then
   # Silent, like the Arch gate: a warning on every dotfiles_update on every other
@@ -161,6 +162,7 @@ else
     AFTER="$(git rev-parse HEAD)"
     if [[ "$BEFORE" != "$AFTER" ]]; then
       say "$REF $(git rev-parse --short "$BEFORE") -> $(git rev-parse --short "$AFTER") ($(git rev-list --count "$BEFORE..$AFTER") commits)"
+      llamacpp_herdr_diff_tab "$LLAMA_DIR" "$BEFORE" "$AFTER"
     fi
   else
     warn "cannot fast-forward $CURRENT_BRANCH onto origin/$REF -- diverged, leaving it alone"
