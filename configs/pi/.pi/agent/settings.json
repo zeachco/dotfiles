@@ -1,6 +1,6 @@
 {
   "defaultProvider": "llamacpp",
-  "defaultModel": "qwen3.8",
+  "defaultModel": "GLM-5.3-Flash",
   "defaultThinkingLevel": "high",
   "compaction": {
     "modelOverrides": {
