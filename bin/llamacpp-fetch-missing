@@ -68,14 +68,15 @@ fi
 # stem when the destination is a top-level directory (~/models/llama, ~/models/drafts,
 # ~/models/laya, or the Mac's flat ~/models) -- the same rule the router uses to name
 # models. bytes -> GiB in awk: the sizes exceed 2^31 and bash 3.2 has no printf %f.
-plan_groups() {
-  awk -F '\t' -v served="$served" -v home="$HOME" '
+PLAN_KEY_AWK='
     function key(dest, file,   n, parts, base, d) {
       n = split(file, parts, "/"); base = parts[n]; sub(/\.gguf$/, "", base)
       n = split(dest, parts, "/"); d = parts[n]
       if (dest == served || d == "llama" || d == "drafts" || d == "laya" || dest == home "/models") return base
       return d
-    }
+    }'
+plan_groups() {
+  awk -F '\t' -v served="$served" -v home="$HOME" "$PLAN_KEY_AWK"'
     { k = key($3, $2); size[k] += $4; files[k]++
       if (!(k in where)) { where[k] = $3; sub("^" home "/", "~/", where[k]); order[++n] = k } }
     END { for (i = 1; i <= n; i++) { k = order[i]
@@ -98,20 +99,14 @@ if [ "$first_install" = 1 ] && [ -t 0 ] && [ -t 1 ] && command -v fzf >/dev/null
   fi
   # The selection file lists exact plan rows ("<repo>\t<file>") so the fetch lib can
   # match without re-deriving the grouping.
-  awk -F '\t' -v served="$served" -v home="$HOME" -v picked="$picked" '
+  awk -F '\t' -v served="$served" -v home="$HOME" -v picked="$picked" "$PLAN_KEY_AWK"'
     BEGIN { n = split(picked, p, "\n"); for (i = 1; i <= n; i++) want[p[i]] = 1 }
-    function key(dest, file,   n, parts, base, d) {
-      n = split(file, parts, "/"); base = parts[n]; sub(/\.gguf$/, "", base)
-      n = split(dest, parts, "/"); d = parts[n]
-      if (dest == served || d == "llama" || d == "drafts" || d == "laya" || dest == home "/models") return base
-      return d
-    }
     key($3, $2) in want { printf "%s\t%s\n", $1, $2 }' "$plan" >"$select_file"
   echo
   echo "Downloading:"
   plan_groups | awk -F '\t' -v picked="$picked" '
     BEGIN { n = split(picked, p, "\n"); for (i = 1; i <= n; i++) want[p[i]] = 1 }
-    $1 in want { printf "  %s  %s  (%s)\n", $2, $1, $3; total += $2 }'
+    $1 in want { printf "  %s  %s  (%s)\n", $2, $1, $3 }'
   echo
   LOS_FETCH_HEAVY=1 LOS_FETCH_SELECT="$select_file" bash "$recipe"
   exit $?
