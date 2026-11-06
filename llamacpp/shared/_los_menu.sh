@@ -331,7 +331,15 @@ for r in sorted(rows, key=lambda r: ({"loaded": 0, "sleeping": 1}.get(r["state"]
     else:
         badge = "%sunloaded%s" % (DIM, OFF)
         size = "%s%s on disk%s" % (DIM, gib(r["bytes"]), OFF)
-    display = "%-6s %-*s  %-18s %s" % (r["tier"], wid, r["id"], badge, size)
+    # Prefix: busy/total slots for a loaded model (green idle, yellow partial, red maxed),
+    # the tier name dimmed for everything else. Padding ignores the escape codes.
+    if r["state"] == "loaded" and r["slots"]:
+        tot, busy = r["slots"][0], r["slots"][1]
+        col = GRN if busy == 0 else RED if busy >= tot else YEL
+        prefix = "%s%-6s%s" % (col, "%d/%d" % (busy, tot), OFF)
+    else:
+        prefix = "%s%-6s%s" % (DIM, r["tier"], OFF)
+    display = "%s %-*s  %-18s %s" % (prefix, wid, r["id"], badge, size)
 
     p = ["%s%s%s" % (BOLD, r["id"], OFF), ""]
     p.append("  router     %s  (:%d, %s)" % (r["tier"], r["port"], r["unit"]))

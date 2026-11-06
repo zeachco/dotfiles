@@ -1,6 +1,6 @@
 # Model routing (local llama.cpp, one router on :7070, nothing autoloads)
 
-One local model does the heavy lifting: `Qwen3.8-Flash-Next` (pi's `defaultModel` since 2026-11-07) thinks AND types; `qwen3.8` is the lighter fallback. Route by the *kind* of step, not by how big the task is. Which model backs each subagent lives in the agent files, not here.
+One local model does the heavy lifting: `Qwen3.8-Flash-Next` (pi's `defaultModel` since 2026-11-06) thinks AND types; `qwen3.8` is the lighter fallback. Route by the *kind* of step, not by how big the task is. Which model backs each subagent lives in the agent files, not here.
 
 | Step | Who |
 |---|---|
@@ -17,7 +17,7 @@ Rules of thumb:
 - A subagent is a fresh process. It has NOT seen this conversation. Its task text must be self-contained: exact paths, function names, the change, how to verify. If you cannot write that brief yet, you are not done thinking.
 - Reach for `scout` before reading more than two or three files yourself.
 - The router loads NOTHING on its own (`--no-models-autoload`, since 2026-11-06): a request for a model that is not resident gets 400 "model is not loaded". Picking a model in `/model` loads it when it fits in free GPU memory (llamacpp-discover.ts); otherwise, in a shell, `los` (menu) or `los-drain` then `los-load <model>`. Nothing is evicted behind your back any more — memory is the only budget, and `los` shows it.
-- The daily resident model is `Qwen3.8-Flash-Next` — pi's `defaultModel`, ~67 GiB resident (plus ~28 GiB host RSS). `qwen3.8` is the fallback when it does not fit beside something else. The other big ones (`gpt-oss-120b-MXFP4`, `GLM-5.3-Flash`, `DeepSeek-V4-Flash-chat-v2`) each want most of the box: drain first, load one, expect to reload the daily afterwards. Never route a subagent to any of them.
+- The daily resident model is `Qwen3.8-Flash-Next` — pi's `defaultModel`, ~67 GiB resident (plus ~28 GiB host RSS). `qwen3.8` is the fallback when it does not fit beside something else, and `GLM-5.3-Flash` stays the pick for hard reasoning — drain and load it by hand for those sessions. The other big ones (`gpt-oss-120b-MXFP4`, `GLM-5.3-Flash`, `DeepSeek-V4-Flash-chat-v2`) each want most of the box: drain first, load one, expect to reload the daily afterwards. Never route a subagent to any of them.
 - `Qwen3.8-Flash-Next` is text-only (no projector), so images from a default session go through the vision-relay skill — same as `qwen3.8` since 2026-10-12.
 - The small models stay on disk and can be selected by hand, but nothing routes to them automatically: they are 16k-context and cold. There is no local vision model for pi, so images go through the vision-relay skill.
 
