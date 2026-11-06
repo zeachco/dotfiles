@@ -159,19 +159,68 @@ for m in json.load(sys.stdin).get("data",[]):
   echo "los-load: timed out waiting for $model" >&2; return 1
 }
 
+# ---- Kokoro TTS (bin/kokoro-serve behind kokoro-tts.service) -----------------------
+# Not a router model, but it holds ~1 GiB of RAM while loaded, and RAM is the one budget
+# on the unified-memory box -- so it is driven from the same verbs: the `los` menu shows
+# it as a row, los-drain unloads it with everything else, and this talks to it directly.
+# Unloading keeps the daemon up; the next `say` reloads the model (~8 s, once).
+#   los-tts            status (loaded / busy / rss / idle)
+#   los-tts load       make it resident now, so the next say is instant
+#   los-tts unload     release the weights (refused while a sentence is being spoken)
+#   los-tts speak TEXT speak through the daemon, bypassing bin/say's fallback
+_los_tts_socket() { echo "${KOKORO_SOCKET:-${XDG_RUNTIME_DIR:-/tmp}/kokoro-tts.sock}"; }
+# One JSON request in, one JSON line out. Prints nothing and returns 1 when the daemon is
+# not there, so callers can tell "no daemon" from "daemon said no".
+_los_tts_rpc() {  # $1=op
+  local sock; sock="$(_los_tts_socket)"
+  [[ -S "$sock" ]] || return 1
+  KOKORO_SOCKET="$sock" python3 -c 'import json,os,socket,sys
+s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM); s.settimeout(60)
+try: s.connect(os.environ["KOKORO_SOCKET"])
+except OSError: sys.exit(1)
+s.sendall((json.dumps({"op":sys.argv[1]})+"\n").encode()); s.shutdown(socket.SHUT_WR)
+out=b""
+while (c:=s.recv(4096)): out+=c
+sys.stdout.write(out.decode())' "$1" 2>/dev/null
+}
+los-tts() {
+  local op="${1:-status}" out
+  case "$op" in
+    status|load|unload)
+      out="$(_los_tts_rpc "$op")" || { echo "los-tts: no daemon at $(_los_tts_socket) -- systemctl --user start kokoro-tts.service" >&2; return 1; }
+      printf '%s\n' "$out" | python3 -c 'import json,sys
+d=json.load(sys.stdin); op=sys.argv[1]
+if not d.get("ok"): print("los-tts: %s refused: %s" % (op, d.get("error")), file=sys.stderr); sys.exit(1)
+st="loaded" if d["loaded"] else "unloaded"
+if d["busy"]: st="busy (%d speaking)" % d["busy"]
+print("kokoro  %-9s rss %d MiB  idle %ds  loads %d  spoken %.0fs%s" % (st, d["rss_mb"], d["idle_s"], d["loads"], d["spoken_s"],
+      "  (idle-unload %ds)" % d["idle_unload_s"] if d["idle_unload_s"] else ""))' "$op" ;;
+    speak)
+      shift; [[ $# -gt 0 ]] || { echo "los-tts speak TEXT" >&2; return 1; }
+      KOKORO_SOCKET="$(_los_tts_socket)" "${DOT_DIR:-$HOME/dotfiles}/bin/say" "$@" ;;
+    -h|--help|*)
+      echo "los-tts [status|load|unload|speak TEXT]   the resident Kokoro TTS (kokoro-tts.service)"
+      [[ "$op" == -h || "$op" == --help ]] ;;
+  esac
+}
+
 # Unload every model on the router (default :7070) without stopping it, so a big model
 # has the GPU. Nothing comes back on its own afterwards (no autoload): los-load what you
-# want next.
+# want next. The Kokoro daemon's model goes too (los-tts unload): it is the same RAM.
 los-drain() {
   local url="${1:-http://127.0.0.1:7070}" ids
   ids=$(curl -sf -m 5 "$url/v1/models" | python3 -c 'import sys,json
 for m in json.load(sys.stdin).get("data",[]):
     st=(m.get("status") or {}).get("value")
-    if st in ("loaded","loading","sleeping"): print(m["id"])' 2>/dev/null) || { echo "los-drain: $url unreachable" >&2; return 1; }
-  [[ -z "$ids" ]] && { echo "los-drain: nothing loaded on $url"; return 0; }
+    if st in ("loaded","loading","sleeping"): print(m["id"])' 2>/dev/null) || { echo "los-drain: $url unreachable" >&2; ids=; }
+  [[ -z "$ids" ]] && echo "los-drain: nothing loaded on $url"
   local id; for id in $ids; do
     printf 'unload %s ... ' "$id"
     curl -sf -m 30 -X POST "$url/models/unload" -H 'content-type: application/json' \
       -d "{\"model\":\"$id\"}" >/dev/null && echo ok || echo FAILED
   done
+  if _los_tts_rpc status >/dev/null 2>&1; then
+    printf 'unload kokoro (tts) ... '
+    _los_tts_rpc unload | python3 -c 'import json,sys; d=json.load(sys.stdin); print("ok" if d.get("ok") else "FAILED (%s)" % d.get("error")); sys.exit(0 if d.get("ok") else 1)' || true
+  fi
 }

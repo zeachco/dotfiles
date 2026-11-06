@@ -125,6 +125,26 @@ for _ in pipeline("ok", voice="af_heart"):
   fi
 fi
 
+# Resident Kokoro daemon (bin/kokoro-serve), so `say` costs the speech and not the model
+# load. systemd --user only: macOS keeps the in-process path (`say` falls back on its own
+# when the socket is absent). Same cmp-then-install shape as llamacpp/archlinux/install.sh,
+# so re-running is a no-op; an edited unit is installed but not restarted mid-speech.
+if [[ "$(uname -s)" != Darwin ]] && command -v systemctl >/dev/null 2>&1 && [[ -x "$KOKORO_VENV/bin/python" ]]; then
+  kokoro_unit="kokoro-tts.service"
+  kokoro_tpl="$DOT_DIR/bin/$kokoro_unit"
+  kokoro_dst="$HOME/.config/systemd/user/$kokoro_unit"
+  mkdir -p "$HOME/.config/systemd/user"
+  if [[ -f "$kokoro_dst" ]] && cmp -s "$kokoro_tpl" "$kokoro_dst" && systemctl --user is-active --quiet "$kokoro_unit"; then
+    print_exists "$kokoro_unit"
+  else
+    install -m 644 "$kokoro_tpl" "$kokoro_dst"
+    systemctl --user daemon-reload
+    echo -e "${WARN}installed ${NORM}$kokoro_unit (unload/reload the model from los)"
+  fi
+  systemctl --user enable --now "$kokoro_unit" >/dev/null 2>&1 ||
+    echo -e "${FAIL}$kokoro_unit failed to start: journalctl --user -u $kokoro_unit${NORM}"
+fi
+
 stow_link alacritty
 stow_link tmux
 

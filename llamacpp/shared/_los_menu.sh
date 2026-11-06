@@ -21,6 +21,13 @@
 # can be added without touching the code: every loop below walks it.
 LOS_MENU_TIERS="${LOS_MENU_TIERS:-router:7070:llama-router.service}"
 
+# How many models a marked batch may load at once. Each model is its own child process,
+# so the router parallelizes loads whether we do or not -- serializing them in the menu
+# only added waiting. `export LOS_LOAD_PARALLEL=1` restores the old one-at-a-time batch.
+# Raise it only if you want several multi-tens-of-GiB pulls racing each other for RAM and
+# disk: nothing here (or in the router) meters memory.
+LOS_LOAD_PARALLEL="${LOS_LOAD_PARALLEL:-4}"
+
 # Loops over LOS_MENU_TIERS go through $(printf ...): zsh does not word-split an unquoted
 # $var (shwordsplit is off), but it does split command substitution, and bash does both.
 # Is this router's daemon installed on this box at all? A missing unit is information,
@@ -63,11 +70,13 @@ _los_menu_deps() {
 # file reads -- hovering never re-queries a router, so the menu stays instant even when
 # a tier is busy generating.
 _los_menu_snapshot() {
-  LOS_NOT_INSTALLED="$(_los_tiers_not_installed)" python3 - "$@" <<'PY'
+  LOS_NOT_INSTALLED="$(_los_tiers_not_installed)" LOS_LOAD_PARALLEL="$LOS_LOAD_PARALLEL" python3 - "$@" <<'PY'
 import json, os, sys, glob, urllib.request, urllib.parse
 
 outdir, tierspec = sys.argv[1], sys.argv[2]
 not_installed = set(os.environ.get("LOS_NOT_INSTALLED", "").split())
+# Batch width, so this text cannot drift from what _los_menu_run_many actually does.
+load_parallel = os.environ.get("LOS_LOAD_PARALLEL") or "4"
 
 # Measured footprints, so an UNLOADED model can still be shown the number that decides
 # whether it fits: weights-on-disk badly understates it (qwen3.8 is 15.3 GiB of weights
@@ -153,6 +162,24 @@ def slots(port, model_id):
     return len(data), busy, cached
 
 
+# The Kokoro TTS daemon (bin/kokoro-serve): not a router, but ~1 GiB of the same RAM
+# while loaded, so it gets a row and is part of drain. None = no daemon on this box.
+TTS_SOCK = os.environ.get("KOKORO_SOCKET") or os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp", "kokoro-tts.sock")
+def tts_status():
+    import socket
+    if not os.path.exists(TTS_SOCK):
+        return None
+    try:
+        c = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); c.settimeout(3)
+        c.connect(TTS_SOCK); c.sendall(b'{"op":"status"}\n'); c.shutdown(socket.SHUT_WR)
+        out = b""
+        while (chunk := c.recv(4096)):
+            out += chunk
+        return json.loads(out)
+    except (OSError, ValueError):
+        return None
+tts = tts_status()
+
 tiers = []
 for spec in tierspec.split():
     name, port, unit = spec.split(":", 2)
@@ -210,6 +237,8 @@ if loaded:
     head.append("%d loaded (%s)" % (len(loaded), ", ".join(r["id"] for r in loaded)))
 if asleep:
     head.append("%d asleep (%s)" % (len(asleep), ", ".join(r["id"] for r in asleep)))
+if tts and tts.get("loaded"):
+    head.append("tts %s MiB" % tts["rss_mb"])
 down = [n for n, ok in reachable.items() if not ok and n not in not_installed]
 if down:
     head.append("%sunreachable: %s%s" % (RED, " ".join(down), OFF))
@@ -242,7 +271,9 @@ emit("%sdrain idle%s        %sunload what nobody is generating on%s" % (BOLD, OF
      "  re-ingests the whole prompt. The per-model preview shows how many slots hold a\n"
      "  cached context, so check before draining a model someone is parked on.\n\n"
      "  Nothing comes back on its own: the router runs --no-models-autoload, so what\n"
-     "  you drain stays down until 'load'.\n"
+     "  you drain stays down until 'load'.\n\n"
+     "  The Kokoro TTS model (the 'kokoro' row) is drained too when it is not speaking;\n"
+     "  unlike the router models it DOES come back on its own, on the next `say`.\n"
      % (idle_n, len(loaded), gib(held)))
 
 emit("%sload%s              %spick from the models that are not resident%s" % (BOLD, OFF, DIM, OFF),
@@ -250,13 +281,15 @@ emit("%sload%s              %spick from the models that are not resident%s" % (B
      "load\n\n"
      "  Lists every UNLOADED model and loads what you pick, waiting until each actually\n"
      "  reports 'loaded' rather than trusting the POST.\n\n"
-     "  Tab marks several; they load in the order shown. A failed load stops the batch --\n"
-     "  the cause is almost always memory, so the rest would fail the same way.\n\n"
+     "  Tab marks several: up to %s load at a time (LOS_LOAD_PARALLEL), and a failed load\n"
+     "  stops the batch -- the cause is almost always memory, so the rest would fail the\n"
+     "  same way.\n\n"
      "  The router runs --no-models-autoload, so this (los-load in a shell, or picking\n"
      "  the model in pi) is the only way anything becomes resident.\n\n"
      "  Nothing refuses a load that does not fit: loading a 91 GiB model with the daily\n"
      "  set resident fails on the GPU, or worse, OOMs the box -- drain first. Each\n"
-     "  model's preview shows what it needs against what is free.\n")
+     "  model's preview shows what it needs against what is free.\n"
+     % (load_parallel,))
 
 emit("%sunload%s            %spick from the models that are resident%s" % (BOLD, OFF, DIM, OFF),
      "unload",
@@ -399,6 +432,36 @@ for r in sorted(rows, key=lambda r: ({"loaded": 0, "sleeping": 1}.get(r["state"]
     p.append("  %s[enter] %s this model%s" % (BOLD, "unload" if r["state"] in ("loaded", "sleeping") else "load", OFF))
     emit(display, "model", "\n".join(p), r["tier"], r["port"], r["id"], r["state"])
 
+# ---- the TTS daemon, after the models ---------------------------------------------
+if tts is not None:
+    if tts.get("busy"):
+        badge, size = "%sbusy%s" % (YEL, OFF), "%s%d MiB RSS%s" % (DIM, tts["rss_mb"], OFF)
+    elif tts.get("loaded"):
+        badge, size = "%sloaded%s" % (GRN, OFF), "%s%d MiB RSS%s" % (DIM, tts["rss_mb"], OFF)
+    else:
+        badge, size = "%sunloaded%s" % (DIM, OFF), "%s%d MiB RSS, ~1 GiB loaded%s" % (DIM, tts["rss_mb"], OFF)
+    state = "loaded" if tts.get("loaded") else "unloaded"
+    display = "%s%-6s%s %-*s  %-18s %s" % (DIM, "tts", OFF, wid, "kokoro", badge, size)
+    p = ["%skokoro%s  (Kokoro-82M text-to-speech, bin/kokoro-serve)" % (BOLD, OFF), ""]
+    p.append("  unit       kokoro-tts.service  (socket %s)" % TTS_SOCK)
+    p.append("  state      %s%s" % (state, "  -- %d sentence(s) being spoken" % tts["busy"] if tts.get("busy") else ""))
+    p.append("  resident   %d MiB RSS  (system RAM, not GTT: CPU torch)" % tts["rss_mb"])
+    if tts.get("load_s"):
+        p.append("  last load  %.1fs" % tts["load_s"])
+    p.append("  idle       %ds%s" % (tts["idle_s"], "  (unloads itself after %ds)" % tts["idle_unload_s"] if tts.get("idle_unload_s") else "  (never unloads on its own)"))
+    p.append("  spoken     %.0fs of audio over %d load(s) since the daemon started (%dh%02dm ago)"
+             % (tts["spoken_s"], tts["loads"], tts["uptime_s"] // 3600, tts["uptime_s"] % 3600 // 60))
+    p.append("")
+    p.append("  %sWhy it is here: `say` keeps this process resident so a sentence costs ~0.2 s%s" % (DIM, OFF))
+    p.append("  %sinstead of a 7-9 s model load. Unloading frees ~700 MiB and keeps the daemon up;%s" % (DIM, OFF))
+    p.append("  %sthe next `say` reloads it (once, ~8 s). Same thing as `los-tts load|unload`.%s" % (DIM, OFF))
+    if tts.get("busy"):
+        p.append("")
+        p.append("  %sIN USE -- unload is refused until the sentence ends%s" % (YEL, OFF))
+    p.append("")
+    p.append("  %s[enter] %s the TTS model%s" % (BOLD, "unload" if state == "loaded" else "load", OFF))
+    emit(display, "tts", "\n".join(p), "tts", "", "kokoro", state)
+
 open(os.path.join(outdir, "index.tsv"), "w").write("\n".join(index) + "\n")
 open(os.path.join(outdir, "meta.tsv"), "w").write("\n".join(meta) + "\n")
 PY
@@ -418,26 +481,87 @@ _los_menu_unload() {
     && echo ok || { echo FAILED; return 1; }
 }
 
-# Apply one verb to a newline-separated list of row keys.
-# Loads stop at the first failure: the usual cause is memory, and every later load in the
-# batch would fail the same way -- better one clear error than five.
+# One model in or out, as a background job. Output goes to per-tag files at the caller's
+# redirection and the exit status to $dir/rc.<tag>, because a background job's status is
+# awkward to collect in order and `wait`'s exit code covers only the last pid.
+_los_menu_job() {  # $1=dir $2=tag $3=port $4=id $5=verb
+  local dir="$1" tag="$2" port="$3" id="$4" verb="$5" rc
+  if [[ "$verb" == load ]]; then
+    LOS_URL="http://127.0.0.1:$port" los-load "$id"
+  else
+    _los_menu_unload "$port" "$id"
+  fi
+  rc=$?
+  printf '%s\n' "$rc" > "$dir/rc.$tag"
+}
+
+# Wait for one round of jobs, then print what each said in selection order, whatever order
+# they finished in. Returns 1 if any job in the round failed.
+_los_menu_reap() {  # $1=dir $2=first-tag $3=last-tag $4..=pids
+  local dir="$1" first="$2" last="$3" rc=0 i
+  shift 3
+  wait "$@" 2>/dev/null
+  for (( i = first; i <= last; i++ )); do
+    [[ -e "$dir/log.$i" ]] && cat "$dir/log.$i"
+    [[ "$(cat "$dir/rc.$i" 2>/dev/null)" == "0" ]] || rc=1
+    rm -f "$dir/log.$i" "$dir/rc.$i"
+  done
+  return $rc
+}
+
+# Apply one verb to a newline-separated list of row keys, LOS_LOAD_PARALLEL models at a
+# time (default 4; 1 = the old serial batch).
+#
+# Why it was serial: los-load says nothing until the model reports "loaded", so marking
+# the daily set meant the SUM of the load times -- minutes of idle cursor for work the
+# router does concurrently anyway. Rounds of 4 make the batch cost the slowest model in
+# each round instead.
+#
+# Rounds rather than a rolling pool: keeping a pool topped up means `wait -n` or reading
+# `jobs -pr`, and neither behaves the same in bash and in zsh -- this file is sourced by
+# both. A round loses at most one straggler's poll interval (los-load checks every 5 s).
+#
+# Fail-fast survives, one round later: after a round with a failure the batch stops. The
+# cause is almost always memory, so every later round would fail the same way, and each
+# failure would burn los-load's full 10-minute timeout before saying so.
+#
+# Memory ordering is NOT relaxed: _los_menu_toggle_many still runs the whole unload group
+# before the first load round, which is what keeps a swap from becoming the OOM of
+# 2026-09-09. What parallelizing DOES add is that up to 4 loads allocate at once, and
+# nothing meters that -- the preview's "fits / does NOT fit" line is the only brake.
 _los_menu_run_many() {
   local dir="$1" keys="$2" verb="$3" k port id
+  local wide="$LOS_LOAD_PARALLEL" first=1 n=0 rc=0
+  # An array, not a space-separated string: zsh does not word-split an unquoted $var, so
+  # `wait $pids` there would pass one garbage pid and return at once -- every rc file read
+  # before its job finished, and the batch "failing" instantly.
+  local -a pids=()
+  [[ "$wide" =~ ^[0-9]+$ ]] && (( wide >= 1 )) || wide=4
+
   while IFS= read -r k; do
     [[ -z "$k" ]] && continue
     port=$(_los_menu_meta "$dir" "$k" 4)
     id=$(_los_menu_meta "$dir" "$k" 5)
-    if [[ "$verb" == load ]]; then
-      _los_menu_load "$port" "$id" || {
-        echo "los: stopping here -- a failed load is usually memory, so the rest of the" >&2
-        echo "     batch would fail too. Unload something and retry." >&2
-        return 1
-      }
-    else
-      _los_menu_unload "$port" "$id"
+    n=$((n + 1))
+    _los_menu_job "$dir" "$n" "$port" "$id" "$verb" > "$dir/log.$n" 2>&1 &
+    pids+=("$!")
+    if (( n - first + 1 >= wide )); then
+      _los_menu_reap "$dir" "$first" "$n" "${pids[@]}" || rc=1
+      pids=(); first=$((n + 1))
+      if (( rc )); then
+        if [[ "$verb" == load ]]; then
+          echo "los: stopping here -- a failed load is usually memory, so the rest of the" >&2
+          echo "     batch would fail too. Unload something and retry." >&2
+        else
+          echo "los: stopping here -- a model in this batch did not unload (see above)" >&2
+        fi
+        break
+      fi
     fi
   done <<< "$keys"
-  return 0
+
+  (( ${#pids[@]} > 0 )) && { _los_menu_reap "$dir" "$first" "$n" "${pids[@]}" || rc=1; }
+  return $rc
 }
 
 # Toggle several models from the main list in one go.
@@ -448,8 +572,13 @@ _los_menu_run_many() {
 # docs/ryzen-llm-setup.md "Incident: the OOM of 2026-09-09".
 _los_menu_toggle_many() {
   local dir="$1" keys="$2" k unloads= loads=
+  local tts_verb=
   while IFS= read -r k; do
     [[ -z "$k" ]] && continue
+    if [[ "$(_los_menu_meta "$dir" "$k" 2)" == tts ]]; then
+      [[ "$(_los_menu_meta "$dir" "$k" 6)" == loaded ]] && tts_verb=unload || tts_verb=load
+      continue
+    fi
     if [[ "$(_los_menu_meta "$dir" "$k" 2)" != model ]]; then
       echo "los: actions run one at a time -- select models only, or the action alone" >&2
       return 1
@@ -461,8 +590,10 @@ _los_menu_toggle_many() {
     esac
   done <<< "$keys"
 
+  [[ "$tts_verb" == unload ]] && { los-tts unload || return 1; }
   [[ -n "$unloads" ]] && { _los_menu_run_many "$dir" "$unloads" unload || return 1; }
   [[ -n "$loads" ]]   && { _los_menu_run_many "$dir" "$loads" load   || return 1; }
+  [[ "$tts_verb" == load ]] && { los-tts load || return 1; }
   return 0
 }
 
@@ -488,6 +619,14 @@ except Exception: print(-1)' 2>/dev/null)
       esac
     done
   done
+  # The TTS daemon: its status says whether a sentence is in flight.
+  local tts; tts="$(_los_tts_rpc status 2>/dev/null)" || tts=
+  if [[ -n "$tts" ]]; then
+    case "$(printf '%s' "$tts" | python3 -c 'import json,sys; d=json.load(sys.stdin); print("busy" if d.get("busy") else "loaded" if d.get("loaded") else "unloaded")' 2>/dev/null)" in
+      loaded) any=1; printf 'tts/'; los-tts unload >/dev/null && echo "unload kokoro ... ok" || echo "unload kokoro ... FAILED" ;;
+      busy) echo "skip tts/kokoro (speaking)" ;;
+    esac
+  fi
   [[ -z "$any" ]] && echo "nothing idle to drain"
   return 0
 }
@@ -573,10 +712,12 @@ _los_menu_restart_all() {
 
 _los_menu_logs() {
   local spec tier port unit pick
-  pick=$(for spec in $(printf "%s\n" $LOS_MENU_TIERS); do
+  pick=$({ for spec in $(printf "%s\n" $LOS_MENU_TIERS); do
       tier="${spec%%:*}"; unit="${spec##*:}"; port="${spec#*:}"; port="${port%%:*}"
       printf '%s\t%-6s %s%s (:%s)%s\n' "$unit" "$tier" $'\033[2m' "$unit" "$port" $'\033[0m'
-    done | fzf --ansi --delimiter='\t' --with-nth=2.. --height=~40% --reverse \
+    done
+    _los_unit_installed kokoro-tts.service && printf '%s\t%-6s %s%s%s\n' kokoro-tts.service tts $'\033[2m' kokoro-tts.service $'\033[0m'
+    true; } | fzf --ansi --delimiter='\t' --with-nth=2.. --height=~40% --reverse \
                --prompt='logs > ' --header='Ctrl-C stops following' | cut -f1) || return 0
   [[ -z "$pick" ]] && return 0
   journalctl --user -u "$pick" -n 100 -f
@@ -588,8 +729,10 @@ los() {
     -h|--help)
       echo "los                            interactive menu over the llama.cpp router"
       echo "los-load <model>               load a model and wait until it reports loaded"
-      echo "los-drain [url]                unload everything on the router (default :7070)"
+      echo "los-drain [url]                unload everything on the router (default :7070) and the TTS model"
+      echo "los-tts [status|load|unload]   the resident Kokoro TTS (kokoro-tts.service), ~1 GiB loaded"
       echo "los-restart-all                restart the router daemon (the menu's 'restart')"
+      echo "LOS_LOAD_PARALLEL              models loaded at once by a marked batch in los (default 4)"
       echo "llamacpp-sync                  the menu's sync-models action, non-interactive"
       echo "los-server                     run the router in the FOREGROUND (the daemon's"
       echo "                               journal is the menu's 'logs' action instead)"
@@ -650,7 +793,7 @@ los() {
         sub=$(printf '%s\n' "$list" |
               fzf --ansi --multi --delimiter='\t' --with-nth=2.. --height=100% --reverse \
                   --prompt="$want > " --preview "cat $dir/{1}.txt" \
-                  --header="tab marks several · they are ${want}ed in the order shown" \
+                  --header="tab marks several · up to ${LOS_LOAD_PARALLEL} at a time · one failure stops the batch" \
                   --preview-window='right:58%:wrap' | cut -f1) || continue
         [[ -z "$sub" ]] && continue
         _los_menu_run_many "$dir" "$sub" "$want"
@@ -662,6 +805,11 @@ los() {
         case "$(_los_menu_meta "$dir" "$key" 6)" in
           loaded|sleeping) _los_menu_unload "$port" "$id" ;;
           *) _los_menu_load "$port" "$id" ;;
+        esac ;;
+      tts)
+        case "$(_los_menu_meta "$dir" "$key" 6)" in
+          loaded) los-tts unload ;;
+          *) los-tts load ;;
         esac ;;
     esac
   done

@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+"""Resident Kokoro TTS daemon behind a Unix socket, so `say` stops paying the model load.
+
+Why: `say` used to start a fresh Python per call. Importing torch and deserializing
+Kokoro-82M is 7-9 s and ~45 core-seconds on the Strix Halo box; the speech itself is
+~0.2 s for a sentence. Keeping one process resident makes a call cost the speech only.
+The price is ~1.0 GiB of RAM while loaded (measured 2026-11-06: 352 MiB with torch
+imported and nothing loaded, 1039 MiB loaded, ~1.1 GiB after use) -- which is why the
+model can be unloaded and reloaded without stopping the daemon, from `los` like any
+router model, and why KOKORO_IDLE_SECONDS exists.
+
+Run by bin/kokoro-tts.service with the venv's interpreter:
+    ~/.local/share/kokoro-tts/bin/python ~/dotfiles/bin/kokoro-serve
+
+Protocol (one request per connection; the client sends ONE JSON line):
+    {"op":"speak","text":"...","voice":"af_heart"}  -> raw float32 mono 24 kHz PCM,
+                                                       streamed, then EOF
+    {"op":"status"}  -> JSON line: loaded, busy (speaks in flight), rss_mb, idle_s, ...
+    {"op":"load"}    -> JSON line after the model is resident
+    {"op":"unload"}  -> JSON line after the weights are released (refused while busy)
+A speak against an unloaded model loads it first: the daemon never refuses to talk,
+unload just makes the next sentence slow once.
+
+Env:
+    KOKORO_SOCKET         socket path (default $XDG_RUNTIME_DIR/kokoro-tts.sock)
+    KOKORO_PRELOAD        1 (default) loads at start -- "ready service"; 0 waits for use
+    KOKORO_IDLE_SECONDS   unload after this much silence; 0 (default) = only via los
+    KOKORO_VOICE          default voice when a speak request names none (af_heart)
+    HF_HUB_OFFLINE        set to 1 by the unit: the model is fetched by setup.sh
+"""
+import ctypes
+import gc
+import json
+import os
+import signal
+import socket
+import sys
+import threading
+import time
+import warnings
+
+warnings.filterwarnings("ignore", message="dropout option adds dropout after all but last recurrent layer.*")
+warnings.filterwarnings("ignore", message="`torch.nn.utils.weight_norm` is deprecated.*")
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+SOCKET = os.environ.get("KOKORO_SOCKET") or os.path.join(
+    os.environ.get("XDG_RUNTIME_DIR") or "/tmp", "kokoro-tts.sock" if os.environ.get("XDG_RUNTIME_DIR") else "kokoro-tts-%d.sock" % os.getuid())
+PRELOAD = os.environ.get("KOKORO_PRELOAD", "1") != "0"
+IDLE_SECONDS = int(os.environ.get("KOKORO_IDLE_SECONDS") or 0)
+DEFAULT_VOICE = os.environ.get("KOKORO_VOICE") or "af_heart"
+REPO = "hexgrad/Kokoro-82M"
+RATE = 24000
+
+STARTED = time.time()
+
+
+def log(msg):
+    print(msg, file=sys.stderr, flush=True)
+
+
+def rss_mb():
+    try:
+        return int(open("/proc/self/statm").read().split()[1]) * os.sysconf("SC_PAGE_SIZE") // (1 << 20)
+    except (OSError, ValueError):
+        return -1
+
+
+class Engine:
+    """The pipeline plus the bookkeeping `status` reports. One speak at a time: the
+    model is not thread-safe and the sound device is one anyway."""
+
+    def __init__(self):
+        self.lock = threading.Lock()      # serializes speak/load/unload
+        self.state = threading.Lock()     # guards the counters below
+        self.pipeline = None
+        self.busy = 0
+        self.last_used = time.time()
+        self.loads = 0
+        self.spoken_s = 0.0
+        self.load_s = None
+
+    def load(self):
+        with self.lock:
+            self._load_locked()
+
+    def _load_locked(self):
+        if self.pipeline is not None:
+            return
+        t = time.time()
+        from kokoro import KPipeline  # imports torch: ~350 MiB, kept once imported
+        self.pipeline = KPipeline(lang_code="a", repo_id=REPO)
+        self.load_s = time.time() - t
+        with self.state:
+            self.loads += 1
+            self.last_used = time.time()
+        log("kokoro: loaded in %.1fs (rss %d MiB)" % (self.load_s, rss_mb()))
+
+    def unload(self):
+        with self.state:
+            if self.busy:
+                return False
+        with self.lock:
+            if self.pipeline is None:
+                return True
+            self.pipeline = None
+            gc.collect()
+            try:
+                # glibc keeps freed arenas; give the pages back so the drop shows in RSS.
+                ctypes.CDLL("libc.so.6").malloc_trim(0)
+            except (OSError, AttributeError):
+                pass
+            log("kokoro: unloaded (rss %d MiB)" % rss_mb())
+            return True
+
+    def speak(self, text, voice, out):
+        with self.state:
+            self.busy += 1
+        try:
+            with self.lock:
+                self._load_locked()
+                import numpy as np
+                n = 0
+                for _, _, audio in self.pipeline(text, voice=voice):
+                    buf = np.asarray(audio, dtype=np.float32).tobytes()
+                    n += len(buf) // 4
+                    out.sendall(buf)
+            with self.state:
+                self.spoken_s += n / RATE
+        finally:
+            with self.state:
+                self.busy -= 1
+                self.last_used = time.time()
+
+    def status(self):
+        with self.state:
+            return {
+                "loaded": self.pipeline is not None,
+                "busy": self.busy,
+                "rss_mb": rss_mb(),
+                "idle_s": int(time.time() - self.last_used),
+                "uptime_s": int(time.time() - STARTED),
+                "loads": self.loads,
+                "load_s": self.load_s,
+                "spoken_s": round(self.spoken_s, 1),
+                "idle_unload_s": IDLE_SECONDS,
+                "voice": DEFAULT_VOICE,
+                "pid": os.getpid(),
+            }
+
+
+engine = Engine()
+
+
+def reply(conn, obj):
+    conn.sendall((json.dumps(obj) + "\n").encode())
+
+
+def handle(conn):
+    try:
+        conn.settimeout(30)
+        f = conn.makefile("rb")
+        line = f.readline()
+        if not line:
+            return
+        try:
+            req = json.loads(line)
+        except ValueError:
+            reply(conn, {"ok": False, "error": "request is not a JSON line"})
+            return
+        op = req.get("op")
+        conn.settimeout(None)
+        if op == "status":
+            reply(conn, {"ok": True, **engine.status()})
+        elif op == "load":
+            engine.load()
+            reply(conn, {"ok": True, **engine.status()})
+        elif op == "unload":
+            ok = engine.unload()
+            reply(conn, {"ok": ok, "error": None if ok else "busy: a speak is in flight", **engine.status()})
+        elif op == "speak":
+            text = (req.get("text") or "").strip()
+            if not text:
+                return
+            engine.speak(text, req.get("voice") or DEFAULT_VOICE, conn)
+        else:
+            reply(conn, {"ok": False, "error": "unknown op %r" % op})
+    except (BrokenPipeError, ConnectionResetError):
+        pass  # client went away mid-sentence (Ctrl-C on say): nothing to do
+    except Exception as e:  # noqa: BLE001 -- a bad request must not take the daemon down
+        log("kokoro: request failed: %r" % e)
+        try:
+            reply(conn, {"ok": False, "error": repr(e)})
+        except OSError:
+            pass
+    finally:
+        try:
+            conn.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        conn.close()
+
+
+def idle_reaper():
+    while True:
+        time.sleep(30)
+        st = engine.status()
+        if st["loaded"] and not st["busy"] and st["idle_s"] >= IDLE_SECONDS:
+            log("kokoro: idle for %ds, unloading" % st["idle_s"])
+            engine.unload()
+
+
+def main():
+    try:
+        os.unlink(SOCKET)
+    except FileNotFoundError:
+        pass
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    srv.bind(SOCKET)
+    os.chmod(SOCKET, 0o600)
+    srv.listen(8)
+    log("kokoro: listening on %s (preload=%s, idle-unload=%s)" % (SOCKET, PRELOAD, IDLE_SECONDS or "off"))
+
+    def bye(*_):
+        try:
+            os.unlink(SOCKET)
+        except OSError:
+            pass
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, bye)
+    signal.signal(signal.SIGINT, bye)
+
+    if PRELOAD:
+        threading.Thread(target=engine.load, daemon=True).start()
+    if IDLE_SECONDS > 0:
+        threading.Thread(target=idle_reaper, daemon=True).start()
+
+    while True:
+        conn, _ = srv.accept()
+        threading.Thread(target=handle, args=(conn,), daemon=True).start()
+
+
+if __name__ == "__main__":
+    main()

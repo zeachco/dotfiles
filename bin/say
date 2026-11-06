@@ -5,17 +5,20 @@
 #     ~/.local/share/kokoro-tts/bin/pip install 'torch==2.5.1+cpu' --index-url https://download.pytorch.org/whl/cpu && \
 #     ~/.local/share/kokoro-tts/bin/pip install kokoro soundfile 'transformers<4.50'
 # The transformers pin matters: 5.x needs torch>=2.6 and breaks on the pinned CPU build.
+#
+# Two paths, same voice:
+#   1. the resident daemon (bin/kokoro-serve behind kokoro-tts.service): one Unix-socket
+#      connection per sentence, float32 PCM back. A call costs the speech (~0.2 s for a
+#      sentence) instead of the 7-9 s torch import + model load. The model can be
+#      unloaded from `los` (the kokoro row, los-drain, los-tts unload); the next sentence
+#      just reloads it.
+#   2. in-process, when the socket is absent (macOS, daemon down): what `say` always was.
 
 set -euo pipefail
 
 KOKORO_PYTHON="${KOKORO_PYTHON:-$HOME/.local/share/kokoro-tts/bin/python}"
 VOICE="${KOKORO_VOICE:-af_heart}"
-
-if [[ ! -x "$KOKORO_PYTHON" ]]; then
-  echo "Kokoro is not installed. Run ~/dotfiles/setup.sh, or by hand:" >&2
-  echo "  python3.11 -m venv ~/.local/share/kokoro-tts && ~/.local/share/kokoro-tts/bin/pip install 'torch==2.5.1+cpu' --index-url https://download.pytorch.org/whl/cpu && ~/.local/share/kokoro-tts/bin/pip install kokoro soundfile 'transformers<4.50'" >&2
-  exit 1
-fi
+KOKORO_SOCKET="${KOKORO_SOCKET:-${XDG_RUNTIME_DIR:-/tmp}/kokoro-tts.sock}"
 
 if ! command -v pw-play >/dev/null 2>&1; then
   echo "say: pw-play is required to play speech (PipeWire on Linux)" >&2
@@ -28,6 +31,53 @@ fi
 export KOKORO_VOICE="$VOICE"
 # The model was downloaded during setup; keep normal speech fully local and quiet.
 export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
+
+# ---- 1. daemon ------------------------------------------------------------------
+# The client is a variable, not a `python3 -` heredoc: `-` reads the program from stdin,
+# which is where the text to speak arrives in pipe mode.
+read -r -d '' KOKORO_CLIENT <<'CLIENT' || true
+import json, os, socket, sys
+
+sock_path = os.environ["KOKORO_SOCKET"]
+voice = os.environ["KOKORO_VOICE"]
+
+def speak(text):
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.connect(sock_path)
+    s.sendall((json.dumps({"op": "speak", "text": text, "voice": voice}) + "\n").encode())
+    s.shutdown(socket.SHUT_WR)
+    while chunk := s.recv(1 << 16):
+        sys.stdout.buffer.write(chunk)
+        sys.stdout.buffer.flush()
+    s.close()
+
+if "KOKORO_TEXT" in os.environ:
+    text = os.environ["KOKORO_TEXT"].strip()
+    if not text:
+        print("Usage: say TEXT  or  printf \"TEXT\" | say", file=sys.stderr); sys.exit(2)
+    speak(text)
+else:
+    received_text = False
+    for line in sys.stdin:
+        if text := line.strip():
+            received_text = True
+            speak(text)
+    if not received_text:
+        print("Usage: say TEXT  or  printf \"TEXT\" | say", file=sys.stderr); sys.exit(2)
+CLIENT
+if [[ -S "$KOKORO_SOCKET" ]] && command -v python3 >/dev/null 2>&1; then
+  KOKORO_SOCKET="$KOKORO_SOCKET" python3 -c "$KOKORO_CLIENT" | pw-play --raw --rate 24000 --channels 1 --format f32 - && exit 0
+  # 2 is the client's own usage error (nothing to say): not a daemon failure, do not retry.
+  [[ "${PIPESTATUS[0]}" == 2 ]] && exit 1
+  echo "say: daemon at $KOKORO_SOCKET failed; falling back to in-process Kokoro" >&2
+fi
+
+# ---- 2. in-process ----------------------------------------------------------------
+if [[ ! -x "$KOKORO_PYTHON" ]]; then
+  echo "Kokoro is not installed. Run ~/dotfiles/setup.sh, or by hand:" >&2
+  echo "  python3.11 -m venv ~/.local/share/kokoro-tts && ~/.local/share/kokoro-tts/bin/pip install 'torch==2.5.1+cpu' --index-url https://download.pytorch.org/whl/cpu && ~/.local/share/kokoro-tts/bin/pip install kokoro soundfile 'transformers<4.50'" >&2
+  exit 1
+fi
 
 "$KOKORO_PYTHON" -c '
 import os

@@ -77,6 +77,13 @@ restart all    los-restart-all    (los → restart) restarts the router daemon, 
 audit          bin/llamacpp-audit                    ~/models vs INI presets vs client configs must agree
 ```
 
+Marking several models in `los` loads them **4 at a time** (`LOS_LOAD_PARALLEL`; `=1` restores
+the serial batch). Each model is its own child process, so the router parallelizes loads whether
+the menu does or not — serializing there only added the sum of the load times. What is kept: a
+failing round still stops the batch (memory), and `los` still runs every unload as a group
+before the first load. What is not metered: up to 4 loads allocate at once, so the preview's
+fits / does-NOT-fit line is the only brake before you mark a batch.
+
 Laya is kept outside the llama.cpp router tiers because it is a ggmlc decision/encoder model,
 not a text-generation model. On Arch, `fetch-models.sh` downloads and verifies the English Q8
 checkpoint to `~/models/laya`; run it with `bash ~/dotfiles/llamacpp/archlinux/fetch-models.sh`.

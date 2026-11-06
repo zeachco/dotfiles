@@ -12,7 +12,8 @@ absolute path (`$HOME/dotfiles/bin/…`), and a few are exposed as shell aliases
 | `llamacpp-sync`        | Rebuilds pi's / opencode's `llamacpp*` and `openrouter` provider model defs from live `/v1/models` endpoints, preserving per-model tuning. The `sync-models` action in `los` | Cross-platform |
 | `llamacpp-audit`       | Read-only cross-check of `~/models` vs the INI presets vs the client configs; `--remote` also parses every GGUF and compares it to HF sizes | Cross-platform |
 | `listen`               | Streaming speech-to-text to stdout (faster-whisper in a venv; `mock` provider for tests)                                   | Linux (pulse) / macOS |
-| `say`                  | Local text-to-speech via Kokoro TTS in a venv (`KOKORO_VOICE` knob)                                                        | Linux / macOS   |
+| `say`                  | Local text-to-speech via Kokoro TTS (`KOKORO_VOICE` knob). Talks to `kokoro-serve` when its socket is there, else loads the model in-process | Linux / macOS   |
+| `kokoro-serve`         | Resident Kokoro daemon behind `$XDG_RUNTIME_DIR/kokoro-tts.sock` (`kokoro-tts.service`, installed by setup). ~1 GiB loaded; unload/reload from `los` (the `kokoro` row, `los-drain`, `los-tts`) without stopping it; `KOKORO_IDLE_SECONDS` for a sleep timer | Linux (systemd) |
 | `converse`             | Push-to-talk voice loop: `listen` → opencode → `say` in one terminal                                                       | Linux / macOS   |
 | `gpu-cap`              | Pin/release the iGPU shader clock (amdgpu DPM masking) via pkexec — global to the GPU, used to throttle llama.cpp         | Strix Halo only |
 | `bt-controller-refresh`| Power-cycles the MT7925 Bluetooth controller on earbud disconnect (watch mode, systemd service; `--now` = alias `btfix`) | Linux (the Framework) |

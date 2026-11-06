@@ -1,0 +1,30 @@
+# TEMPLATE -- installed to ~/.config/systemd/user by variants/shared/setup.sh (Linux).
+#
+# Resident Kokoro TTS behind $XDG_RUNTIME_DIR/kokoro-tts.sock, so `say` costs the
+# speech and not the 7-9 s model load. ~1 GiB of RAM while the model is loaded; it
+# can be unloaded and reloaded without stopping this unit from `los` (the "kokoro"
+# row, or `los-drain` / `los-tts unload`), and `say` reloads it on the next sentence.
+#
+# KOKORO_IDLE_SECONDS=0: nothing unloads on its own, same contract as the router's
+# explicit loads. Set it (systemctl --user edit kokoro-tts.service) for a sleep timer.
+
+[Unit]
+Description=Kokoro TTS daemon (say)
+Documentation=file:///home/olivier/dotfiles/bin/kokoro-serve
+After=graphical-session.target
+
+[Service]
+Type=simple
+Environment=HF_HUB_OFFLINE=1
+Environment=KOKORO_PRELOAD=1
+Environment=KOKORO_IDLE_SECONDS=0
+ExecStart=%h/.local/share/kokoro-tts/bin/python %h/dotfiles/bin/kokoro-serve
+Restart=on-failure
+RestartSec=3
+# Synthesis is a short burst; the cap keeps a long paragraph from taking the whole
+# box the way the per-call torch import used to (16 threads for ~45 core-seconds).
+CPUQuota=400%
+Environment=OMP_NUM_THREADS=4
+
+[Install]
+WantedBy=default.target
