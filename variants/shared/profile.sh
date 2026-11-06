@@ -375,6 +375,17 @@ if [ "${SHELL##*/}" = "zsh" ]; then
   bindkey '[D' backward-word
 fi
 
+# fzf key bindings (Ctrl-R history, Ctrl-T files, Alt-C dirs) and fuzzy completion.
+# `fzf --bash` / `fzf --zsh` need fzf >= 0.48; older builds just print an error, so
+# the output is discarded when the flag is unsupported.
+if command -v fzf >/dev/null 2>&1; then
+  if [ -n "$ZSH_VERSION" ]; then
+    source <(fzf --zsh 2>/dev/null)
+  elif [ -n "$BASH_VERSION" ]; then
+    eval "$(fzf --bash 2>/dev/null)"
+  fi
+fi
+
 # `herdr update` regenerates ~/.config/herdr/config.toml and drops the [keys] table
 # from configs/herdr/keys.toml, so re-apply it right after a successful update.
 herdr() {
