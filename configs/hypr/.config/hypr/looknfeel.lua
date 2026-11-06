@@ -21,3 +21,7 @@ hl.config({
 
 -- Preserve the legacy sliding workspace transition.
 hl.animation({ leaf = "workspaces", enabled = true, speed = 4, bezier = "default", style = "slide" })
+
+-- Every window: fully opaque when focused, 0.8 when inactive. Loaded after
+-- Omarchy's defaults so it out-ranks the per-app transparent_window rules.
+o.window({ class = ".*" }, { opacity = "1.0 0.8" })
