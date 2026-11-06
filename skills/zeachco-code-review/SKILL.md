@@ -22,7 +22,7 @@ Arguments: zero or more PR numbers, and an optional `--dry-run`.
 - Several numbers: review each one in turn, same rules, one report per PR.
 - `--dry-run`: post nothing on GitHub. Print to the terminal what would have been
   posted, per PR: the §1 skip verdict or the review body and each inline finding as
-  `path:line kind(ai-review): …`. Everything else in this runbook runs as usual,
+  `path:line 🤖 kind: …`. Everything else in this runbook runs as usual,
   the §5 challenge included.
 
 ## 1. Establish the frame
@@ -166,7 +166,7 @@ Repo: <absolute path>, PR #<N>, head <SHA> (read the PR head: `git show <SHA>:<p
 
 Finding, as it would be posted:
   <path>:<line>
-  <kind>(ai-review): <problem / consequence / smallest improvement>
+  🤖 <kind>: <problem / consequence / smallest improvement>
 
 Assume the finding is wrong and look for what makes it so: a guard, type, default,
 caller contract, test, migration order, config, or documented intent the reviewer
@@ -202,21 +202,21 @@ built from what remains.
 ## 6. Deliver each finding on its diff line
 
 Post findings as inline review comments anchored to the exact line of the PR head, in
-one review submission. Each body starts with its kind and `(ai-review)`, then the
+one review submission. Each body starts with `🤖 ` then its kind, then the
 finding, no other label:
 
-- `blocking(ai-review): …` must change before merge: incorrect behavior, data loss,
+- `🤖 blocking: …` must change before merge: incorrect behavior, data loss,
   security, broken rollout or rollback.
-- `non-blocking(ai-review): …` worth fixing, not a merge condition. If it matters, the
+- `🤖 non-blocking: …` worth fixing, not a merge condition. If it matters, the
   first sentence says so.
-- `preference(ai-review): …` design or style the author may decline; always with the
+- `🤖 preference: …` design or style the author may decline; always with the
   why, or not posted.
-- `nit(ai-review): …` rare: a small thing with a concrete cost. Say why, or leave it out.
-- `question(ai-review): …?` rare: intent nothing on the PR could settle. Name what you
+- `🤖 nit: …` rare: a small thing with a concrete cost. Say why, or leave it out.
+- `🤖 question: …?` rare: intent nothing on the PR could settle. Name what you
   checked; end with a question mark.
-- `praise(ai-review): …` rarely.
+- `🤖 praise: …` rarely.
 
-The review body has no prefix: the verdict, then one line mapping the inline findings.
+The review body has no emoji prefix: the verdict, then one line mapping the inline findings.
 
 Anchoring:
 
@@ -228,7 +228,7 @@ Anchoring:
 - Verify after posting: REST can report `line: null`; GraphQL is authoritative
   (`reviews(last:1){comments{nodes{path line}}}`).
 - Never re-raise a concern from the §1 list. With evidence to add, reply in that thread:
-  `gh api "repos/$OWNER/$REPO/pulls/$N/comments/$ID/replies" -f body='non-blocking(ai-review): …'`.
+  `gh api "repos/$OWNER/$REPO/pulls/$N/comments/$ID/replies" -f body='🤖 non-blocking: …'`.
 
 ```bash
 gh api "repos/$OWNER/$REPO/pulls/$N/reviews" -X POST --input - <<JSON
@@ -238,9 +238,9 @@ gh api "repos/$OWNER/$REPO/pulls/$N/reviews" -X POST --input - <<JSON
   "body": "<verdict>. <one line mapping the inline findings>",
   "comments": [
     { "path": "src/x.ts", "line": 53, "side": "RIGHT",
-      "body": "non-blocking(ai-review): <problem / consequence / smallest improvement>" },
+      "body": "🤖 non-blocking: <problem / consequence / smallest improvement>" },
     { "path": "src/y.ts", "line": 12, "side": "RIGHT",
-      "body": "blocking(ai-review): <incorrect behavior / condition / fix>" }
+      "body": "🤖 blocking: <incorrect behavior / condition / fix>" }
   ]
 }
 JSON
