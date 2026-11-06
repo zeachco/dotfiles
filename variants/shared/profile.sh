@@ -43,6 +43,13 @@ dotfiles_update() {
 
   $SHELL "$DOT_DIR/setup.sh"
 
+  # Bump mise-managed tools to their latest matching versions, then drop the
+  # versions no mise config selects any more; -y skips the prompts.
+  if command -v mise >/dev/null 2>&1; then
+    mise upgrade -y
+    mise prune -y
+  fi
+
   USER_SOURCE_FILE=~/.profile
 
   # Profile target
