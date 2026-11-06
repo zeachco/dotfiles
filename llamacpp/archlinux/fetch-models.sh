@@ -88,7 +88,7 @@ fetch unsloth/GLM-4.7-Flash-GGUF GLM-4.7-Flash-UD-Q4_K_XL.gguf "$HOME/models/lla
 
 # --- Laya decision model (not served by llama.cpp) ------------------------------
 # Laya is a ggmlc encoder model, not an autoregressive llama.cpp model. Keep it in
-# its own directory so the llama routers do not advertise or try to load it; the
+# its own directory so the router does not advertise or try to load it; the
 # directory is still covered by provenance verification and the model audit.
 fetch mys/laya-GGUF laya_english_q8_0.gguf "$HOME/models/laya"
 
@@ -151,7 +151,7 @@ fetch ggml-org/Bespoke-Nimble-9B-v3-GGUF Bespoke-Nimble-9B-v3-Q4_K_M.gguf "$HOME
 # subagent pointing at it. The router then held a child with `--alias
 # Qwen3-Coder-Next-UD-IQ4_XS` and no `--model`, stuck in `loading` forever -- and since
 # pick_victim() skips anything not ready, that child could never be evicted and
-# permanently occupied one of the five --models-max slots. Re-add a recipe here if you
+# permanently occupied a --models-max slot. Re-add a recipe here if you
 # ever want it back; do not re-add a client reference without one.
 
 # Prove the bytes and have the router rescan -- no restart, so nothing in flight is

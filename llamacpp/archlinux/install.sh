@@ -198,8 +198,8 @@ if [[ -z "$(ls -A "$MODELS_DIR" 2>/dev/null || true)" ]]; then
 fi
 
 # Cheap integrity pass on every setup run: header + size of each GGUF against the
-# digest row recorded at fetch time. Seconds, no full read -- that is --full, run by
-# the fetch scripts after each download and by hand for a bitrot sweep (--offline).
+# digest row recorded at fetch time. Seconds, no full read -- that is --full, run
+# once at the end of every fetch run and by hand for a bitrot sweep (--offline).
 if [[ -n "$(find "$HOME/models" -name '*.gguf' -print -quit 2>/dev/null)" ]]; then
   bash "$SCRIPT_DIR/../shared/verify-models.sh" --quick --dir "$HOME/models" ||
     echo "llama router: model verification FAILED -- see above; re-fetch the named file(s)"

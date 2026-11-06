@@ -36,7 +36,7 @@ Environment=LLAMA_CACHE=%h/.cache/llama.cpp-router
 # read off the `los` header before loading.
 #
 # --host 0.0.0.0: pi/opencode address this box as oli-llms.local, which resolves to the
-# LAN interface, not loopback. See todos/network-exposure.md.
+# LAN interface, not loopback. See docs/ryzen-llm-setup.md on exposure.
 ExecStart=%h/dev/llama.cpp/build/bin/llama-server \
   --models-dir %h/models/llama \
   --models-preset %h/dotfiles/llamacpp/archlinux/models.ini \

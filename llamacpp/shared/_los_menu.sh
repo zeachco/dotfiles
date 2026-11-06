@@ -70,8 +70,8 @@ outdir, tierspec = sys.argv[1], sys.argv[2]
 not_installed = set(os.environ.get("LOS_NOT_INSTALLED", "").split())
 
 # Measured footprints, so an UNLOADED model can still be shown the number that decides
-# whether it fits: weights-on-disk badly understates it (qwen3.8 is 15.7 GiB of weights
-# and ~40 GiB resident once its KV pool is allocated). Recorded whenever a model is seen
+# whether it fits: weights-on-disk badly understates it (qwen3.8 is 15.3 GiB of weights
+# and 32.5 GiB resident once its KV pool is allocated -- models.ini, measured). Recorded whenever a model is seen
 # loaded; never estimated, since KV cost per token is arch-specific (MLA, hybrid
 # attention and quantized KV all change it) and a wrong guess here is what OOMs the box.
 CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"),
@@ -216,7 +216,7 @@ if down:
 absent = [n for n, _, _ in tiers if n in not_installed]
 if absent:
     head.append("%snot installed: %s%s" % (DIM, " ".join(absent), OFF))
-open(os.path.join(outdir, "header.txt"), "w").write("  ·  ".join(head) or "no routers reachable")
+open(os.path.join(outdir, "header.txt"), "w").write("  ·  ".join(head) or "no router reachable")
 
 # ---- rows -------------------------------------------------------------------
 index, meta, n = [], [], 0
@@ -435,8 +435,8 @@ _los_menu_run_many() {
 # Toggle several models from the main list in one go.
 #
 # UNLOADS RUN FIRST, always. Marking "unload GLM" and "load qwen3.8" together is a swap,
-# and it only fits if the memory is freed before the load is attempted -- the routers do
-# not coordinate a budget, so doing it in selection order is exactly the OOM in
+# and it only fits if the memory is freed before the load is attempted -- the router
+# refuses no load for memory, so doing it in selection order is exactly the OOM in
 # docs/ryzen-llm-setup.md "Incident: the OOM of 2026-09-09".
 _los_menu_toggle_many() {
   local dir="$1" keys="$2" k unloads= loads=
@@ -520,7 +520,7 @@ _los_menu_localize_pi() {
   return 0
 }
 
-# Rewrite pi's model definitions from the live routers.
+# Rewrite pi's model definitions from the live router.
 #
 # The pause matters: the menu loop redraws fzf over the full terminal height the moment
 # this returns, and the list of added/removed models -- the only output worth reading --
@@ -598,7 +598,7 @@ los() {
     # and that happens before the redirect can swallow it.
     find "$dir" -mindepth 1 -delete 2>/dev/null
     _los_menu_snapshot "$dir" "$LOS_MENU_TIERS" || { rm -rf "$dir"; return 1; }
-    [[ -s "$dir/index.tsv" ]] || { echo "los: no routers reachable ($LOS_MENU_TIERS) -- try los-restart-all" >&2; rm -rf "$dir"; return 1; }
+    [[ -s "$dir/index.tsv" ]] || { echo "los: no router reachable ($LOS_MENU_TIERS) -- try los-restart-all" >&2; rm -rf "$dir"; return 1; }
 
     # -m so several models can be toggled in one pass. With nothing marked, fzf returns
     # the hovered row, so the single-selection path below is the normal case.

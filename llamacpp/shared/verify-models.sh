@@ -294,8 +294,8 @@ fi
 
 if [ ! -s "$TMP_LIST" ]; then
   echo "No .gguf files found under $ROOT." >&2
-  echo "If the routers are advertising models anyway, they are reading NAMES from the" >&2
-  echo "preset .ini files, not from disk -- see llamacpp/archlinux/models.ini." >&2
+  echo "If the router advertises models anyway, it is reading NAMES from the preset" >&2
+  echo "(llamacpp/archlinux/models.ini), not from disk." >&2
   rm -f "$TMP_LIST"
   exit 1
 fi

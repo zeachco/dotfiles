@@ -49,7 +49,7 @@ fi
 # at it at all. Self-gating and idempotent: a current build exits in seconds.
 #
 # This also makes the shared launchers work here. llamacpp/shared/_llama.sh hardcodes
-# LLAMA_CPP_BUILD=$HOME/dev/llama.cpp/build, so `los-server-light` and friends were
+# LLAMA_CPP_BUILD=$HOME/dev/llama.cpp/build, so `los-server` and friends were
 # Arch-only until now.
 bash "$SCRIPT_DIR/update.sh" ||
   echo -e "${FAIL}llama.cpp update failed${NORM}"

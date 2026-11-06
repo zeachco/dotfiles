@@ -58,7 +58,7 @@ clone_llama_cpp() {
 
   # Gate on CONTENT, not on the directory existing: on any box where setup has run
   # once an existence test is always true and the download never starts -- which is
-  # exactly what happened on the 2026-09-14 reinstall: empty model dirs, routers
+  # exactly what happened on the 2026-09-14 reinstall: empty model dirs, the router
   # advertising preset names with no --model, every load spinning forever.
   # Same directory logic as fetch-initial-models.sh, which is what gets launched.
   local models="${LOS_MODELS_DIR:-$HOME/models}"
