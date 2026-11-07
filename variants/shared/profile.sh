@@ -148,6 +148,7 @@ alias sniff_llms='cargo run --release --manifest-path "$HOME/dev/sniff_llms/Carg
 _set rr "cargo run --release --"
 _set bb "cargo build --release --no-default-features"
 alias lll="los"
+alias wa="work-agent"
 alias secrets="bwload"
 # fuzzy-search all systemd services; Enter follows the logs of the selected one (Ctrl+C quits)
 deamons() {
