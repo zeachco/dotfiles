@@ -20,7 +20,7 @@ through the user's shell, which would ignore the shebangs.
 
 | Port   | Unit                   | Bind            | Models           | Notes |
 | ------ | ---------------------- | --------------- | ---------------- | ----- |
-| `:7070` | `llama-router.service` | `0.0.0.0` (LAN) | `~/models/llama` | `--no-models-autoload`, `--models-max 8`: nothing loads until `los` / `los-load` / pi's model picker asks, nothing is evicted behind your back; memory is the only budget |
+| `:7070` | `llama-router.service` | `0.0.0.0` (LAN) | `~/models/llama` | `--no-models-autoload`, `--models-max 8`, `--models-memory-margin 20480`: nothing loads until `los` / `los-load` / pi's model picker asks; a load that would leave less than 20 GiB of GPU memory free (room for a game) evicts the idle least-recently-used model, or queues while every resident model is busy |
 
 One router since 2026-11-06. Before that there were three (light `:7070` with autoload,
 cheap `:7071` for the shell helpers, heavy `:7072` one-at-a-time) whose whole reason was

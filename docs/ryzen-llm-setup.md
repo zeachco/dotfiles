@@ -70,6 +70,28 @@ Three things close the gap, cheapest first (table in
    picking it, so an ill-fitting model is still a warning plus the `los-load` command -- which
    turns the next message into a visible wait instead of a provider error.
 
+## 2026-11-07: gaming beside the models
+
+The router now runs `--models-memory-margin 20480`: 20 GiB of GPU memory kept free, so a game
+has room while models stay resident. What it does at the limit, from `server-models-sched.cpp`:
+
+- A load first measures the model and reads the device's free memory, so a game already
+  running counts as taken. If the load would eat into the margin, the router evicts the
+  least-recently-used **idle** resident model (no request in flight) and retries.
+- A model mid-generation is never evicted. If every resident model is busy, the request
+  queues until one finishes, then the eviction happens. The client sees a slow first token,
+  not an error (`model limit reached, try again later` only on a race between two loads).
+- With nothing else loaded an oversized model loads anyway: the estimate is pessimistic and
+  the child's `--fit` decides. That is also the only way to hit the amdgpu `Not enough
+  memory` failure now.
+- An evicted model keeps nothing: its KV cache is gone, so the next turn of that pi session
+  re-prompts from scratch (slower, not lost -- the context lives in the client).
+
+The margin shrinks the room for two heavy models at once: Flash-Next (67 GiB) plus a ~27 GiB
+model now sits exactly on the line. Compute is not partitioned: an idle model costs the game
+nothing, a generation steals frames for its duration, and amdgpu has no per-process
+priority short of a root helper. See `bin/gpu-cap` for why clocks are the wrong lever.
+
 ## Where things stand
 
 - `~/dev/llama.cpp` on **`master`**, built in `build/` with **`GGML_VULKAN=ON`,
@@ -273,7 +295,7 @@ Three details that make it safe to open while the box is busy:
 - **The `logs` action follows the daemons**, i.e. the systemd `--user` units in the Ports table.
   A tier started by hand with `los-server-<tier>` is not a unit and has no journal — its output
   goes to the terminal it was started in.
-- **Footprints are measured, never estimated.** Weights-on-disk badly understates what a model
+- **Footprints are measured, never estimated.** (Since 2026-11-07 the router measures too: `--models-memory-margin`.) Weights-on-disk badly understates what a model
   needs — `qwen3.8` is 15.7 GiB of weights and ~40 GiB resident once its KV pool exists. Real
   GTT is read from the child's fdinfo (amdgpu pins GPU memory outside RSS, so `ps` shows ~42 MiB
   for a 91 GiB model) and cached in `~/.cache/los-menu/resident.tsv`, so an unloaded model shows
