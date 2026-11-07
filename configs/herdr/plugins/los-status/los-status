@@ -1,0 +1,287 @@
+#!/usr/bin/env python3
+"""Local-AI load at a glance -- the `los` menu's indicators, without the menu.
+
+  los-status           refresh every 2 s until the pane is closed
+  los-status --once    render once (--wait: then block on a keypress, for popups)
+  los-status --line    one plain line, for herdr's [ui] tab_bar_right command slot
+  los-status --report  no output: every 2 s report the sidebar tokens, rename the Herdr tab
+                       "los - <busy>/<total> slots" and, with LOS_FZF_PORT set, push a live
+                       header into the `los` fzf menu (change-header leaves marks untouched).
+                       Started in the background by `los` when it runs inside a Herdr tab.
+  los-status --startup open the pane as a tab in the "monitoring" workspace (first
+                       workspace otherwise) unless a "resources" agent already exists;
+                       the manifest's [[startup]] hook, run once per Herdr session start
+
+Inside a Herdr pane (HERDR_PANE_ID set) the loop also reports the same lines as pane
+metadata tokens -- $res, $m1..$m10 -- so the agents sidebar shows them as rows
+(bin/herdr-config ensure-los-status adds the rows). Herdr plugins cannot draw sidebar
+UI; the pane registering itself as an agent named "resources" is the way in.
+
+Same rules as _los_menu.sh: one /v1/models call per router, /slots probed only for
+models that report "loaded", and always with &autoload=false -- a probe must never
+reload a model. GPU numbers come from sysfs (amdgpu): hwmon edge temperature,
+gpu_busy_percent, and GTT used/total (the APU pins model memory as GTT, not VRAM).
+"""
+import glob, json, os, shutil, socket, sys, time, urllib.parse, urllib.request
+
+TIERS = os.environ.get("LOS_MENU_TIERS", "router:7070:llama-router.service").split()
+TTS_SOCK = os.environ.get("KOKORO_SOCKET") or os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp", "kokoro-tts.sock")
+INTERVAL = float(os.environ.get("LOS_STATUS_INTERVAL", "2"))
+DIM, GRN, YEL, RED, BOLD, OFF = "\033[2m", "\033[32m", "\033[33m", "\033[31m", "\033[1m", "\033[0m"
+
+
+def get(url, timeout=2):
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            return json.load(r)
+    except Exception:
+        return None
+
+
+def sysfs(path):
+    try:
+        with open(path) as f:
+            return int(f.read().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def gpu():
+    """temp (C), busy (%), gtt used/total (bytes); any of them None when unavailable."""
+    temp = None
+    for name in glob.glob("/sys/class/hwmon/hwmon*/name"):
+        try:
+            if open(name).read().strip() == "amdgpu":
+                temp = sysfs(os.path.join(os.path.dirname(name), "temp1_input"))
+                break
+        except OSError:
+            pass
+    busy = used = total = None
+    for dev in glob.glob("/sys/class/drm/card*/device"):
+        t = sysfs(os.path.join(dev, "mem_info_gtt_total"))
+        if t:
+            total, used = t, sysfs(os.path.join(dev, "mem_info_gtt_used"))
+            busy = sysfs(os.path.join(dev, "gpu_busy_percent"))
+            break
+    return (temp // 1000 if temp else None), busy, used, total
+
+
+def slots(port, model_id):
+    data = get("http://127.0.0.1:%d/slots?model=%s&autoload=false" % (port, urllib.parse.quote(model_id)))
+    if not isinstance(data, list):
+        return None
+    return len(data), sum(1 for s in data if s.get("is_processing"))
+
+
+def models():
+    """[(id, total, busy)] for loaded models; a router that is down contributes nothing."""
+    out = []
+    for spec in TIERS:
+        _, port, _ = spec.split(":", 2)
+        data = get("http://127.0.0.1:%s/v1/models" % port, timeout=3)
+        for m in (data or {}).get("data", []):
+            st = m.get("status") or {}
+            if (st.get("value") if isinstance(st, dict) else st) != "loaded":
+                continue
+            s = slots(int(port), m["id"])
+            out.append((m["id"], s[0] if s else 0, s[1] if s else 0))  # 0/0 = slot state unknown
+    return out
+
+
+def tts():
+    """(busy, loaded) or None when there is no Kokoro daemon."""
+    if not os.path.exists(TTS_SOCK):
+        return None
+    try:
+        c = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); c.settimeout(2)
+        c.connect(TTS_SOCK); c.sendall(b'{"op":"status"}\n'); c.shutdown(socket.SHUT_WR)
+        out = b""
+        while (chunk := c.recv(4096)):
+            out += chunk
+        d = json.loads(out)
+        return int(d.get("busy") or 0), bool(d.get("loaded"))
+    except (OSError, ValueError):
+        return None
+
+
+def short(model_id, width):
+    name = model_id.replace("-GGUF", "").replace("-it", "")
+    return name if len(name) <= width else name[: width - 1] + "…"
+
+
+def colour(busy, total):
+    return GRN if busy == 0 else RED if busy >= total else YEL
+
+
+def count(busy, total):
+    return "%d/%d" % (busy, total) if total else "–"
+
+
+def render(width):
+    temp, busy, used, total = gpu()
+    bits = []
+    if temp is not None: bits.append("temp: %d C" % temp)
+    if busy is not None: bits.append("gpu: %d%%" % busy)
+    if used is not None and total: bits.append("mem: %d%%" % (100 * used // total))
+    lines = ["%sresources%s" % (BOLD, OFF), DIM + "  ".join(bits or ["no gpu sysfs"]) + OFF]
+    loaded = models()
+    slotw = max([len(count(b, t)) for _, t, b in loaded] + [3])
+    for mid, tot, b in loaded:
+        lines.append("%s%-*s %s%s" % (colour(b, tot), width - slotw - 1, short(mid, width - slotw - 1), count(b, tot), OFF))
+    k = tts()
+    if k and k[1]:
+        lines.append("%s%-*s %s%s" % (RED if k[0] else GRN, width - slotw - 1, "kokoro", "%d/1" % min(k[0], 1), OFF))
+    if not loaded and not (k and k[1]):
+        lines.append(DIM + "nothing loaded" + OFF)
+    return lines
+
+
+def line():
+    temp, busy, used, total = gpu()
+    bits = []
+    if temp is not None: bits.append("%dC" % temp)
+    if busy is not None: bits.append("gpu %d%%" % busy)
+    if used is not None and total: bits.append("mem %d%%" % (100 * used // total))
+    bits += ["%s %s" % (short(mid, 18), count(b, tot)) for mid, tot, b in models()]
+    k = tts()
+    if k and k[1]:
+        bits.append("kokoro %d/1" % min(k[0], 1))
+    return " · ".join(bits)
+
+
+# Sidebar tokens. Colour cannot cross tokens, so each model line starts with a glyph the
+# sidebar rules key on: ○ idle, ◐ generating, ● every slot busy. Up to MAX_ROWS lines;
+# tokens past this tick's count are cleared so a drained model leaves no stale row.
+MAX_ROWS = 10
+GLYPH = {GRN: "○", YEL: "◐", RED: "●"}
+_reported = 0
+
+def report_sidebar():
+    global _reported
+    pane, herdr = os.environ.get("HERDR_PANE_ID"), os.environ.get("HERDR_BIN_PATH", "herdr")
+    if not pane:
+        return
+    import subprocess
+    temp, busy, used, total = gpu()
+    res = []
+    if temp is not None: res.append("temp %dC" % temp)
+    if busy is not None: res.append("gpu %d%%" % busy)
+    if used is not None and total: res.append("mem %d%%" % (100 * used // total))
+    loaded, k = models(), tts()
+    rows = ["%s %s %s" % (GLYPH[colour(b, tot)], short(mid, 24), count(b, tot)) for mid, tot, b in loaded]
+    if k and k[1]:
+        rows.append("%s kokoro %d/1" % (GLYPH[RED if k[0] else GRN], min(k[0], 1)))
+    rows = rows[:MAX_ROWS] or ["○ nothing loaded"]
+    cmd = [herdr, "pane", "report-metadata", pane, "--source", "los-status", "--ttl-ms", str(int(INTERVAL * 5000)),
+           "--token", "res=" + " · ".join(res or ["no gpu sysfs"])]
+    for i, r in enumerate(rows, 1):
+        cmd += ["--token", "m%d=%s" % (i, r)]
+    for i in range(len(rows) + 1, _reported + 1):
+        cmd += ["--clear-token", "m%d" % i]
+    _reported = len(rows)
+    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    report_tab_and_header(loaded, k)
+
+
+def gib(n):
+    return "%.1f GiB" % (n / (1 << 30))
+
+
+def report_tab_and_header(loaded, k):
+    """Tab label with the slot totals; fzf header when the menu is listening."""
+    import subprocess
+    busy = sum(b for _, _, b in loaded) + (1 if k and k[1] and k[0] else 0)
+    total = sum(t for _, t, _ in loaded) + (1 if k and k[1] else 0)
+    tab, herdr = os.environ.get("HERDR_TAB_ID"), os.environ.get("HERDR_BIN_PATH", "herdr")
+    if tab:
+        subprocess.run([herdr, "tab", "rename", tab, "los - %d/%d slots" % (busy, total)],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    port = os.environ.get("LOS_FZF_PORT")
+    if not port:
+        return
+    temp, gbusy, used, gtotal = gpu()
+    head = []
+    if used is not None and gtotal:
+        free = gtotal - used
+        col = GRN if free > 16 * (1 << 30) else YEL if free > 8 * (1 << 30) else RED
+        head.append("GPU %s%s free%s of %s GTT" % (col, gib(free), OFF, gib(gtotal)))
+    if temp is not None: head.append("%d C" % temp)
+    if gbusy is not None: head.append("gpu %d%%" % gbusy)
+    head.append("%s%d/%d slots%s" % (colour(busy, total) if total else DIM, busy, total, OFF))
+    if loaded: head.append("%d loaded (%s)" % (len(loaded), ", ".join(m for m, _, _ in loaded)))
+    if k and k[1]: head.append("tts loaded")
+    text = "  ·  ".join(head) + "\ntab marks · models can be marked together, actions are one at a time"
+    try:
+        req = urllib.request.Request("http://127.0.0.1:%s" % port, data=("change-header(%s)" % text).encode(), method="POST")
+        urllib.request.urlopen(req, timeout=1).read()
+    except Exception:
+        pass  # menu not open (yet), or between two menus
+
+
+def register_agent():
+    pane, herdr = os.environ.get("HERDR_PANE_ID"), os.environ.get("HERDR_BIN_PATH", "herdr")
+    if pane:
+        import subprocess
+        subprocess.run([herdr, "pane", "report-agent", pane, "--source", "los-status", "--agent", "resources",
+                        "--state", "idle"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+STARTUP_WORKSPACE = os.environ.get("LOS_STATUS_WORKSPACE", "monitoring")
+
+def startup():
+    import subprocess
+    herdr = os.environ.get("HERDR_BIN_PATH", "herdr")
+    def api(*args):
+        out = subprocess.run([herdr, *args], capture_output=True, text=True).stdout
+        try:
+            return json.loads(out)["result"]
+        except (ValueError, KeyError):
+            return {}
+    if any(a.get("agent") == "resources" for a in api("agent", "list").get("agents", [])):
+        return
+    spaces = api("workspace", "list").get("workspaces", [])
+    if not spaces:
+        return
+    ws = next((w for w in spaces if w.get("label") == STARTUP_WORKSPACE), spaces[0])
+    subprocess.run([herdr, "plugin", "pane", "open", "--plugin", os.environ.get("HERDR_PLUGIN_ID", "zeachco.los-status"),
+                    "--entrypoint", "los", "--placement", "tab", "--workspace", ws["workspace_id"], "--no-focus"],
+                   stdout=subprocess.DEVNULL)
+
+
+def main(argv):
+    if "--startup" in argv:
+        startup()
+        return
+    if "--report" in argv:
+        register_agent()
+        parent = os.getppid()
+        while os.getppid() == parent:  # closing the tab kills the shell before its RETURN trap runs
+            report_sidebar()
+            time.sleep(INTERVAL)
+        return
+    if "--line" in argv:
+        print(line())
+        return
+    once = "--once" in argv
+    if not once:
+        register_agent()
+    while True:
+        if not once:
+            report_sidebar()
+        width = max(shutil.get_terminal_size((40, 10)).columns, 20)
+        out = "\n".join(render(width))
+        sys.stdout.write(("" if once else "\033[H\033[2J") + out + "\n")
+        sys.stdout.flush()
+        if once:
+            break
+        time.sleep(INTERVAL)
+    if "--wait" in argv:
+        sys.stdout.write(DIM + "\n[any key]" + OFF); sys.stdout.flush()
+        os.system("stty -echo raw 2>/dev/null; dd bs=1 count=1 2>/dev/null; stty sane 2>/dev/null")
+
+
+if __name__ == "__main__":
+    try:
+        main(sys.argv[1:])
+    except KeyboardInterrupt:
+        pass

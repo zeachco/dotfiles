@@ -1,0 +1,12 @@
+#!/bin/sh
+# Launcher for the plugin's "los" pane: Herdr starts plugin commands with a minimal
+# environment. Restore the basics from the passwd entry, then run the menu in the user's
+# interactive login shell (that is where the dotfiles profile defines los; bash on
+# Linux, zsh on macOS). LOS_TAB=1 tells los the tab already exists.
+if [ -z "$HOME" ]; then
+  HOME=$(getent passwd "$(id -u)" | cut -d: -f6); export HOME
+fi
+[ -n "$USER" ] || { USER=$(id -un); export USER; }
+[ -n "$XDG_RUNTIME_DIR" ] || { XDG_RUNTIME_DIR="/run/user/$(id -u)"; export XDG_RUNTIME_DIR; }
+shell=$(getent passwd "$(id -u)" | cut -d: -f7)
+LOS_TAB=1 exec "${shell:-/bin/bash}" -ic los

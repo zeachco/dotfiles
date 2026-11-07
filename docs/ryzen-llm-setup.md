@@ -242,6 +242,29 @@ alongside models (they are one at a time); the separator row is ignored rather t
 flight. It is **not** a fence: autoload means the next request pulls a model straight back. To
 keep a tier down for a heavy session, stop its unit. See the incident below.
 
+### Herdr: `los` in its own tab, and the `resources` sidebar entry
+
+Inside Herdr, `los` opens the menu in a **new tab** (`herdr tab create`, then `los; exit` in it;
+`LOS_TAB=1` marks the copy that draws the menu) and runs a reporter beside it,
+`configs/herdr/plugins/los-status/los-status --report`, every 2 s:
+
+- the tab is renamed `los - <busy>/<total> slots` (loaded models' slots plus Kokoro's one);
+- the pane registers itself as an agent named `resources` and reports `$res` (temp / gpu busy
+  / GTT used) and `$m1..$m10`, one per loaded model and Kokoro — `○` idle, `◐` generating, `●`
+  every slot busy — which the agents sidebar renders as extra rows (green / yellow / red rules
+  written by `bin/herdr-config ensure-los-status`). Herdr plugins (v1) cannot draw sidebar UI;
+  a pane-as-agent with tokens is the way in, so the entry lives as long as the tab does;
+- the fzf header is refreshed over fzf's `--listen` socket (`change-header`), which leaves
+  marked rows alone. The list itself is still the snapshot taken when the menu opened.
+
+The reporter dies with the menu (RETURN trap). The plugin (`herdr plugin link`, done by
+`ensure-los-status`) has a `[[startup]]` hook that opens that tab in the `monitoring` workspace
+once per Herdr server start, so the sidebar entry comes back on its own; its `los` pane runs
+`los-tab`, which restores `HOME` and friends (plugin commands get a minimal environment) and
+starts the login shell. Also: a plain tab-bar line (`los-status --line`; Herdr strips ANSI
+there) and a **prefix+g** popup. Same `&autoload=false` rule everywhere: `/slots` is probed only
+for models reporting `loaded`.
+
 ## The heavy tier
 
 `llama-router-heavy.service` on **:7072** serves `~/models/heavy` one model at a time and loads

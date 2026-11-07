@@ -220,6 +220,7 @@ git -C "$DOT_DIR" config filter.claude-settings.clean "jq 'del(.theme, .hooks, .
 if command -v herdr &>/dev/null; then
   "$DOT_DIR/bin/herdr-config" ensure-keys
   "$DOT_DIR/bin/herdr-config" sync-theme
+  "$DOT_DIR/bin/herdr-config" ensure-los-status
 fi
 
 # # not using OMZSH

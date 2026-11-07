@@ -28,6 +28,9 @@ LOS_MENU_TIERS="${LOS_MENU_TIERS:-router:7070:llama-router.service}"
 # disk: nothing here (or in the router) meters memory.
 LOS_LOAD_PARALLEL="${LOS_LOAD_PARALLEL:-4}"
 
+# The Herdr reporter started beside the menu when `los` runs in a Herdr pane (see los()).
+LOS_STATUS_BIN="${LOS_STATUS_BIN:-${DOT_DIR:-$HOME/dotfiles}/configs/herdr/plugins/los-status/los-status}"
+
 # Loops over LOS_MENU_TIERS go through $(printf ...): zsh does not word-split an unquoted
 # $var (shwordsplit is off), but it does split command substitution, and bash does both.
 # Is this router's daemon installed on this box at all? A missing unit is information,
@@ -740,8 +743,29 @@ los() {
   esac
   _los_menu_deps || return 1
 
+  # Inside Herdr the menu gets its own tab: `los` here creates it and hands over, and the
+  # copy running in that tab (LOS_TAB=1) is the one that draws the menu, with a reporter
+  # beside it (configs/herdr/plugins/los-status) renaming the tab "los - busy/total
+  # slots", feeding the sidebar's "resources" agent entry and refreshing the fzf header
+  # every 2 s over fzf's --listen socket, which leaves marked rows alone.
+  if [[ -n "${HERDR_PANE_ID:-}" && -z "${LOS_TAB:-}" ]]; then
+    local pane
+    pane=$(herdr tab create --label los --env LOS_TAB=1 --focus 2>/dev/null | grep -o '"pane_id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    [[ -n "$pane" ]] || { echo "los: herdr tab create failed" >&2; return 1; }
+    herdr pane run "$pane" 'los; exit' >/dev/null
+    return 0
+  fi
+
   local dir; dir=$(mktemp -d "${TMPDIR:-/tmp}/los-menu.XXXXXX") || return 1
-  trap 'rm -rf "$dir"' RETURN 2>/dev/null
+  local reporter= fzf_listen=()
+  [[ -n "${ZSH_VERSION:-}" ]] && setopt localoptions nomonitor nonotify  # no "[1] pid" / "done" for the reporter
+  if [[ -n "${HERDR_PANE_ID:-}" && -x "$LOS_STATUS_BIN" ]]; then
+    local port; port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')
+    fzf_listen=(--listen "$port")
+    LOS_FZF_PORT="$port" python3 "$LOS_STATUS_BIN" --report >/dev/null 2>&1 &
+    reporter=$!
+  fi
+  trap 'rm -rf "$dir"; [[ -n "$reporter" ]] && kill "$reporter" 2>/dev/null' RETURN 2>/dev/null
 
   while :; do
     # find, not a glob: zsh aborts the whole command with "no matches found" when a
@@ -754,7 +778,7 @@ los() {
     # -m so several models can be toggled in one pass. With nothing marked, fzf returns
     # the hovered row, so the single-selection path below is the normal case.
     local keys
-    keys=$(fzf --ansi --multi --delimiter='\t' --with-nth=2.. \
+    keys=$(fzf --ansi --multi --delimiter='\t' --with-nth=2.. "${fzf_listen[@]}" \
               --height=100% --reverse --prompt='los > ' \
               --header="$(cat "$dir/header.txt")"$'\n'"tab marks · models can be marked together, actions are one at a time" \
               --preview "cat $dir/{1}.txt" --preview-window='right:58%:wrap' \

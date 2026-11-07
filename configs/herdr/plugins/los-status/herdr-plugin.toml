@@ -1,0 +1,33 @@
+# los-status: local-AI load at a glance, the same indicators as the `los` menu
+# (busy/total slots per loaded model, green idle / yellow partial / red maxed) plus
+# amdgpu temperature, GPU busy and GTT usage. Herdr plugins (v1) cannot add a sidebar
+# section, so this ships as a pane (split or popup) and a one-line tab-bar summary
+# (see `los-status --line`; wired by bin/herdr-config ensure-los-status).
+id = "zeachco.los-status"
+name = "los status"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "llama.cpp slots, Kokoro, GPU temp/load/memory"
+platforms = ["linux"]
+
+# Once per Herdr session start: open the los tab (in the "monitoring" workspace) so the
+# sidebar entry comes back on its own. Skipped when a "resources" agent exists.
+[[startup]]
+command = ["python3", "los-status", "--startup"]
+
+# The `los` menu in its own tab, with the reporter beside it (see los() in
+# llamacpp/shared/_los_menu.sh): that pair is what the sidebar "resources" entry and the
+# "los - busy/total slots" tab label come from.
+[[panes]]
+id = "los"
+title = "los"
+placement = "tab"
+command = ["./los-tab"]
+
+[[panes]]
+id = "peek"
+title = "resources"
+placement = "popup"
+width = 44
+height = 12
+command = ["python3", "los-status", "--once", "--wait"]

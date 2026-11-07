@@ -32,6 +32,7 @@ Usage: herdr-config <command>
   set-theme <name>                  Set one of Herdr's built-in theme names
   sync-theme                        Apply themes/current/herdr-theme to Herdr
   ensure-keys                       Copy configs/herdr/keys.toml into Herdr's config
+  ensure-los-status                 Link the los-status plugin, add its tab-bar line and key
 USAGE
 }
 
@@ -104,6 +105,33 @@ keys_table() {
   ' "$HERDR_KEYMAP"
 }
 
+# The los-status plugin (configs/herdr/plugins/los-status): local-AI load at a glance.
+# Three pieces, each idempotent: the plugin link (its panes), a one-line summary in
+# the tab bar (`[ui] tab_bar_right`, re-run every few seconds, plain text only), and a
+# prefix+g popup with the coloured per-model view. Linux only: the GPU numbers are
+# amdgpu sysfs. The [[keys.command]] table is appended rather than patched because
+# toml_set only knows single keys and ensure-keys replaces only the [keys] table.
+LOS_STATUS_DIR="$DOTFILES_PATH/configs/herdr/plugins/los-status"
+ensure_los_status() {
+  [ "$(uname -s)" = Linux ] || return 0
+  command -v herdr >/dev/null 2>&1 || return 0
+  herdr plugin list 2>/dev/null | grep -q zeachco.los-status \
+    || herdr plugin link "$LOS_STATUS_DIR" >/dev/null
+  toml_set ui tab_bar_right \
+    "[{ type = \"command\", command = \"python3 $LOS_STATUS_DIR/los-status --line\", interval_seconds = 3, timeout_seconds = 5 }, { type = \"datetime\", format = \"%H:%M\" }]"
+  # Agent sidebar rows for the tokens the pane reports ($res, $m1..$m10). Every other
+  # agent leaves them unreported, so for them these rows simply do not render.
+  local rows='[["state_icon", "machine", "workspace", "tab"], ["agent"], [{ token = "$res", dim = true }]'
+  local i rules='rules = [{ starts_with = "○", fg = "#a6e3a1" }, { starts_with = "◐", fg = "#f9e2af" }, { starts_with = "●", fg = "#f38ba8" }]'
+  for i in 1 2 3 4 5 6 7 8 9 10; do rows="$rows, [{ token = \"\$m$i\", $rules }]"; done
+  toml_set ui.sidebar.agents rows "$rows]"
+  if ! grep -q 'los-status --once --wait' "$HERDR_CONFIG"; then
+    printf '\n[[keys.command]]\nkey = "prefix+g"\ntype = "popup"\ncommand = "python3 %s/los-status --once --wait"\ndescription = "local AI load (los status)"\nwidth = 48\nheight = 12\n' "$LOS_STATUS_DIR" >>"$HERDR_CONFIG"
+  fi
+  reload
+  echo "Herdr los-status: linked, tab bar line, agent sidebar rows, prefix+g popup"
+}
+
 reload() {
   command -v herdr >/dev/null 2>&1 || return 0
   herdr server reload-config >/dev/null 2>&1 || true
@@ -166,5 +194,6 @@ set-theme)
   ;;
 sync-theme) sync_theme ;;
 ensure-keys) ensure_keys ;;
+ensure-los-status) ensure_los_status ;;
 *) usage; exit 1 ;;
 esac
