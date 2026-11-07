@@ -172,8 +172,8 @@ def report_sidebar():
     if k and k[1]:
         rows.append("%s kokoro %d/1" % (GLYPH[RED if k[0] else GRN], min(k[0], 1)))
     rows = rows[:MAX_ROWS] or ["○ nothing loaded"]
-    cmd = [herdr, "pane", "report-metadata", pane, "--source", "los-status", "--ttl-ms", str(int(INTERVAL * 5000)),
-           "--token", "res=" + " · ".join(res or ["no gpu sysfs"])]
+    cmd = [herdr, "pane", "report-metadata", pane, "--source", "los-status", "--ttl-ms", str(int(INTERVAL * 5000))]
+    cmd += ["--token", "res=" + " · ".join(res)] if res else ["--clear-token", "res"]  # no sysfs on macOS
     for i, r in enumerate(rows, 1):
         cmd += ["--token", "m%d=%s" % (i, r)]
     for i in range(len(rows) + 1, _reported + 1):

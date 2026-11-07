@@ -108,12 +108,11 @@ keys_table() {
 # The los-status plugin (configs/herdr/plugins/los-status): local-AI load at a glance.
 # Three pieces, each idempotent: the plugin link (its panes), a one-line summary in
 # the tab bar (`[ui] tab_bar_right`, re-run every few seconds, plain text only), and a
-# prefix+g popup with the coloured per-model view. Linux only: the GPU numbers are
-# amdgpu sysfs. The [[keys.command]] table is appended rather than patched because
+# prefix+g popup with the coloured per-model view. The GPU numbers are amdgpu sysfs, so
+# on macOS only the slot counts show (the reporter clears $res). The [[keys.command]] table is appended rather than patched because
 # toml_set only knows single keys and ensure-keys replaces only the [keys] table.
 LOS_STATUS_DIR="$DOTFILES_PATH/configs/herdr/plugins/los-status"
 ensure_los_status() {
-  [ "$(uname -s)" = Linux ] || return 0
   command -v herdr >/dev/null 2>&1 || return 0
   herdr plugin list 2>/dev/null | grep -q zeachco.los-status \
     || herdr plugin link "$LOS_STATUS_DIR" >/dev/null

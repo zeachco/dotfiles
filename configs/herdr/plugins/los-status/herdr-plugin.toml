@@ -8,7 +8,7 @@ name = "los status"
 version = "0.1.0"
 min_herdr_version = "0.9.0"
 description = "llama.cpp slots, Kokoro, GPU temp/load/memory"
-platforms = ["linux"]
+platforms = ["linux", "macos"]  # macOS: slot counts only, no GPU sysfs
 
 # Once per Herdr session start: open the los tab (in the "monitoring" workspace) so the
 # sidebar entry comes back on its own. Skipped when a "resources" agent exists.
