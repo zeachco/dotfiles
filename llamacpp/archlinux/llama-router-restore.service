@@ -1,0 +1,41 @@
+# TEMPLATE -- installed to ~/.config/systemd/user by install.sh in this directory.
+#
+# Replay the recorded resident set whenever the router comes up empty. See los-restore in
+# llamacpp/shared/_llama.sh for what it does and why it exists: the router runs
+# --no-models-autoload, so after a crash, an oom-kill or a reboot it serves a model list
+# with nothing resident and every client gets 400 "model is not loaded" until a human
+# runs los-load. This unit removes that gap. It is NOT autoload: it loads only the ids
+# los-snapshot.timer recorded as resident, in that order, and only what fits in free GTT
+# with LOS_RESTORE_HEADROOM_GIB (default 16) left over for the desktop and zram. If
+# anything is already resident it does nothing.
+#
+# PULLED IN BY THE ROUTER, not enabled by itself: llama-router.service has
+#   Wants=llama-router-restore.service
+# and Wants= is re-activated on every start, which is exactly what we need -- restarts
+# (Restart=on-failure after an oom-kill) do not re-run units that merely order after
+# this one, but they do re-run this dependency. `systemctl --user restart llama-router`
+# replays too, which is intended: a restart drops every model, and the set you had is
+# the set you should get back.
+#
+# Escape hatches, without touching the router:
+#   systemctl --user edit llama-router-restore.service   -> Environment=LOS_RESTORE=0
+#   systemctl --user stop llama-router-restore.service   -> for one boot (not persistent)
+#   los-drain                                            -> the snapshot goes empty, so
+#                                                          nothing is reloaded next time
+
+[Unit]
+Description=Re-load the llama.cpp models that were resident before the router restarted
+Documentation=file:///home/olivier/dotfiles/llamacpp/shared/_llama.sh
+After=llama-router.service
+Wants=llama-router.service
+
+[Service]
+Type=oneshot
+# One cold load of an 87 GiB model is minutes, and los-restore waits for each model in
+# turn -- the 90 s default would kill it mid-reload and leave a half-restored box.
+TimeoutStartSec=0
+Environment=LOS_RESTORE=1
+Environment=LOS_RESTORE_HEADROOM_GIB=16
+# No login shell on purpose: the helper is self-contained, and a unit must not inherit
+# whatever ~/.zshrc does to PATH or to the router's URL.
+ExecStart=/usr/bin/env bash -c '. "%h/dotfiles/llamacpp/shared/_llama.sh"; los-restore'

@@ -11,7 +11,7 @@ Local model serving. Only two machines in this repo run local models — an Appl
 | ----------------- | -------------------------------------------------------------------------------------------------------------- |
 | `shared/`         | Cross-OS, sourced by the shell profile: `_llama.sh` (foreground launchers + verbs), `_los_menu.sh` (the `los` fzf menu), `_fetch-lib.sh` (HuggingFace download helper), `verify-models.sh` (GGUF integrity vs HF SHA-256), `clone.sh` (clones `~/dev/llama.cpp`, starts initial downloads), `_hw-gate.sh` |
 | `osx/`            | `setup.sh` (brew install + launchd user agent + wired-memory cap daemon), `osx.ini` presets, `install*.sh` + plist templates, `fetch-models-osx.sh` (opt-in via `LOS_FETCH_MODELS=1`), `update.sh` (build sync) |
-| `archlinux/`      | `setup.sh` (installs the router unit), `llama-router.service` template, `models.ini` presets, `fetch-models.sh`, `install.sh` (also retires the pre-2026-11-06 tier units and migrates `~/models/{light,heavy,cheap}` into `~/models/llama`), `update.sh` (checkout + Vulkan build sync, gated to the Strix Halo box) |
+| `archlinux/`      | `setup.sh` (installs the router unit), `llama-router.service` template, `models.ini` presets, `fetch-models.sh`, `install.sh` (also retires the pre-2026-11-06 tier units and migrates `~/models/{light,heavy,cheap}` into `~/models/llama`), `los-snapshot.{service,timer}` + `llama-router-restore.service` (reload what was resident after a router restart — see [Keeping a loaded model loaded](#keeping-a-loaded-model-loaded-arch)), `update.sh` (checkout + Vulkan build sync, gated to the Strix Halo box) |
 
 Everything is invoked with literal `bash` (not `$SHELL`) because the setup scripts are run
 through the user's shell, which would ignore the shebangs.
@@ -35,6 +35,26 @@ weights in `~/models/retired`.
 
 The Mac runs a single router too (launchd agent, `osx.ini`), with autoload.
 
+## Keeping a loaded model loaded (Arch)
+
+`--no-models-autoload` means a model only ever becomes resident because something asked, so
+the interesting failure is the opposite one: the model you loaded disappearing while a client
+is still using it. On 2026-11-06 that happened three times in a day, and it was never
+`sleep-idle-seconds` — it was **systemd-oomd killing the whole router unit** under user-slice
+memory pressure (the router is the largest holder, so it is the cgroup it picks). `Restart=on-failure`
+brings the router back in ~5 s, and `--no-models-autoload` means it comes back **empty**, so
+every client gets 400 "model is not loaded" until a human runs `los-load`. Three things close
+that gap, in order of how much they cost:
+
+| Mechanism | Where | What it does |
+| --- | --- | --- |
+| Don't be the victim | `llama-router.service` | `ManagedOOMPreference=omit` takes the unit out of oomd's candidate list (the victim moves to something recoverable, e.g. a browser); `OOMPolicy=continue` keeps the router and its other models up if the kernel OOM killer picks a child |
+| Replay the resident set | `los-snapshot.timer` → `los-restore`, `llama-router-restore.service` | A minute-by-minute snapshot of what was resident (`${XDG_STATE_HOME:-~/.local/state}/llamacpp/resident`), replayed on every router start — boot, crash, oom-kill, restart — if the router came up empty. Loads only what was recorded, in that order, and only what fits in free GTT with `LOS_RESTORE_HEADROOM_GIB` (default 16) left for the desktop. `LOS_RESTORE=0` opts out |
+| Heal the session | `configs/pi/.pi/agent/extensions/llamacpp-discover.ts` | Before a run starts, pi checks its own model against the router and reloads it (same memory gate as picking it) instead of letting the request fail — the wait is visible, the error is not |
+
+This is deliberately *not* autoload: the replay set is what you had loaded, it is empty right
+after `los-drain`, and a router that already has something resident is left alone.
+
 ## How a request flows
 
 `llama-server` runs in **router mode** (no `-m`): it spawns a **child process per model** (a
@@ -56,7 +76,9 @@ Two ordinary CLI args do most of the work of sharing one GPU between agents, and
 per model in `models.ini` (2026-10-11): `sleep-idle-seconds` makes an idle child release its
 weights and KV and reload on the next request (so idle fan-out models stop pinning GTT; the
 router reports such a model as `sleeping`, which the `los` menu and `framework-rgb` must never
-probe with `/slots`, because that wakes it), and `kv-unified-per-slot` caps what one chat can
+probe with `/slots`, because that both wakes it and resets the idle timer — which is why
+nothing has actually slept on this box in 30 days of journal while `framework-rgb@<user>`
+polls every 2 s), and `kv-unified-per-slot` caps what one chat can
 take out of a shared KV pool (so one long conversation cannot starve the other slots).
 `models.ini`'s comments carry the measured load and re-ingest costs behind the values.
 

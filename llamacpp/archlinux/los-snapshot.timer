@@ -1,0 +1,22 @@
+# TEMPLATE -- installed to ~/.config/systemd/user by install.sh in this directory.
+#
+# Drives los-snapshot.service. One GET /v1/models per minute is nothing next to what
+# framework-rgb already polls, and the interval only has to be short enough that a model
+# loaded and lost within a minute is not missed.
+#
+# The first fire is deliberately late: llama-router-restore.service may still be waiting
+# on cold loads at login, and los-snapshot skips an empty router while that unit is
+# active -- but a late start also means the file is never rewritten from a router that
+# has not finished coming up. Tune with `systemctl --user edit los-snapshot.timer`.
+
+[Unit]
+Description=Snapshot the llama.cpp router's resident set every minute
+Documentation=file:///home/olivier/dotfiles/llamacpp/shared/_llama.sh
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1min
+AccuracySec=15s
+
+[Install]
+WantedBy=timers.target

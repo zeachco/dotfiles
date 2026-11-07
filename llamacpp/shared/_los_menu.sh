@@ -31,6 +31,14 @@ LOS_LOAD_PARALLEL="${LOS_LOAD_PARALLEL:-4}"
 # The Herdr reporter started beside the menu when `los` runs in a Herdr pane (see los()).
 LOS_STATUS_BIN="${LOS_STATUS_BIN:-${DOT_DIR:-$HOME/dotfiles}/configs/herdr/plugins/los-status/los-status}"
 
+# The los tab is menu + GPU monitor: this is how much of the width the menu keeps, and what
+# goes in the rest. The menu's own preview window is `right:58%` of THAT, so at the default
+# the tab reads menu ~28% / preview ~39% / nvtop 33% -- the same shape as a hand-split tab.
+# Raise the ratio on a narrow screen (the model rows are ~70 columns) or set LOS_GPU_CMD to
+# `htop`/`amdgpu_top` to put something else in the third.
+LOS_GPU_RATIO="${LOS_GPU_RATIO:-0.6667}"
+LOS_GPU_CMD="${LOS_GPU_CMD:-nvtop}"
+
 # Loops over LOS_MENU_TIERS go through $(printf ...): zsh does not word-split an unquoted
 # $var (shwordsplit is off), but it does split command substitution, and bash does both.
 # Is this router's daemon installed on this box at all? A missing unit is information,
@@ -720,10 +728,71 @@ _los_menu_logs() {
       printf '%s\t%-6s %s%s (:%s)%s\n' "$unit" "$tier" $'\033[2m' "$unit" "$port" $'\033[0m'
     done
     _los_unit_installed kokoro-tts.service && printf '%s\t%-6s %s%s%s\n' kokoro-tts.service tts $'\033[2m' kokoro-tts.service $'\033[0m'
+    # The resume pair: 'restore' is the journal that answers "why did my model not come back".
+    _los_unit_installed llama-router-restore.service && printf '%s\t%-6s %s%s%s\n' llama-router-restore.service resume $'\033[2m' llama-router-restore.service $'\033[0m'
+    _los_unit_installed los-snapshot.service && printf '%s\t%-6s %s%s%s\n' los-snapshot.service resume $'\033[2m' los-snapshot.service $'\033[0m'
     true; } | fzf --ansi --delimiter='\t' --with-nth=2.. --height=~40% --reverse \
                --prompt='logs > ' --header='Ctrl-C stops following' | cut -f1) || return 0
   [[ -z "$pick" ]] && return 0
   journalctl --user -u "$pick" -n 100 -f
+}
+
+# The los tabs that are open, as Herdr sees them: tab_id, pane_count and that tab's first
+# pane, one tab per line, a tab in THIS workspace before one in the `monitoring` workspace
+# the plugin's startup hook fills. Empty when there is none.
+#
+# The label is the only handle a tab has, and the reporter owns it: it renames the tab to
+# "los - <busy>/<total> slots", so `los` and `los - ...` are both ours. Pane ids are not in
+# `tab list`, hence the second call -- one python process for both, because the alternative
+# is pairing `pane_id` with `tab_id` out of flat JSON in shell.
+_los_menu_los_tabs() {
+  HERDR_WORKSPACE_ID="${HERDR_WORKSPACE_ID:-}" python3 - <<'PY' 2>/dev/null
+import json, os, subprocess, sys
+herdr = os.environ.get("HERDR_BIN_PATH") or "herdr"
+
+def api(*args):
+    try:
+        return json.loads(subprocess.run([herdr, *args], capture_output=True, text=True,
+                                         timeout=5).stdout)["result"]
+    except Exception:
+        return {}
+
+# Tab labels are free text, so anchor on what the reporter writes rather than hoping.
+ours = [t for t in api("tab", "list").get("tabs", [])
+        if (t.get("label") or "").split(" - ")[0] == "los"]
+if not ours:
+    sys.exit(0)
+first = {}
+for p in api("pane", "list").get("panes", []):
+    first.setdefault(p.get("tab_id"), p.get("pane_id"))
+here = os.environ.get("HERDR_WORKSPACE_ID")
+ours.sort(key=lambda t: (t.get("workspace_id") != here, t.get("number", 0)))
+for t in ours:
+    print("\t".join([t.get("tab_id", ""), str(t.get("pane_count", "")),
+                     first.get(t.get("tab_id"), "")]))
+PY
+}
+
+# Hand the third of a los tab to the GPU monitor.
+#
+# Runs BEFORE the menu is drawn. `pane split` resizes the menu's pane synchronously (a
+# `tput cols` straight after it already reports the narrower width) and fzf reads the size
+# when it starts, so the menu opens at two thirds rather than being resized mid-draw.
+#
+# The pane_count guard is what makes this once-per-tab instead of once-per-menu: a los tab's
+# shell carries LOS_TAB=1 in its environment, so Esc-and-retype lands in the same pane again,
+# and without the guard each of those would stack another nvtop. It also leaves a layout made
+# by hand alone, and it is why focusing an older single-pane los tab still gains the monitor.
+_los_menu_gpu_pane() {  # $1=tab id $2=pane in it to split
+  local tab="$1" pane="$2" count gpu
+  [[ -n "$pane" ]] || return 0
+  command -v "${LOS_GPU_CMD%% *}" >/dev/null 2>&1 || return 0   # no nvtop package on the Mac
+  count=$(herdr tab get "$tab" 2>/dev/null | grep -o '"pane_count":[0-9]*' | head -1 | cut -d: -f2)
+  [[ "$count" == "1" ]] || return 0
+  gpu=$(herdr pane split "$pane" --direction right --ratio "$LOS_GPU_RATIO" 2>/dev/null \
+        | grep -o '"pane_id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [[ -n "$gpu" ]] || return 0
+  herdr pane run "$gpu" "$LOS_GPU_CMD" >/dev/null 2>&1
 }
 
 # The menu. Loops so load/unload/drain land you back where you started; Esc exits.
@@ -733,9 +802,13 @@ los() {
       echo "los                            interactive menu over the llama.cpp router"
       echo "los-load <model>               load a model and wait until it reports loaded"
       echo "los-drain [url]                unload everything on the router (default :7070) and the TTS model"
+      echo "los-snapshot                   record what is resident (los-snapshot.timer does it every minute)"
+      echo "los-restore                    load back that record if the router has nothing resident"
       echo "los-tts [status|load|unload]   the resident Kokoro TTS (kokoro-tts.service), ~1 GiB loaded"
       echo "los-restart-all                restart the router daemon (the menu's 'restart')"
       echo "LOS_LOAD_PARALLEL              models loaded at once by a marked batch in los (default 4)"
+      echo "LOS_GPU_RATIO                  los tab: the menu's share of the width, nvtop gets"
+      echo "                               the rest (default 0.6667); LOS_GPU_CMD sets what runs"
       echo "llamacpp-sync                  the menu's sync-models action, non-interactive"
       echo "los-server                     run the router in the FOREGROUND (the daemon's"
       echo "                               journal is the menu's 'logs' action instead)"
@@ -747,13 +820,34 @@ los() {
   # copy running in that tab (LOS_TAB=1) is the one that draws the menu, with a reporter
   # beside it (configs/herdr/plugins/los-status) renaming the tab "los - busy/total
   # slots", feeding the sidebar's "resources" agent entry and refreshing the fzf header
-  # every 2 s over fzf's --listen socket, which leaves marked rows alone.
+  # every 2 s over fzf's --listen socket, which leaves marked rows alone. nvtop takes the
+  # last third of the tab (_los_menu_gpu_pane).
   if [[ -n "${HERDR_PANE_ID:-}" && -z "${LOS_TAB:-}" ]]; then
-    local pane
+    # One los tab at a time. The reporter renames whatever tab holds the menu, so a second
+    # one would be a second tab claiming the same numbers -- and the menu in the first is
+    # live: its shell exits when the menu does, which closes the pane and the tab, so an
+    # existing los tab always has a menu to switch to. Focus is the whole handover.
+    local row tab count pane
+    row=$(_los_menu_los_tabs | head -1)
+    if [[ -n "$row" ]]; then
+      # Split by field rather than with `IFS= read`: the loops below all rely on IFS, and a
+      # leaked one is a silent mis-split, not an error.
+      tab=${row%%$'\t'*}; count=${row#*$'\t'}; count=${count%%$'\t'*}; pane=${row##*$'\t'}
+      herdr tab focus "$tab" >/dev/null 2>&1 || { echo "los: could not focus the open los tab ($tab)" >&2; return 1; }
+      [[ "$count" == "1" ]] && _los_menu_gpu_pane "$tab" "$pane"
+      return 0
+    fi
     pane=$(herdr tab create --label los --env LOS_TAB=1 --focus 2>/dev/null | grep -o '"pane_id":"[^"]*"' | head -1 | cut -d'"' -f4)
     [[ -n "$pane" ]] || { echo "los: herdr tab create failed" >&2; return 1; }
     herdr pane run "$pane" 'los; exit' >/dev/null
     return 0
+  fi
+
+  # The copy that draws the menu: the monitor first, then fzf, so the menu never sees a
+  # resize. Covers both ways a los tab comes to exist -- the create above and the plugin's
+  # startup tab (los-tab also sets LOS_TAB=1).
+  if [[ -n "${HERDR_PANE_ID:-}" && -n "${LOS_TAB:-}" ]]; then
+    _los_menu_gpu_pane "${HERDR_TAB_ID:-}" "$HERDR_PANE_ID"
   fi
 
   local dir; dir=$(mktemp -d "${TMPDIR:-/tmp}/los-menu.XXXXXX") || return 1

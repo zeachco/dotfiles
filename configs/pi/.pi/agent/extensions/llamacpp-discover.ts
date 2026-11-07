@@ -25,6 +25,12 @@
  * it does not fit, or the check is impossible, pi warns and prints the `los-load`
  * command to run by hand instead of OOMing the box under someone else's model.
  *
+ * Self-healing: before a run starts, the current llamacpp model is checked against the
+ * router and reloaded if it went away (see before_agent_start below). The router is the
+ * largest memory holder on the box, so it is the cgroup systemd-oomd picks under pressure;
+ * it comes back seconds later and empty, and without this the next message in a live
+ * session is a provider error instead of a short wait.
+ *
  * When nothing listens on the router's port (not installed on this box) the
  * provider is emptied so /model does not offer dead models; a transient failure
  * (timeout, bad response) keeps the models.json definitions in place. `llamacpp-sync`
@@ -329,6 +335,44 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	const routerOf = (provider: string) => routers.find((r) => r.provider === provider);
+
+	// ---- self-heal: do not start a run against a model the router lost --------------
+	//
+	// The router is the biggest memory holder on the box, so it is the cgroup systemd-oomd
+	// kills when the user slice is under pressure (three times on 2026-11-06). Restart brings
+	// it back in ~5 s and --no-models-autoload makes it come back with NOTHING resident, so
+	// the next request of a live session used to fail with 400 "model is not loaded".
+	// systemd's los-restore reloads the recorded set in the background; this makes the same
+	// recovery work for a session that is in front of someone, and makes it wait instead of
+	// surfacing a provider error: one cheap GET before the run, and if the model this session
+	// is on is unloaded, load it and wait -- with the same memory gate as model_select, so a
+	// model that does not fit is a warning with the los-load command, not an OOM.
+	//
+	// The cooldown is per process and throttles only the status check, never the reload (that
+	// is awaited here, so the run starts against a resident model). before_agent_start fires
+	// once per run, and a session with queued messages -- plus every subagent pi, which loads
+	// this extension too -- would otherwise stampede the router with status checks.
+	const HEAL_COOLDOWN_MS = 15_000;
+	let lastHealAt = 0;
+
+	pi.on("before_agent_start", async (_event, ctx) => {
+		const model = ctx.model;
+		const r = model ? routerOf(model.provider) : undefined;
+		if (!model || !r) return;
+		if (Date.now() - lastHealAt < HEAL_COOLDOWN_MS) return;
+		lastHealAt = Date.now();
+		let state: string | undefined;
+		try {
+			state = (await routerStatus(r.baseUrl, model.id))?.status?.value;
+		} catch {
+			// The router is not answering to a status probe right now. Do not block a run on
+			// that: the request itself will say what happened, and los-restore is on it.
+			return;
+		}
+		if (state === "unloaded") {
+			await ensureLoaded(r.baseUrl, model.id, (m, level) => ctx.ui.notify(m, level));
+		}
+	});
 
 	pi.on("model_select", (event, ctx) => {
 		const r = routerOf(event.model.provider);

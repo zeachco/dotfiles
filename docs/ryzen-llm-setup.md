@@ -20,6 +20,56 @@ the shape of both OOM incidents below. `install.sh` retires the old units and mo
 says "tier", "light", "cheap" or "heavy" is history: the incidents, measurements and
 budgets still hold, the ports and files do not.
 
+## 2026-11-07: the router kept dying, and what brings the models back
+
+Symptom first, because it was believed for a day: "models unload themselves after a while",
+so a live pi session dies with `400 {"error": {"message": "model is not loaded"}}`. It was
+not `sleep-idle-seconds`, and it was not the `--timeout 1800` request timeout either.
+
+`journalctl --user -u llama-router` says it plainly. Three times on 2026-11-06 -- 15:01, 16:51,
+23:30 -- the router took `SIGKILL` with `systemd-oomd killed 78 process(es) in this unit` (63 of
+them from an nvim + pi + subagents session on a 45-minute budget), `Failed with result
+'oom-kill'`, then `Scheduled restart job`. The router is by far the largest holder in
+`user.slice`, so it is the cgroup oomd picks when that slice crosses its limit.
+`Restart=on-failure` brings it back in ~5 s -- and `--no-models-autoload`, the thing that
+stopped the LRU evictions, means it comes back **empty**. That is the whole "unload after a
+while": a restart nobody saw, followed by every client getting 400 until a human runs
+`los-load`.
+
+The sleep path never ran: 30 days of journal hold zero `entering sleeping state` lines, for the
+six models that ask for sleep. `framework-rgb@<user>` polls `/slots?autoload=false` every 2 s,
+and `autoload=false` only keeps a *not-yet-loaded* model from being loaded -- a slot query is a
+request that both wakes a sleeper and resets the idle timer
+(`task_resets_idle_timer()` in `server-queue.cpp` exempts only `SERVER_TASK_TYPE_METRICS`). So
+`sleep-idle-seconds` is currently dead config on this box. It is left in place: it is what
+keeps the fan-out models honest if that poller ever stops, and `models.ini` now says why
+nothing has slept.
+
+Three things close the gap, cheapest first (table in
+[llamacpp/README.md](../llamacpp/README.md#keeping-a-loaded-model-loaded-arch)):
+
+1. **Stop being the victim.** `ManagedOOMPreference=omit` on `llama-router.service`, so oomd
+   takes something recoverable (a browser tab) instead of the one cgroup holding every model
+   and every cached prompt; `OOMPolicy=continue`, so a kernel OOM kill of one model's child no
+   longer takes the endpoint down with it. `daemon-reload` applied both to the running unit --
+   no restart was needed, which mattered, because restarting it is what loses the models.
+2. **Replay the resident set.** `los-snapshot.timer` records the resident ids (loaded / loading
+   / sleeping) every minute to `${XDG_STATE_HOME:-~/.local/state}/llamacpp/resident`, and
+   `llama-router-restore.service` -- `Wants=` from the router unit, not merely `After=`, because
+   a restart does not re-run units that only order after it -- replays them when the router
+   comes up with nothing. Two properties make it safe to leave on: `los-snapshot` only records
+   what a **reachable** router reported (so the kill window cannot erase the intent), and the
+   replay is greedy in recorded order gated on free GTT -- the size `los` measured for that
+   model while it was resident, else its weights on disk -- with `LOS_RESTORE_HEADROOM_GIB`
+   (default 16) left for the desktop and zram, stopping at the first failure. This is not
+   autoload: the set is what you had loaded, `los-drain` empties it, `LOS_RESTORE=0` opts out,
+   and a router that already has something resident is left alone. `GET /v1/models` is one of
+   the endpoints that bypass sleep and post no task, so the poller cannot keep a model awake.
+3. **Heal the session in front of someone.** pi's `llamacpp-discover` extension now checks its
+   own model against the router in `before_agent_start` and reloads it -- same memory gate as
+   picking it, so an ill-fitting model is still a warning plus the `los-load` command -- which
+   turns the next message into a visible wait instead of a provider error.
+
 ## Where things stand
 
 - `~/dev/llama.cpp` on **`master`**, built in `build/` with **`GGML_VULKAN=ON`,
@@ -245,7 +295,9 @@ keep a tier down for a heavy session, stop its unit. See the incident below.
 ### Herdr: `los` in its own tab, and the `resources` sidebar entry
 
 Inside Herdr, `los` opens the menu in a **new tab** (`herdr tab create`, then `los; exit` in it;
-`LOS_TAB=1` marks the copy that draws the menu) and runs a reporter beside it,
+`LOS_TAB=1` marks the copy that draws the menu) — **or focuses the los tab already open**, because
+the reporter renames whatever tab holds the menu and a second one would report the same numbers.
+Either way it runs a reporter beside the menu,
 `configs/herdr/plugins/los-status/los-status --report`, every 2 s:
 
 - the tab is renamed `los - <busy>/<total> slots` (loaded models' slots plus Kokoro's one);
@@ -256,6 +308,12 @@ Inside Herdr, `los` opens the menu in a **new tab** (`herdr tab create`, then `l
   a pane-as-agent with tokens is the way in, so the entry lives as long as the tab does;
 - the fzf header is refreshed over fzf's `--listen` socket (`change-header`), which leaves
   marked rows alone. The list itself is still the snapshot taken when the menu opened.
+- the tab is menu **plus** monitor: `nvtop` gets the last third (`herdr pane split --direction
+  right --ratio $LOS_GPU_RATIO`, default 0.6667 = the menu's share; `LOS_GPU_CMD` overrides what
+  runs there). The split happens before fzf starts — `pane split` resizes synchronously and fzf
+  reads the size at startup, so the menu opens narrow rather than being resized mid-draw — and
+  only while the tab is a single pane, because that shell carries `LOS_TAB=1` and without the
+  guard every Esc-and-retype would stack another nvtop.
 
 The reporter dies with the menu (RETURN trap). The plugin (`herdr plugin link`, done by
 `ensure-los-status`) has a `[[startup]]` hook that opens that tab in the `monitoring` workspace

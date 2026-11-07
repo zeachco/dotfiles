@@ -159,6 +159,168 @@ for m in json.load(sys.stdin).get("data",[]):
   echo "los-load: timed out waiting for $model" >&2; return 1
 }
 
+# ---- resume: put back what was resident after a router restart ---------------------
+# The router is the biggest memory holder on the box, so it is the cgroup systemd-oomd
+# picks when the user slice is under pressure (three times on 2026-11-06, see
+# archlinux/llama-router.service). Restart=on-failure brings it back in ~5 s and
+# --no-models-autoload makes it come back EMPTY: every client gets 400 "model is not
+# loaded" until a human runs los-load. That is the model "unloading itself after a while".
+#
+# So: record the intent (what YOU loaded), and replay it whenever the router comes up
+# with nothing. This is NOT autoload -- only ids that were resident at snapshot time are
+# loaded, never the whole models directory, and los-restore stays out of the way if
+# anything is already resident (someone else got there first).
+#
+# Driven by two systemd --user units installed by archlinux/install.sh:
+#   los-snapshot.timer          every minute, los-snapshot
+#   llama-router-restore.service  Wants= from the router unit, so every router start
+#                                 (boot, crash, oom-kill, restart) replays the snapshot
+# Opt out of the replay without stopping the snapshot: LOS_RESTORE=0 (drop-in on the
+# restore unit). Tune the memory headroom with LOS_RESTORE_HEADROOM_GIB.
+#
+#   los-snapshot   record the resident ids into the state file (quiet unless changed)
+#   los-restore    replay them if the router is reachable and has nothing resident
+_LOS_STATE="${LOS_STATE_FILE:-${XDG_STATE_HOME:-$HOME/.local/state}/llamacpp/resident}"
+
+# Resident = loaded, loading, or sleeping. Reads the /v1/models body on stdin, and prints
+# nothing for a router that is not there -- so a drained box and a dead one are not the
+# same answer to the caller.
+_los_resident_ids() {
+  python3 -c 'import sys,json
+for m in json.load(sys.stdin).get("data",[]):
+    st=(m.get("status") or {}).get("value")
+    if st in ("loaded","loading","sleeping"): print(m["id"])' 2>/dev/null
+}
+
+los-snapshot() {
+  local url="${LOS_URL:-http://127.0.0.1:7070}" body ids tmp
+  # A router that does not ANSWER is not a router that was drained: writing an empty
+  # file through a kill or a restart window would erase the very thing to resume.
+  body=$(curl -sf -m 5 "$url/v1/models" 2>/dev/null) || return 0
+  ids=$(printf '%s' "$body" | _los_resident_ids) || return 0
+  # A restore in progress means an empty (or half-filled) router is a TRANSIENT state --
+  # recording it would erase the very set the restore is replaying, and leave nothing to
+  # replay if the router dies again before it finishes.
+  if [[ -z "$ids" ]] && command -v systemctl >/dev/null 2>&1 &&
+     systemctl --user is-active --quiet llama-router-restore.service 2>/dev/null; then
+    return 0
+  fi
+  [[ "$ids" == "$(cat "$_LOS_STATE" 2>/dev/null)" ]] && return 0
+  mkdir -p "${_LOS_STATE%/*}" || return 1
+  tmp="${_LOS_STATE}.tmp"
+  if [[ -n "$ids" ]]; then printf '%s\n' "$ids" >"$tmp"; else : >"$tmp"; fi
+  mv "$tmp" "$_LOS_STATE" && echo "los-snapshot: ${_LOS_STATE##*/} -> ${ids:-nothing}"
+}
+
+# Greedy in recorded order, gated on free amdgpu GTT: the size `los` measured while the
+# model was resident, else the weights on disk (shards summed), plus a headroom kept for
+# the desktop and zram -- the pressure of a model loaded beside a full desktop is exactly
+# what killed the router in the first place. Stops at the first FAILED load rather than
+# piling more onto a box that is out of memory.
+los-restore() {
+  local url="${LOS_URL:-http://127.0.0.1:7070}" body plan verb id note i rc=0
+  [[ "${LOS_RESTORE:-1}" == 1 ]] || { echo "los-restore: disabled (LOS_RESTORE=0)"; return 0; }
+  [[ -f "$_LOS_STATE" ]] || { echo "los-restore: no snapshot at $_LOS_STATE -- nothing to resume"; return 0; }
+  # At login this unit races the router's own start; give it a minute.
+  for i in $(seq 1 20); do
+    body=$(curl -sf -m 5 "$url/v1/models" 2>/dev/null) && break
+    sleep 3
+  done
+  [[ -n "$body" ]] || { echo "los-restore: $url never answered -- giving up" >&2; return 1; }
+  if [[ -n "$(printf '%s' "$body" | _los_resident_ids)" ]]; then
+    echo "los-restore: the router already has models resident -- leaving them alone"
+    return 0
+  fi
+  # The planner reads the router itself: the program comes in on stdin here (python3 -),
+  # so the model list cannot share that stdin, and an env var would put a multi-KB body
+  # under execve's 128 KiB per-argument cap. One extra GET costs nothing.
+  plan=$(LOS_URL="$url" LOS_STATE_FILE="$_LOS_STATE" \
+    LOS_HEADROOM_GIB="${LOS_RESTORE_HEADROOM_GIB:-16}" python3 - <<'PY'
+import glob, json, os, urllib.request
+
+GIB = 2 ** 30
+headroom = float(os.environ.get("LOS_HEADROOM_GIB", 16)) * GIB
+with urllib.request.urlopen(os.environ["LOS_URL"] + "/v1/models", timeout=5) as r:
+    data = json.load(r).get("data", [])
+models = {m["id"]: m for m in data if isinstance(m, dict) and isinstance(m.get("id"), str)}
+
+def free_gtt():
+    # The GTT window is what the models actually pin; None where there is no amdgpu
+    # (macOS), which makes the gate a no-op instead of a guess.
+    for total in sorted(glob.glob("/sys/class/drm/card*/device/mem_info_gtt_total")):
+        try:
+            t, u = int(open(total).read()), int(open(total.replace("_total", "_used")).read())
+        except Exception:
+            continue
+        if t > 0:
+            return t - u
+    return None
+
+def weights(model):
+    args = (model.get("status") or {}).get("args") or []
+    if "--model" not in args:
+        return 0
+    try:
+        path = args[args.index("--model") + 1]
+    except IndexError:
+        return 0
+    if not path or not os.path.exists(path):
+        return 0
+    name = os.path.basename(path)
+    if "-of-" not in name:
+        return os.path.getsize(path)
+    stem = "-".join(name.split("-")[:-3])
+    return sum(os.path.getsize(f) for f in
+               glob.glob(os.path.join(os.path.dirname(path), stem + "-*of-*.gguf")))
+
+def measured(mid):
+    # id -> bytes pinned, written by the `los` menu while the model was resident: closer
+    # than weights (KV + compute buffers included), absent for a model never shown there.
+    path = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")),
+                        "los-menu", "resident.tsv")
+    try:
+        for line in open(path):
+            key, _, value = line.partition("\t")
+            if key == mid:
+                return int(float(value))
+    except Exception:
+        pass
+    return 0
+
+try:
+    want = [line.strip() for line in open(os.environ["LOS_STATE_FILE"]) if line.strip()]
+except Exception:
+    want = []
+
+free = free_gtt()
+for mid in want:
+    model = models.get(mid)
+    if model is None:
+        print("SKIP\t%s\tis not served by this router" % mid)
+        continue
+    need = max(measured(mid), weights(model))
+    if free is not None and need + headroom > free:
+        print("SKIP\t%s\tneeds ~%.1f GiB, %.1f GiB free with a %.0f GiB headroom"
+              % (mid, need / GIB, free / GIB, headroom / GIB))
+        continue
+    if free is not None:
+        free -= need
+    print("LOAD\t%s\t%s" % (mid, "~%.1f GiB" % (need / GIB) if need else "size unknown"))
+PY
+)
+  [[ -n "$plan" ]] || { echo "los-restore: nothing in the snapshot"; return 0; }
+  while IFS=$'\t' read -r verb id note; do
+    [[ -n "$verb" ]] || continue
+    if [[ "$verb" == SKIP ]]; then
+      echo "los-restore: skipping $id -- $note"
+      continue
+    fi
+    echo "los-restore: reloading $id ($note)"
+    los-load "$id" || { echo "los-restore: $id failed -- stopping, do not pile loads onto a full box" >&2; rc=1; break; }
+  done <<< "$plan"
+  return $rc
+}
+
 # ---- Kokoro TTS (bin/kokoro-serve behind kokoro-tts.service) -----------------------
 # Not a router model, but it holds ~1 GiB of RAM while loaded, and RAM is the one budget
 # on the unified-memory box -- so it is driven from the same verbs: the `los` menu shows

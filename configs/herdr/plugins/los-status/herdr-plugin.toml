@@ -15,9 +15,11 @@ platforms = ["linux", "macos"]  # macOS: slot counts only, no GPU sysfs
 [[startup]]
 command = ["python3", "los-status", "--startup"]
 
-# The `los` menu in its own tab, with the reporter beside it (see los() in
-# llamacpp/shared/_los_menu.sh): that pair is what the sidebar "resources" entry and the
-# "los - busy/total slots" tab label come from.
+# The `los` menu in its own tab, with the reporter beside it and nvtop in the last third (see
+# los() and _los_menu_gpu_pane in llamacpp/shared/_los_menu.sh): that pair is what the sidebar
+# "resources" entry and the "los - busy/total slots" tab label come from. Typing `los` elsewhere
+# focuses this tab instead of opening a second one, so a tab opened by this hook also picks up
+# the GPU split on the next `los` (it is guarded on the tab still having one pane).
 [[panes]]
 id = "los"
 title = "los"

@@ -1,0 +1,21 @@
+# TEMPLATE -- installed to ~/.config/systemd/user by install.sh in this directory.
+#
+# Record what the router currently has resident, for llama-router-restore.service to
+# replay. Driven by los-snapshot.timer (every minute); see los-snapshot in
+# llamacpp/shared/_llama.sh for the file it writes and the one rule that makes it safe:
+# it only writes what a REACHABLE router reported, so the kill/restart window cannot
+# erase the intent it is there to preserve. A los-drain therefore does reach the file
+# (the router is up and says "nothing") -- draining means you want it gone.
+#
+# GET /v1/models is one of the endpoints that bypass sleep and posts no task to any
+# model, so this poller cannot keep a model awake or wake a sleeping one -- unlike the
+# /slots probes (see the note in models.ini).
+
+[Unit]
+Description=Snapshot the llama.cpp router's resident set
+Documentation=file:///home/olivier/dotfiles/llamacpp/shared/_llama.sh
+After=llama-router.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash -c '. "%h/dotfiles/llamacpp/shared/_llama.sh"; los-snapshot'

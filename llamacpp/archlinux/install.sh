@@ -177,9 +177,33 @@ else
   echo "llama router: installed $UNIT"
 fi
 
+# ---- the resume pair ---------------------------------------------------------------
+# los-snapshot.timer records what is resident and llama-router-restore.service replays it
+# on every router start (Wants= from the unit). They exist because the router comes back
+# from a crash, an oom-kill or a reboot with --no-models-autoload, so it comes back EMPTY
+# and every client sees 400 "model is not loaded" until someone runs los-load by hand.
+# Neither one is a service you enable to run: the timer drives los-snapshot.service, and
+# llama-router-restore.service is pulled in by the router's Wants= each time it starts --
+# enabling it would only make it run at boot in its own right.
+for aux in los-snapshot.service los-snapshot.timer llama-router-restore.service; do
+  aux_tpl="$SCRIPT_DIR/$aux"
+  [[ -f "$aux_tpl" ]] || { echo "llama router: missing template $aux_tpl" >&2; exit 1; }
+  if cmp -s "$aux_tpl" "$USER_UNIT_DIR/$aux" 2>/dev/null; then
+    continue
+  fi
+  install -m 644 "$aux_tpl" "$USER_UNIT_DIR/$aux"
+  aux_changed=1
+  echo "llama router: installed $aux"
+done
+if [[ -n "${aux_changed:-}" ]]; then
+  systemctl --user daemon-reload
+fi
+
 # enable --now is idempotent and cheap; it also recovers a unit that was installed
 # on a previous run but has since been stopped or disabled.
 systemctl --user enable --now "$UNIT"
+systemctl --user enable --now los-snapshot.timer ||
+  echo "llama router: los-snapshot.timer failed to start -- los-restore has nothing to replay" >&2
 
 echo "llama router: http://localhost:7070 (CPUQuota=${CPU_QUOTA}%, threads=${THREADS}, loads on request only: los)"
 # A changed unit is installed but NOT restarted: enable --now is a no-op for a running

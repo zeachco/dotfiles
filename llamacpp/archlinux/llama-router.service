@@ -22,6 +22,12 @@
 Description=llama.cpp router on :7070
 Documentation=file:///home/olivier/dotfiles/docs/ryzen-llm-setup.md
 After=graphical-session.target
+# Every (re)start of this unit pulls in the resume helper, so a restart or a reboot
+# does not leave every client pointing at an empty router. llama-router-restore.service
+# declares After=llama-router.service and exits; Wants= is re-activated on each start,
+# which is exactly the point -- Restart=on-failure does not restart its dependents, but
+# it does re-run this line.
+Wants=llama-router-restore.service
 
 [Service]
 Type=simple
@@ -61,6 +67,27 @@ RestartSec=5
 # `systemctl --user edit llama-router.service`, or reinstall with
 # LOS_CPU_QUOTA=<percent> and/or LOS_THREADS=<n> bash install.sh.
 CPUQuota=@CPU_QUOTA@%
+
+# ---- why this unit is the thing that "unloads your model" -------------------------
+# MEASURED 2026-11-06: llama-router.service was oom-killed three times (15:01, 16:51,
+# 23:30). Each one reads the same: the user.slice passed 50% memory pressure for >20 s,
+# systemd-oomd considered 26 cgroups, picked this one (it holds by far the most
+# reclaimable memory), SIGKILLed the whole unit, and `Restart=on-failure` brought the
+# router back 5 s later -- with --no-models-autoload, so NOTHING resident. Every client
+# then gets 400 "model is not loaded" until a human runs los-load. That is the model
+# "unloading itself after a while"; it is not sleep-idle-seconds, which has never fired
+# on this box (see the note in models.ini).
+#
+# ManagedOOMPreference=omit takes this unit out of oomd's candidate list. It does not
+# make memory unlimited and it is a deliberate tradeoff: the victim moves to whatever
+# else holds ordinary memory. A killed browser is recoverable; a killed router takes
+# every model, every cached context and every in-flight agent session with it.
+#
+# OOMPolicy=continue is the kernel-side counterpart: if the kernel OOM killer picks a
+# process inside this cgroup (a model child), keep the unit up instead of the default
+# behaviour of stopping it -- the other models keep serving and the router survives.
+ManagedOOMPreference=omit
+OOMPolicy=continue
 
 [Install]
 WantedBy=default.target
