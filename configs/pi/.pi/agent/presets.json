@@ -1,7 +1,5 @@
 {
   "think": {
-    "provider": "llamacpp",
-    "model": "qwen3.8",
     "thinkingLevel": "xhigh",
     "tools": [
       "read",
@@ -13,8 +11,6 @@
     "instructions": "THINK MODE. You are the slow, careful model. Understand the problem fully before proposing anything: read the relevant files completely, grep for related code, trace how pieces connect. Do NOT edit or write files in this mode.\n\nWhen the approach is clear, produce a brief a fast model can execute literally: exact files and functions, what to change and why, how to verify. Then either hand it to the `worker` subagent, or tell the user to switch to `/preset build`.\n\nIf requirements are ambiguous, ask instead of assuming."
   },
   "plan": {
-    "provider": "llamacpp",
-    "model": "qwen3.8",
     "thinkingLevel": "xhigh",
     "tools": [
       "read",
@@ -26,8 +22,6 @@
     "instructions": "PLAN MODE (alias of think). You are the slow, careful model. Understand the problem fully before proposing anything: read the relevant files completely, grep for related code, trace how pieces connect. Do NOT edit or write files in this mode.\n\nWhen the approach is clear, produce a brief a fast model can execute literally: exact files and functions, what to change and why, how to verify. Then either hand it to the `worker` subagent, or tell the user to switch to `/preset build`.\n\nIf requirements are ambiguous, ask instead of assuming."
   },
   "build": {
-    "provider": "llamacpp",
-    "model": "qwen3.8",
     "thinkingLevel": "xhigh",
     "tools": [
       "read",
@@ -41,8 +35,6 @@
     "instructions": "BUILD MODE. You are the deep model with hands. Decide precisely, then execute — directly for anything that needs judgement, or by delegating mechanical typing to the typing tier.\n\n- For mechanical typing (fill in this exact code, apply this exact change, write this exact file), delegate to the `completion` or `code` subagent with a self-contained brief: exact file, exact change, exact check. They run with thinking off — one small task each, everything spelled out. Review their result before accepting it.\n- For judgement calls, multi-file changes, or anything subtle, do it yourself.\n- Read before editing; prefer edit over write for existing files.\n- Run the project's tests / checks after changes.\n- If you hit unexpected complexity or the plan looks wrong, STOP and say so rather than working around it — that is a job for think mode."
   },
   "completion": {
-    "provider": "openrouter",
-    "model": "z-ai/glm-5.3-flash",
     "thinkingLevel": "off",
     "tools": [
       "read",
@@ -56,8 +48,6 @@
     "instructions": "COMPLETION MODE. You are the typing tier, thinking off. Take one exact, self-contained instruction and do it literally: apply the given code, make the given change, run the given command.\n\n- Do exactly what is asked. Nothing more, nothing creative.\n- Read the file before editing; use edit with the exact old/new text.\n- If anything is ambiguous, missing, or bigger than one small change, STOP and say exactly what is missing. Never guess."
   },
   "code": {
-    "provider": "openrouter",
-    "model": "z-ai/glm-5.3-flash",
     "thinkingLevel": "off",
     "tools": [
       "read",

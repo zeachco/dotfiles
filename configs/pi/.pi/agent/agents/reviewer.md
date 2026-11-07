@@ -1,7 +1,6 @@
 ---
 name: reviewer
-description: Careful code review (Claude Sonnet 5.5 via OpenRouter, high thinking) of the current diff (or named files) for correctness, security, and maintainability. Read-only; bash limited to git inspection.
-model: openrouter/anthropic/claude-sonnet-5.5:high
+description: Careful code review (high thinking) of the current diff (or named files) for correctness, security, and maintainability. Read-only; bash limited to git inspection.
 tools: read, grep, find, ls, bash
 ---
 

@@ -2,33 +2,33 @@
 name: vision-relay
 description: >
   Relayed image reading for non-vision models. Use when the active model
-  cannot see images (check $PI_MODEL — e.g. qwen3.8, text-only since its
-  projector was retired 2026-10-12) and the user pasted an image, attached
-  one, or asks about a screenshot/image the model cannot view. Spawns the
-  planner subagent (Claude Sonnet 5.5 via OpenRouter, vision-capable) that
-  reads the image and returns a structured description. Do NOT use when
-  $PI_MODEL is a vision-capable model (any model with "image" in its input
-  list in ~/.pi/agent/models.json) — just use the read tool directly then.
+  cannot see images (check $PI_MODEL against the input capabilities in
+  ~/.pi/agent/models.json; the current default model may be text-only) and
+  the user pasted an image, attached one, or asks about a screenshot/image
+  the model cannot view. Spawns the planner subagent (Claude Sonnet 5.5
+  via OpenRouter, vision-capable) that reads the image and returns a
+  structured description. Do NOT use when $PI_MODEL is a vision-capable
+  model (any model with "image" in its input list in ~/.pi/agent/models.json)
+  — just use the read tool directly then.
 ---
 
 # Vision relay
 
-The active model here is usually text-only (`qwen3.8` on the local router
-lost its vision projector on 2026-10-12 -- retired for prefix KV reuse, see
-models.ini). It receives pasted images as a placeholder (typically
-"Read image file [image/png]") with **no file path and no pixels**. This
-skill gets the image to a vision model (the `planner` subagent, Claude
-Sonnet 5.5 via OpenRouter) and brings the description back.
+The active model here may be text-only (check $PI_MODEL against the input
+capabilities in `~/.pi/agent/models.json`). When text-only, it receives
+pasted images as a placeholder (typically "Read image file [image/png]")
+with **no file path and no pixels**. This skill gets the image to a vision
+model (the `planner` subagent, Claude Sonnet 5.5 via OpenRouter) and brings
+the description back.
 
 ## When to use
 
 1. Check `$PI_MODEL`.
    - Vision-capable (any model with `"image"` in `input` in
-     `~/.pi/agent/models.json` -- `qwen3.8` is NOT one since 2026-10-12) →
-     **stop, don't use this skill**; use the `read` tool on the image file
-     directly.
-   - Text-only (`qwen3.8`, Nimble, …) and the user pasted/attached an image
-     or asks about one → continue.
+     `~/.pi/agent/models.json`) → **stop, don't use this skill**; use the
+     `read` tool on the image file directly.
+   - Text-only (no `"image"` in `input` in `~/.pi/agent/models.json`) and the
+     user pasted/attached an image or asks about one → continue.
 2. Never route this to a local model: the router's `gemma-4-*`
    vision models are kept out of pi's catalog (`llamacpp-sync`, `PI_HIDDEN`),
    and they are cold and small-context (8k-32k per slot) anyway. The `planner` agent targets

@@ -1,6 +1,6 @@
 # Model routing (local llama.cpp, one router on :7070, nothing autoloads)
 
-One local model does the heavy lifting: `Qwen3.8-Flash-Next` (pi's `defaultModel` since 2026-11-06) thinks AND types; `qwen3.8` is the lighter fallback. Route by the *kind* of step, not by how big the task is. Which model backs each subagent lives in the agent files, not here.
+One local model does the heavy lifting: `Qwen3.8-Flash-Next` (pi's `defaultModel` since 2026-11-06) thinks AND types; `qwen3.8` is the lighter fallback. Route by the *kind* of step, not by how big the task is. Generic agents inherit the pi session/default model, with specialist overrides only where capability requires it (e.g. `planner` for vision).
 
 | Step | Who |
 |---|---|

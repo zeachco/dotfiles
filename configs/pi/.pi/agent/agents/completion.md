@@ -1,7 +1,6 @@
 ---
 name: completion
-description: "Literal one-change applier (GLM-5.3 Flash via OpenRouter, minimal thinking). Applies one small, exact, self-contained change: a snippet to insert, a rename, a single function to fill in. Use for mechanical keystrokes where the brief spells out exactly what to write; never for anything requiring judgement."
-model: openrouter/z-ai/glm-5.3-flash:low
+description: "Literal one-change applier (minimal thinking). Applies one small, exact, self-contained change: a snippet to insert, a rename, a single function to fill in. Use for mechanical keystrokes where the brief spells out exactly what to write; never for anything requiring judgement."
 tools: read, edit, write, grep, find, ls, bash
 ---
 
