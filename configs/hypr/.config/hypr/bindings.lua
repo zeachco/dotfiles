@@ -64,3 +64,12 @@ o.bind("SUPER + code:21", "Expand window width (column on scrolling)", resize_wi
 -- SUPER + E toggles OBS between the "Scene" and "Screen sharing" scenes
 -- (via obs-websocket + obs-cmd; see ~/.local/bin/obs-toggle-scene).
 o.bind("SUPER + E", "OBS: toggle scene", os.getenv("HOME") .. "/.local/bin/obs-toggle-scene")
+
+-- SUPER + F2: push-to-talk → Hermes. Hold to talk, release to send (beep on press).
+o.bind_hold(
+  "SUPER + F2",
+  "Voice ask Hermes (hold to talk)",
+  os.getenv("HOME") .. "/dotfiles/bin/voice-ask hold start",
+  "Stop voice ask",
+  os.getenv("HOME") .. "/dotfiles/bin/voice-ask hold stop"
+)

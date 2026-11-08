@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+# voice-ask: global push-to-talk → Hermes.
+#
+# Hold mode (bound to SUPER+F2 via o.bind_hold in Hyprland):
+#   voice-ask hold start   # press:   beep + open the mic until you release
+#   voice-ask hold stop    # release: close the mic, transcribe, ask Hermes
+#
+# Tap mode (VAD fallback, no hold needed):
+#   voice-ask              # one utterance; a short silence ends it
+#
+# In every mode the reply comes back as a desktop notification and is appended
+# to the log. Repeated triggers while busy are ignored silently.
+#
+# Knobs:
+#   VOICE_ASK_SAY=1               also speak the reply with Kokoro (bin/say)
+#   VOICE_ASK_TIMEOUT             hard cap seconds for one hold/capture (default 30)
+#   VOICE_ASK_HERMES_TIMEOUT      seconds to wait for Hermes (default 300)
+#   plus every LISTEN_* knob (LISTEN_MODEL, LISTEN_SOURCE_DEVICE, ...)
+#
+# Transcript + reply log: ~/.hermes/voice/voice-log.md
+
+set -uo pipefail
+
+SELF_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+LISTEN_BIN="$SELF_DIR/listen"
+SAY_BIN="$SELF_DIR/say"
+VOICE_DIR="$HOME/.hermes/voice"
+LOG="$VOICE_DIR/voice-log.md"
+BEEP="$VOICE_DIR/beep.wav"
+LOCK="$VOICE_DIR/.lock"
+HOLDING="$VOICE_DIR/.holding"
+REC_PID="$VOICE_DIR/.rec-pid"
+RAW="$VOICE_DIR/take.raw"
+CAP_TIMEOUT="${VOICE_ASK_TIMEOUT:-30}"
+HERMES_TIMEOUT="${VOICE_ASK_HERMES_TIMEOUT:-300}"
+RATE=16000
+
+mkdir -p "$VOICE_DIR"
+
+notify() { notify-send -t "${2:-8000}" "voice-ask" "$1"; }
+
+beep() {
+  if [[ ! -f "$BEEP" ]] && command -v ffmpeg >/dev/null 2>&1; then
+    ffmpeg -loglevel error -f lavfi -i "sine=frequency=880:duration=0.12" -ar 48000 -y "$BEEP" 2>/dev/null || true
+  fi
+  [[ -f "$BEEP" ]] && pw-play "$BEEP" >/dev/null 2>&1
+}
+
+trim() { local s="$1"; s=${s#"${s%%[![:space:]]*}"}; s=${s%"${s##*[![:space:]]}"}; printf '%s' "$s"; }
+
+# ---------------------------------------------------------------- hold start
+if [[ "${1:-}" == "hold" && "${2:-}" == "start" ]]; then
+  [[ -f "$HOLDING" ]] && exit 0          # key-repeat / second press: ignore
+  : > "$HOLDING"
+  rm -f "$RAW" "$REC_PID"
+  beep
+  # raw 16k s16le mono; timeout caps a hold whose release was somehow missed.
+  timeout "$CAP_TIMEOUT" pw-record --rate "$RATE" --channels 1 --format s16 - > "$RAW" 2>/dev/null &
+  echo $! > "$REC_PID"
+  exit 0
+fi
+
+# ----------------------------------------------------------------- hold stop
+if [[ "${1:-}" == "hold" && "${2:-}" == "stop" ]]; then
+  [[ -f "$HOLDING" ]] || exit 0          # release that isn't ours: ignore
+  rm -f "$HOLDING"
+  exec 9>"$LOCK"
+  flock -n 9 || { notify "still working on the last one" 2500; exit 0; }
+  if [[ -f "$REC_PID" ]]; then
+    pid=$(cat "$REC_PID" 2>/dev/null)
+    [[ -n "${pid:-}" ]] && { kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; }
+    rm -f "$REC_PID"
+  fi
+  sleep 0.15                              # let the last samples land
+  bytes=$(stat -c %s "$RAW" 2>/dev/null || echo 0)
+  # under ~0.45s (16000 Hz * 2 B * 0.45): that was a tap, not a sentence.
+  if (( bytes < 14400 )); then notify "too short to transcribe" 2500; exit 0; fi
+  wav="$VOICE_DIR/take.wav"
+  ffmpeg -loglevel error -f s16le -ar "$RATE" -ac 1 -i "$RAW" -y "$wav" 2>"$VOICE_DIR/last-error.log" \
+    || { notify "could not convert the recording (see $VOICE_DIR/last-error.log)"; exit 1; }
+  text=$(LISTEN_SOURCE=file LISTEN_FILE="$wav" "$LISTEN_BIN" 2>"$VOICE_DIR/last-error.log" | paste -sd' ' -)
+  text=$(trim "${text:-}")
+else
+  # ----------------------------------------------------------------- tap mode
+  exec 9>"$LOCK"
+  flock -n 9 || exit 0                    # already busy: stay silent
+  beep
+  text=$(timeout "$CAP_TIMEOUT" "$LISTEN_BIN" 2>/dev/null | head -n1)
+  text=$(trim "${text:-}")
+fi
+
+if [[ -z "$text" ]]; then
+  notify "didn't catch anything — see $VOICE_DIR/last-error.log if it repeats" 4000
+  exit 1
+fi
+notify "🎤 $text" 2500
+
+# ------------------------------------------------------------- ask + deliver
+# Preferred: inject the transcript into a LIVE hermes CLI session running in a
+# tmux pane (reply lands in that conversation). Fallback: headless run in a
+# continuing voice conversation, reply notified + spoken.
+
+descendants() {  # all descendant PIDs of $1
+  local p="$1" c
+  for c in $(pgrep -P "$p" 2>/dev/null); do echo "$c"; descendants "$c"; done
+}
+
+find_hermes_pane() {
+  [[ "$1" == "$$" || "$1" == "$PPID" ]] && return   # never our own process tree
+  [[ "$1" == "$$" || -z "${1:-}" ]] && return
+  local d
+  for d in $(descendants "$1"); do
+    if tr '\0' ' ' < "/proc/$d/cmdline" 2>/dev/null | grep -q "hermes_cli.main" &&
+       ! tr '\0' ' ' < "/proc/$d/cmdline" 2>/dev/null | grep -q "gateway run"; then
+      echo "$2"; return 0
+    fi
+  done
+  return 1
+}
+
+pane=""
+while read -r pid pane_cand; do
+  [[ -n "$pid" ]] || continue
+  if pane=$(find_hermes_pane "$pid" "$pane_cand"); then break; fi
+done < <(tmux list-panes -a -F '#{pane_pid} #{pane_id}' 2>/dev/null)
+
+if [[ -n "${pane:-}" ]]; then
+  tmux send-keys -t "$pane" -l "$text" && tmux send-keys -t "$pane" Enter
+  notify "→ sent to your hermes session" 2000
+  {
+    printf '\n## %s (→ tmux pane %s)\n\n**me:** %s\n' "$(date '+%F %T')" "$pane" "$text"
+  } >> "$LOG"
+  exit 0
+fi
+
+# Headless: --continue keeps ONE rolling voice conversation.
+reply=$(cd "$VOICE_DIR" && timeout "$HERMES_TIMEOUT" hermes chat -Q --continue -q "$text" 2>"$VOICE_DIR/last-error.log")
+rc=$?
+
+if [[ $rc -eq 124 ]]; then notify "Hermes timed out after ${HERMES_TIMEOUT}s"; exit 1; fi
+[[ -z "$reply" ]] && { notify "Hermes returned nothing (rc=$rc)"; exit 1; }
+
+short=${reply:0:400}
+[[ ${#reply} -gt 400 ]] && short+=" …"
+notify "🧠 $short" 15000
+
+{
+  printf '\n## %s\n\n**me:** %s\n\n**hermes:** %s\n' "$(date '+%F %T')" "$text" "$reply"
+} >> "$LOG"
+
+if [[ "${VOICE_ASK_SAY:-1}" != "0" && -x "$SAY_BIN" ]]; then
+  printf '%s' "$reply" | sed -E 's/`//g; s/[*#_]//g' | "$SAY_BIN"
+fi
