@@ -53,7 +53,7 @@ good() { echo -e "${PASS}llama.cpp:${NORM} $*"; }
 # model name still matches; omarchy pins it to this desktop rather than a bare Arch
 # server that happens to share the silicon.
 . "$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)/../shared/_hw-gate.sh"
-. "$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)/../shared/_herdr-diff.sh"
+. "$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)/../shared/_herdr-changelog.sh"
 
 is_strix_halo_omarchy() {
   [[ -d /usr/share/omarchy ]] || return 1
@@ -112,7 +112,7 @@ else
     AFTER="$(git rev-parse HEAD)"
     if [[ "$BEFORE" != "$AFTER" ]]; then
       say "$REF $(git rev-parse --short "$BEFORE") -> $(git rev-parse --short "$AFTER") ($(git rev-list --count "$BEFORE..$AFTER") commits)"
-      llamacpp_herdr_diff_tab "$LLAMA_DIR" "$BEFORE" "$AFTER"
+      llamacpp_herdr_changelog_tab "$LLAMA_DIR" "$BEFORE" "$AFTER"
     fi
   else
     warn "cannot fast-forward $CURRENT_BRANCH onto origin/$REF -- diverged, leaving it alone"
