@@ -270,11 +270,8 @@ repos() {
 }
 
 bwload() {
-  # Declare array of supported env file templates
   local supported_files=(".env.example" "example.env" ".env.bw")
-  local env_file=""
-
-  bw sync
+  local env_file="" header="" secret_cli="" item_name="" op_item=""
 
   # Find the first supported file that exists
   for file in "${supported_files[@]}"; do
@@ -290,8 +287,17 @@ bwload() {
     return 1
   fi
 
-  # Extract item name from quotes in the found file (first quoted string found)
-  item_name=$(grep -o '"[^"]*"' "$env_file" | head -n 1 | tr -d '"')
+  # The provider declaration must be in one of the first three lines. Extra words
+  # between the provider and quoted item name are intentionally ignored.
+  header=$(head -n 3 "$env_file" | grep -E '^[[:space:]]*#[[:space:]]*(bw|pp|op)([[:space:]]+[^\"]*)?[[:space:]]+"[^"]+"' | head -n 1)
+  if [ -z "$header" ]; then
+    echo "No supported secret-provider declaration found in the first 3 lines of $env_file"
+    echo 'Expected: # bw "Item name", # pp "Item name", or # op "Item name"'
+    return 1
+  fi
+
+  secret_cli=$(printf '%s\n' "$header" | sed -E 's/^[[:space:]]*#[[:space:]]*(bw|pp|op).*/\1/')
+  item_name=$(printf '%s\n' "$header" | sed -E 's/^[^\"]*"([^\"]+)".*$/\1/')
 
   if [ -z "$item_name" ]; then
     echo "No quoted item name found in $env_file"
@@ -299,13 +305,31 @@ bwload() {
   fi
 
   echo "Using $env_file"
-  echo "Fetching '$item_name' from Bitwarden..."
-  bw get notes "$item_name" >.env
+  case "$secret_cli" in
+    bw)
+      command -v bw >/dev/null 2>&1 || { echo "Bitwarden CLI (bw) is not installed"; return 1; }
+      echo "Fetching '$item_name' from Bitwarden..."
+      bw sync || return 1
+      bw get notes "$item_name" >.env
+      ;;
+    pp)
+      command -v pass-cli >/dev/null 2>&1 || { echo "Proton Pass CLI (pass-cli) is not installed"; return 1; }
+      echo "Fetching '$item_name' from Proton Pass..."
+      pass-cli item view --item-title "$item_name" --field note >.env
+      ;;
+    op)
+      command -v op >/dev/null 2>&1 || { echo "1Password CLI (op) is not installed"; return 1; }
+      command -v jq >/dev/null 2>&1 || { echo "jq is required for 1Password item extraction"; return 1; }
+      echo "Fetching '$item_name' from 1Password..."
+      op_item=$(op item get "$item_name" --fields notesPlain --reveal --format json) || return 1
+      printf '%s\n' "$op_item" | jq -er '.fields[] | select(.id == "notesPlain" or .label == "notes") | .value' >.env || return 1
+      ;;
+  esac
 
   if [ $? -eq 0 ]; then
     echo ".env file created successfully"
   else
-    echo "Failed to fetch from Bitwarden. Make sure you're logged in (bw login) and unlocked (bw unlock)"
+    echo "Failed to fetch '$item_name' from $secret_cli"
     return 1
   fi
 }
