@@ -9,16 +9,23 @@
 # Two paths, same voice:
 #   1. the resident daemon (bin/kokoro-serve behind kokoro-tts.service): one Unix-socket
 #      connection per sentence, float32 PCM back. A call costs the speech (~0.2 s for a
-#      sentence) instead of the 7-9 s torch import + model load. The model can be
-#      unloaded from `los` (the kokoro row, los-drain, los-tts unload); the next sentence
-#      just reloads it.
-#   2. in-process, when the socket is absent (macOS, daemon down): what `say` always was.
+#      sentence) instead of the 7-9 s torch import + model load.
+#   2. in-process, only with KOKORO_ALLOW_LOAD=1 (a machine without the daemon, or a
+#      deliberate one-off): what `say` always was.
+#
+# It never loads the model on its own. Kokoro shares this box's one budget (RAM) with the
+# llama.cpp router, and a load is ~1 GiB plus a few seconds of every core -- too expensive
+# for a nicety asked for mid-turn. So `say` speaks only against a model that is ALREADY
+# loaded (asked the daemon: loaded true), and says so and exits 3 otherwise. Load it with
+# `los-tts load` (or the `kokoro` row in `los`); `los-tts speak` and KOKORO_ALLOW_LOAD=1
+# are the explicit opt-ins that may still load it.
 
 set -euo pipefail
 
 KOKORO_PYTHON="${KOKORO_PYTHON:-$HOME/.local/share/kokoro-tts/bin/python}"
 VOICE="${KOKORO_VOICE:-af_heart}"
 KOKORO_SOCKET="${KOKORO_SOCKET:-${XDG_RUNTIME_DIR:-/tmp}/kokoro-tts.sock}"
+KOKORO_ALLOW_LOAD="${KOKORO_ALLOW_LOAD:-0}"
 
 if ! command -v pw-play >/dev/null 2>&1; then
   echo "say: pw-play is required to play speech (PipeWire on Linux)" >&2
@@ -32,6 +39,32 @@ export KOKORO_VOICE="$VOICE"
 # The model was downloaded during setup; keep normal speech fully local and quiet.
 export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
 
+# ---- the gate: is the model resident? ----------------------------------------------
+# loaded | unloaded | none ("none": no daemon to ask -- macOS, or the unit is down).
+_kokoro_state() {
+  [[ -S "$KOKORO_SOCKET" ]] || { echo none; return 0; }
+  KOKORO_SOCKET="$KOKORO_SOCKET" python3 -c 'import json,os,socket,sys
+s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM); s.settimeout(5)
+try: s.connect(os.environ["KOKORO_SOCKET"])
+except OSError: print("none"); sys.exit(0)
+s.sendall((json.dumps({"op":"status"})+"\n").encode()); s.shutdown(socket.SHUT_WR)
+out=b""
+while (c:=s.recv(4096)): out+=c
+try: d=json.loads(out.decode())
+except ValueError: print("none"); sys.exit(0)
+print("loaded" if d.get("loaded") else "unloaded")' 2>/dev/null || echo none
+}
+
+KOKORO_STATE="$(_kokoro_state)"
+if [[ "$KOKORO_ALLOW_LOAD" != 1 && "$KOKORO_STATE" != loaded ]]; then
+  {
+    echo "say: kokoro is not loaded ($KOKORO_STATE), so nothing was spoken -- say does not load it." >&2
+    echo "  make it talk:  los-tts load        (or the 'kokoro' row in the los menu)" >&2
+    echo "  one-off load:  KOKORO_ALLOW_LOAD=1 say TEXT" >&2
+  }
+  exit 3
+fi
+
 # ---- 1. daemon ------------------------------------------------------------------
 # The client is a variable, not a `python3 -` heredoc: `-` reads the program from stdin,
 # which is where the text to speak arrives in pipe mode.
@@ -41,12 +74,21 @@ import json, os, socket, sys
 sock_path = os.environ["KOKORO_SOCKET"]
 voice = os.environ["KOKORO_VOICE"]
 
+allow_load = os.environ.get("KOKORO_ALLOW_LOAD", "0") == "1"
+
 def speak(text):
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     s.connect(sock_path)
-    s.sendall((json.dumps({"op": "speak", "text": text, "voice": voice}) + "\n").encode())
+    s.sendall((json.dumps({"op": "speak", "text": text, "voice": voice, "allow_load": allow_load}) + "\n").encode())
     s.shutdown(socket.SHUT_WR)
+    first = True
     while chunk := s.recv(1 << 16):
+        # A refused request answers with one JSON line instead of PCM -- a reply, not audio.
+        if first and chunk.startswith(b'{"ok": false'):
+            print("say: %s" % json.loads(chunk.decode().strip()).get("error"), file=sys.stderr)
+            s.close()
+            sys.exit(3)
+        first = False
         sys.stdout.buffer.write(chunk)
         sys.stdout.buffer.flush()
     s.close()
@@ -65,10 +107,18 @@ else:
     if not received_text:
         print("Usage: say TEXT  or  printf \"TEXT\" | say", file=sys.stderr); sys.exit(2)
 CLIENT
+# allow_load:false in the request: the daemon must not load the model between our status
+# probe and this speak either (it answers a JSON line instead of PCM, which the client
+# turns into its own error).
 if [[ -S "$KOKORO_SOCKET" ]] && command -v python3 >/dev/null 2>&1; then
-  KOKORO_SOCKET="$KOKORO_SOCKET" python3 -c "$KOKORO_CLIENT" | pw-play --raw --rate 24000 --channels 1 --format f32 - && exit 0
+  KOKORO_SOCKET="$KOKORO_SOCKET" KOKORO_ALLOW_LOAD="$KOKORO_ALLOW_LOAD" python3 -c "$KOKORO_CLIENT" \
+    | pw-play --raw --rate 24000 --channels 1 --format f32 - && exit 0
   # 2 is the client's own usage error (nothing to say): not a daemon failure, do not retry.
   [[ "${PIPESTATUS[0]}" == 2 ]] && exit 1
+  [[ "$KOKORO_ALLOW_LOAD" == 1 ]] || {
+    echo "say: the daemon at $KOKORO_SOCKET failed, and the in-process fallback would load the model; giving up" >&2
+    exit 1
+  }
   echo "say: daemon at $KOKORO_SOCKET failed; falling back to in-process Kokoro" >&2
 fi
 

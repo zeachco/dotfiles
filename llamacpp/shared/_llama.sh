@@ -325,7 +325,9 @@ PY
 # Not a router model, but it holds ~1 GiB of RAM while loaded, and RAM is the one budget
 # on the unified-memory box -- so it is driven from the same verbs: the `los` menu shows
 # it as a row, los-drain unloads it with everything else, and this talks to it directly.
-# Unloading keeps the daemon up; the next `say` reloads the model (~8 s, once).
+# Unloading keeps the daemon up and makes `say` fall SILENT: `say` speaks only against a
+# model that is already loaded and never loads it itself (it asks this status first, and
+# sends allow_load:false). So `load` here is what brings speech back.
 #   los-tts            status (loaded / busy / rss / idle)
 #   los-tts load       make it resident now, so the next say is instant
 #   los-tts unload     release the weights (refused while a sentence is being spoken)
@@ -358,10 +360,12 @@ if d["busy"]: st="busy (%d speaking)" % d["busy"]
 print("kokoro  %-9s rss %d MiB  idle %ds  loads %d  spoken %.0fs%s" % (st, d["rss_mb"], d["idle_s"], d["loads"], d["spoken_s"],
       "  (idle-unload %ds)" % d["idle_unload_s"] if d["idle_unload_s"] else ""))' "$op" ;;
     speak)
+      # An explicit "speak now" from a human: allow the load `say` refuses to trigger.
       shift; [[ $# -gt 0 ]] || { echo "los-tts speak TEXT" >&2; return 1; }
-      KOKORO_SOCKET="$(_los_tts_socket)" "${DOT_DIR:-$HOME/dotfiles}/bin/say" "$@" ;;
+      KOKORO_SOCKET="$(_los_tts_socket)" KOKORO_ALLOW_LOAD=1 "${DOT_DIR:-$HOME/dotfiles}/bin/say" "$@" ;;
     -h|--help|*)
       echo "los-tts [status|load|unload|speak TEXT]   the resident Kokoro TTS (kokoro-tts.service)"
+      echo "                                    (unloaded = silent: plain 'say' will not load it)"
       [[ "$op" == -h || "$op" == --help ]] ;;
   esac
 }

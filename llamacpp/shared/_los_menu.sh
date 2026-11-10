@@ -283,8 +283,9 @@ emit("%sdrain idle%s        %sunload what nobody is generating on%s" % (BOLD, OF
      "  cached context, so check before draining a model someone is parked on.\n\n"
      "  Nothing comes back on its own: the router runs --no-models-autoload, so what\n"
      "  you drain stays down until 'load'.\n\n"
-     "  The Kokoro TTS model (the 'kokoro' row) is drained too when it is not speaking;\n"
-     "  unlike the router models it DOES come back on its own, on the next `say`.\n"
+     "  The Kokoro TTS model (the 'kokoro' row) is drained too when it is not speaking.\n"
+     "  It does NOT come back on its own either: `say` speaks only against a loaded model\n"
+     "  and never loads it, so draining it silences the agent until you 'load' it again.\n"
      % (idle_n, len(loaded), gib(held)))
 
 emit("%sload%s              %spick from the models that are not resident%s" % (BOLD, OFF, DIM, OFF),
@@ -465,7 +466,8 @@ if tts is not None:
     p.append("")
     p.append("  %sWhy it is here: `say` keeps this process resident so a sentence costs ~0.2 s%s" % (DIM, OFF))
     p.append("  %sinstead of a 7-9 s model load. Unloading frees ~700 MiB and keeps the daemon up;%s" % (DIM, OFF))
-    p.append("  %sthe next `say` reloads it (once, ~8 s). Same thing as `los-tts load|unload`.%s" % (DIM, OFF))
+    p.append("  %sit also makes `say` silent: it speaks only while the model is loaded and never%s" % (DIM, OFF))
+    p.append("  %sloads it itself, so load it back here (or `los-tts load`) to have speech.%s" % (DIM, OFF))
     if tts.get("busy"):
         p.append("")
         p.append("  %sIN USE -- unload is refused until the sentence ends%s" % (YEL, OFF))

@@ -24,6 +24,9 @@ set -uo pipefail
 SELF_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 LISTEN_BIN="$SELF_DIR/listen"
 SAY_BIN="$SELF_DIR/say"
+# VOICE_ASK_SAY=1 means the answer is expected out loud, so this path may pay the one-time
+# Kokoro load. (`say` on its own -- and pi's say tool -- never loads the model.)
+export KOKORO_ALLOW_LOAD=1
 VOICE_DIR="$HOME/.hermes/voice"
 LOG="$VOICE_DIR/voice-log.md"
 BEEP="$VOICE_DIR/beep.wav"

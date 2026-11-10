@@ -3,7 +3,10 @@
 # Resident Kokoro TTS behind $XDG_RUNTIME_DIR/kokoro-tts.sock, so `say` costs the
 # speech and not the 7-9 s model load. ~1 GiB of RAM while the model is loaded; it
 # can be unloaded and reloaded without stopping this unit from `los` (the "kokoro"
-# row, or `los-drain` / `los-tts unload`), and `say` reloads it on the next sentence.
+# row, or `los-drain` / `los-tts unload`). Unloading makes `say` silent until you load it
+# again: `say` speaks only against a loaded model and never loads it (KOKORO_ALLOW_LOAD=1
+# or `los-tts speak` are the opt-ins that may). With KOKORO_PRELOAD=1 below it comes up
+# loaded, so speech is armed from boot; set 0 for a box that stays mute until asked.
 #
 # KOKORO_IDLE_SECONDS=0: nothing unloads on its own, same contract as the router's
 # explicit loads. Set it (systemctl --user edit kokoro-tts.service) for a sleep timer.

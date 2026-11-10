@@ -26,6 +26,10 @@ SELF_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 LISTEN_BIN="$SELF_DIR/listen"
 SAY_BIN="$SELF_DIR/say"
 
+# You started a conversation out loud: speaking back is the point, so this session may pay
+# the one-time Kokoro load. (`say` on its own -- and pi's say tool -- never loads the model.)
+export KOKORO_ALLOW_LOAD=1
+
 CONVERSE_TIMEOUT="${CONVERSE_TIMEOUT:-60}"
 CONVERSE_STYLE="${CONVERSE_STYLE:-Voice mode: your reply is read aloud. Answer in at most two short spoken sentences of plain prose. No markdown, no code blocks, no file paths, no lists. Do the work first, then say what you did.}"
 

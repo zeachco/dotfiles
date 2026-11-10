@@ -13,13 +13,19 @@ Run by bin/kokoro-tts.service with the venv's interpreter:
     ~/.local/share/kokoro-tts/bin/python ~/dotfiles/bin/kokoro-serve
 
 Protocol (one request per connection; the client sends ONE JSON line):
-    {"op":"speak","text":"...","voice":"af_heart"}  -> raw float32 mono 24 kHz PCM,
-                                                       streamed, then EOF
+    {"op":"speak","text":"...","voice":"af_heart","allow_load":true}
+                                        -> raw float32 mono 24 kHz PCM, streamed, then EOF.
+                                           allow_load:false instead answers {"ok":false,...}
+                                           when the model is not resident: the caller asked
+                                           to speak only if Kokoro was ALREADY loaded, and
+                                           this daemon must not load it for them.
     {"op":"status"}  -> JSON line: loaded, busy (speaks in flight), rss_mb, idle_s, ...
     {"op":"load"}    -> JSON line after the model is resident
     {"op":"unload"}  -> JSON line after the weights are released (refused while busy)
-A speak against an unloaded model loads it first: the daemon never refuses to talk,
-unload just makes the next sentence slow once.
+A speak against an unloaded model loads it first (allow_load defaults to true), so an
+explicit `los-tts speak` always talks; unload just makes its first sentence slow. `bin/say`
+sends allow_load:false, so the everyday path never pays that load: unloaded means silent,
+and the model comes back only when you ask (los-tts load, the kokoro row in `los`).
 
 Env:
     KOKORO_SOCKET         socket path (default $XDG_RUNTIME_DIR/kokoro-tts.sock)
@@ -112,11 +118,17 @@ class Engine:
             log("kokoro: unloaded (rss %d MiB)" % rss_mb())
             return True
 
-    def speak(self, text, voice, out):
+    def speak(self, text, voice, out, allow_load=True):
+        """Stream PCM into `out`. Returns None on success, or the reason it refused.
+        Refusal happens only for allow_load:false against an unloaded model -- see the
+        protocol note above: that caller explicitly does not want the ~1 GiB load."""
         with self.state:
             self.busy += 1
         try:
             with self.lock:
+                if self.pipeline is None and not allow_load:
+                    return ("kokoro is not loaded, and this request may not load it"
+                            " -- los-tts load")
                 self._load_locked()
                 import numpy as np
                 n = 0
@@ -130,6 +142,7 @@ class Engine:
             with self.state:
                 self.busy -= 1
                 self.last_used = time.time()
+        return None
 
     def status(self):
         with self.state:
@@ -181,7 +194,11 @@ def handle(conn):
             text = (req.get("text") or "").strip()
             if not text:
                 return
-            engine.speak(text, req.get("voice") or DEFAULT_VOICE, conn)
+            # Absent key = allowed: the protocol's own default, matching the old behaviour.
+            allow = req.get("allow_load", True) is not False
+            why = engine.speak(text, req.get("voice") or DEFAULT_VOICE, conn, allow)
+            if why:
+                reply(conn, {"ok": False, "error": why})
         else:
             reply(conn, {"ok": False, "error": "unknown op %r" % op})
     except (BrokenPipeError, ConnectionResetError):
