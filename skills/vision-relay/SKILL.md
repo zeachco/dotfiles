@@ -5,8 +5,8 @@ description: >
   cannot see images (check $PI_MODEL against the input capabilities in
   ~/.pi/agent/models.json; the current default model may be text-only) and
   the user pasted an image, attached one, or asks about a screenshot/image
-  the model cannot view. Spawns the planner subagent (Claude Sonnet 5.5
-  via OpenRouter, vision-capable) that reads the image and returns a
+  the model cannot view. Spawns the planner subagent (GPT-5.6 Luna
+  via OpenAI Codex, vision-capable) that reads the image and returns a
   structured description. Do NOT use when $PI_MODEL is a vision-capable
   model (any model with "image" in its input list in ~/.pi/agent/models.json)
   — just use the read tool directly then.
@@ -18,7 +18,7 @@ The active model here may be text-only (check $PI_MODEL against the input
 capabilities in `~/.pi/agent/models.json`). When text-only, it receives
 pasted images as a placeholder (typically "Read image file [image/png]")
 with **no file path and no pixels**. This skill gets the image to a vision
-model (the `planner` subagent, Claude Sonnet 5.5 via OpenRouter) and brings
+model (the `planner` subagent, GPT-5.6 Luna via OpenAI Codex) and brings
 the description back.
 
 ## When to use
@@ -32,8 +32,7 @@ the description back.
 2. Never route this to a local model: the router's `gemma-4-*`
    vision models are kept out of pi's catalog (`llamacpp-sync`, `PI_HIDDEN`),
    and they are cold and small-context (8k-32k per slot) anyway. The `planner` agent targets
-   Claude Sonnet 5.5 via OpenRouter (`openrouter/anthropic/claude-sonnet-5.5`),
-   which reads images natively.
+   GPT-5.6 Luna via OpenAI Codex (`openai-codex/gpt-5.6-luna`), which reads images natively.
 
 ## Step 1 — locate the image bytes
 
@@ -101,8 +100,8 @@ user's most recent paste (or a `read` tool result of a path the user gave).
 
 The subagent is a fresh process that has NOT seen this conversation. Its
 task must be self-contained: exact absolute path, the user's intent
-verbatim, and the output contract. Use the `planner` agent (Claude Sonnet 5.5
-via OpenRouter):
+verbatim, and the output contract. Use the `planner` agent (GPT-5.6 Luna
+via OpenAI Codex):
 
 ```
 agent: planner
