@@ -80,7 +80,7 @@ herdr_branch_repo() {
   # worktree add` (or checks out the existing one) and opens a fresh
   # workspace/tab/pane for it in a single call, so there is no more tab or
   # pane juggling to do by hand here.
-  local result
+  local result new_worktree=0
   if [ "$branch_name" = "main" ] || [ "$branch_name" = "master" ]; then
     # For main/master, just open the repo root directly
     result=$(herdr workspace create --cwd "$repo_root" --label "$tab_name" --focus)
@@ -103,11 +103,18 @@ herdr_branch_repo() {
       fi
     fi
     echo "Creating worktree for $branch_name..."
+    new_worktree=1
     result=$(herdr worktree create --cwd "$repo_root" --branch "$branch_name" --path "$worktree_path" --label "$tab_name" --focus)
   fi
   if [ $? -ne 0 ]; then
     echo "Error: Failed to open the worktree in Herdr"
     return 1
+  fi
+  if [ "$new_worktree" -eq 1 ] && [ -f "$repo_root/.env" ]; then
+    if ! cp "$repo_root/.env" "$worktree_path/.env"; then
+      echo "Error: Failed to copy $repo_root/.env to $worktree_path/.env"
+      return 1
+    fi
   fi
 
   local target_path tab_id workspace_id root_pane already_open
