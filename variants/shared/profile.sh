@@ -442,7 +442,7 @@ ai() {
 # its (slow) setup: with several panes on the same worktree only one of them
 # should install anything. `wt` gives every workspace a throwaway `setup...`
 # tab that runs `DEVBOX_SETUP=1 devbox run` once, so the setup still happens —
-# the four shells it opens all enter with 0. Override by hand the same way:
+# the shells it opens all enter with 0. Override by hand the same way:
 # `DEVBOX_SETUP=1 ds`.
 ds() {
   local setup="${DEVBOX_SETUP:-0}"

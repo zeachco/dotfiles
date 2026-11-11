@@ -11,8 +11,8 @@ _wt_new_tab() {
     jq -r '[(.result.tab.tab_id // ""), (.result.root_pane.pane_id // "")] | @tsv' 2>/dev/null
 }
 
-# Open a Herdr workspace on a branch's worktree, with a tab per job: edit,
-# cmd and a throwaway setup tab (see the layout comment further down).
+# Open a Herdr workspace on a branch's worktree, with a tab per job: edit
+# and a throwaway setup tab (see the layout comment further down).
 # Usage: herdr_branch_repo <branch|PR url|JIRA url> [label] [--pr=N]
 # --pr=N labels the space "#N: <branch>" from the start and hands the number to
 # tab_autoname, so the space is identifiable before the async rename lands.
@@ -141,30 +141,38 @@ herdr_branch_repo() {
     return 2
   fi
 
-  # Three tabs on the worktree, one workspace. The sidebar row is drawn from the
+  # Two tabs on the worktree, one workspace. The sidebar row is drawn from the
   # *workspace* label, so that one keeps the branch/PR name and the tabs are
   # named after what you do in them instead:
   #
   #   edit     devbox shell that opens the editor on `e .` once it is ready
-  #   cmd      devbox shell, empty
   #   setup…   names the space, runs the repo's devbox setup, names it again
   #            now that a PR/commits may exist, then closes itself
   #
-  # Only the setup tab runs the repo's init hook (DEVBOX_SETUP=1). Every other
-  # shell enters with 0, so the three panes don't each install the same
-  # dependencies on top of one another.
+  # Only the setup tab runs the repo's init hook (DEVBOX_SETUP=1). The edit
+  # shell enters with 0, so the two don't install dependencies on top of one
+  # another.
   herdr tab rename "$tab_id" "edit" >/dev/null 2>&1
   # The devbox shell runs `e .` itself, on its first prompt (DOTFILES_INIT_CMD,
   # see profile.sh). Typing it into the pane instead raced the shell's and
   # devbox's startup and was regularly swallowed; appending it here with &&
   # would run it in the *outer* shell, after the devbox shell is exited.
   #
-  # The edit and cmd shells start a second late, and only once the setup tab is
-  # already running: on a fresh worktree all three would otherwise race to
-  # create the .devbox folder at the same moment. The setup tab's `devbox run`
-  # gets a head start so the folder exists by the time the two `ds` enter it.
-  local edit_cmd="sleep 1; cd \"$target_path\" && DOTFILES_INIT_CMD='e .' DEVBOX_SETUP=0 ds"
-  local cmd_cmd="sleep 1; cd \"$target_path\" && DEVBOX_SETUP=0 ds"
+  # With a devbox.json the two tabs run one after the other, not staggered by a
+  # timer: the edit shell touches a marker file right before `e .`, i.e. once
+  # devbox has started and created .devbox, and the setup tab waits for that
+  # marker before it starts. Without devbox nothing is shared, so both start at
+  # once.
+  #
+  # The waiting belongs in the *pane* command, not in this function: `herdr pane
+  # run` is async and returns at once, so a wait here would stall the caller
+  # without delaying what actually launches.
+  local marker="" init_cmd="e ."
+  if [ -f "$target_path/devbox.json" ]; then
+    marker=$(mktemp -u "${TMPDIR:-/tmp}/wt-edit-ready.XXXXXX")
+    init_cmd="touch \"$marker\"; e ."
+  fi
+  local edit_cmd="cd \"$target_path\" && DOTFILES_INIT_CMD='$init_cmd' DEVBOX_SETUP=0 ds"
 
   if [ -z "$workspace_id" ]; then
     herdr pane run "$root_pane" "$edit_cmd"
@@ -172,11 +180,6 @@ herdr_branch_repo() {
     echo "Space '$tab_name' ready at $target_path"
     return 0
   fi
-
-  # Tabs are created in display order (edit, cmd, setup...) but their commands
-  # run setup-first — see above.
-  local cmd_pane
-  cmd_pane=$(_wt_new_tab "$workspace_id" "$target_path" "cmd" | cut -f2)
 
   local setup_out setup_tab setup_pane setup_cmd autoname_cmd=""
   setup_out=$(_wt_new_tab "$workspace_id" "$target_path" "setup...")
@@ -194,6 +197,8 @@ herdr_branch_repo() {
     fi
     setup_cmd="cd \"$target_path\""
     [ -n "$autoname_cmd" ] && setup_cmd="$setup_cmd; $autoname_cmd"
+    # give the edit shell up to a minute to come up before touching devbox
+    [ -n "$marker" ] && setup_cmd="$setup_cmd; for _ in \$(seq 1 120); do [ -e \"$marker\" ] && break; sleep 0.5; done; rm -f \"$marker\""
     # `ds` can't be used here: it opens an interactive shell that never hands
     # control back, so nothing after it would ever run and this tab would never
     # close. `devbox run` runs the very same init hook and returns.
@@ -205,9 +210,8 @@ herdr_branch_repo() {
   fi
 
   herdr pane run "$root_pane" "$edit_cmd"
-  [ -n "$cmd_pane" ] && herdr pane run "$cmd_pane" "$cmd_cmd"
 
-  echo "Space '$tab_name' ready at $target_path (tabs: edit, cmd, setup...)"
+  echo "Space '$tab_name' ready at $target_path (tabs: edit, setup...)"
 }
 _set wt "herdr_branch_repo"
 
@@ -294,7 +298,7 @@ all_my_prs() {
   fi
 
   # dedup on the *workspace* labels: wt's tabs are named after their job
-  # (edit/cmd), the space is what carries the PR/branch name
+  # (edit/setup), the space is what carries the PR/branch name
   local open_spaces
   open_spaces=$(herdr workspace list 2>/dev/null | jq -r '.result.workspaces[].label')
 
