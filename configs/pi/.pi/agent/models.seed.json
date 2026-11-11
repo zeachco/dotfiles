@@ -164,6 +164,170 @@
         }
       ]
     },
+    "llamacpp-remote": {
+      "api": "openai-completions",
+      "apiKey": "llamacpp",
+      "baseUrl": "http://oli-llms.local:7070/v1",
+      "models": [
+        {
+          "id": "Ministral-3-3B-Instruct-2512-Q4_K_M",
+          "name": "Ministral-3-3B-Instruct-2512-Q4_K_M",
+          "contextWindow": 16384,
+          "maxTokens": 16384,
+          "input": [
+            "text"
+          ],
+          "reasoning": true,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "Qwen3-4B-Q4_K_M",
+          "name": "Qwen3-4B-Q4_K_M",
+          "contextWindow": 16384,
+          "maxTokens": 16384,
+          "input": [
+            "text"
+          ],
+          "reasoning": true,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "qwen2.5-coder-0.5b-instruct-q4_k_m",
+          "name": "qwen2.5-coder-0.5b-instruct-q4_k_m",
+          "contextWindow": 16384,
+          "maxTokens": 16384,
+          "input": [
+            "text"
+          ],
+          "reasoning": false,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "qwen3.8",
+          "name": "Qwen3.8 27B (light tier)",
+          "contextWindow": 262144,
+          "maxTokens": 32768,
+          "input": [
+            "text",
+            "image"
+          ],
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "xhigh",
+            "xhigh": "xhigh",
+            "max": "xhigh"
+          },
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "DeepSeek-V4-Flash-chat-v2",
+          "name": "DeepSeek-V4-Flash-chat-v2",
+          "contextWindow": 32768,
+          "maxTokens": 16384,
+          "input": [
+            "text"
+          ],
+          "reasoning": true,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "gpt-oss-120b-MXFP4",
+          "name": "gpt-oss-120b MXFP4 + EAGLE3 (heavy tier -- los-drain first)",
+          "contextWindow": 131072,
+          "maxTokens": 16384,
+          "input": [
+            "text"
+          ],
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": "low",
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": null
+          },
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "Qwen3.8-Flash-Next",
+          "name": "Qwen3.8-Flash-Next (heavy tier -- los-drain first)",
+          "contextWindow": 131072,
+          "maxTokens": 16384,
+          "input": [
+            "text"
+          ],
+          "reasoning": true,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "id": "GLM-5.3-Flash",
+          "name": "GLM-5.3-Flash (heavy tier -- los-drain first)",
+          "contextWindow": 65536,
+          "maxTokens": 16384,
+          "input": [
+            "text",
+            "image"
+          ],
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "off": "none",
+            "minimal": "none",
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": null
+          },
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        }
+      ]
+    },
     "openrouter": {
       "api": "openai-completions",
       "apiKey": "$OPENROUTER_API_KEY",

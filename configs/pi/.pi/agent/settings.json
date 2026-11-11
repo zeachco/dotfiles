@@ -17,6 +17,7 @@
     "llamacpp/gpt-oss-120b-MXFP4",
     "llamacpp/GLM-5.3-Flash",
     "llamacpp/DeepSeek-V4-Flash-chat-v2",
+    "llamacpp-remote/*",
     "openrouter/*"
   ],
   "packages": [

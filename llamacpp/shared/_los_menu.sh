@@ -650,6 +650,9 @@ except Exception: print(-1)' 2>/dev/null)
 # (oli-llms.local), which from here resolves to a different machine or, as on the mac, to
 # nothing -- so pi would sync from, and then talk to, a router that is not the one running.
 #
+# `llamacpp-remote` is exempt: on the mac it is the remote box on purpose (see
+# configs/pi llamacpp-discover.ts).
+#
 # Pi has no hook that can reach the endpoint (before_provider_request carries only the
 # payload), so the URL has to be in models.json, and this is what puts it there. opencode is
 # left alone: its config is only stowed on the router box, where the name resolves to the box
@@ -667,7 +670,8 @@ _los_menu_localize_pi() {
   tmp=$(mktemp "${real}.los.XXXXXX") || return 0
 
   if jq '.providers |= with_entries(
-           if (.key | startswith("llamacpp")) and (.value.baseUrl? // "" | test("^https?://"))
+           if (.key | startswith("llamacpp")) and .key != "llamacpp-remote"
+              and (.value.baseUrl? // "" | test("^https?://"))
            then .value.baseUrl |= sub("^(?<s>https?://)[^:/]+"; "\(.s)127.0.0.1")
            else . end)' "$real" >"$tmp" && [[ -s "$tmp" ]]; then
     # stat is not portable; try BSD then GNU, and just keep the default on neither.

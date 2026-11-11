@@ -21,3 +21,4 @@ Rules of thumb:
 - The small local models stay on disk and can be selected by hand, but nothing routes to them automatically: they are 16k-context and cold.
 
 Workflows: `/implement <task>` (scout → planner → worker), `/build <task>` (worker only), `/review [what]`, `/game-dev [project description]` (new browser game per ~/DEV_STYLE.md; asks for a project description and waits if none is given). Manual switch: `/preset think` (alias `/preset plan`), `/preset build`, `/preset completion`, `/preset code`.
+- On the mac, `llamacpp-remote/*` is the Strix Halo box (`oli-llms.local:7070`) over the LAN; `/model` loads there the same way, `los` targets it with `LOS_URL=http://oli-llms.local:7070`.

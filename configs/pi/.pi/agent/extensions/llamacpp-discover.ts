@@ -44,10 +44,17 @@ import { basename, dirname, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
-// One router since 2026-11-06 (the `llamacpp-heavy` provider on :7072 is gone: every
-// model, big or small, is served on :7070 and loaded only on request). Still a list so
-// a second router can be added without touching the code.
-const ROUTERS = [{ provider: "llamacpp", baseUrl: "http://127.0.0.1:7070/v1" }];
+// One router per box since 2026-11-06 (the `llamacpp-heavy` provider on :7072 is gone:
+// every model, big or small, is served on :7070 and loaded only on request).
+//
+// The mac also gets `llamacpp-remote`: the Strix Halo box's router over the LAN, which
+// serves the big models the mac cannot hold. Only on macOS -- on the box itself that
+// name resolves to the local router and would list every model twice. The provider is
+// seeded in models.json on every platform (one seed), so elsewhere it is registered
+// empty to keep it out of /model.
+const LOCAL_ROUTER = { provider: "llamacpp", baseUrl: "http://127.0.0.1:7070/v1" };
+const REMOTE_ROUTER = { provider: "llamacpp-remote", baseUrl: "http://oli-llms.local:7070/v1" };
+const ROUTERS = process.platform === "darwin" ? [LOCAL_ROUTER, REMOTE_ROUTER] : [LOCAL_ROUTER];
 /** The router's own endpoints (POST /models/load, …) live beside /v1, not under it. */
 const routerRoot = (baseUrl: string) => baseUrl.replace(/\/v1\/?$/, "");
 const DEFAULT_ROUTER = ROUTERS[0].baseUrl;
@@ -326,6 +333,7 @@ export default function (pi: ExtensionAPI) {
 
 	// Instant: the static list, so startup never waits on the router.
 	for (const { provider, baseUrl, fallback } of routers) register(provider, baseUrl, fallback);
+	if (!routers.some((r) => r.provider === REMOTE_ROUTER.provider)) register(REMOTE_ROUTER.provider, REMOTE_ROUTER.baseUrl, []);
 
 	const refresh = () => Promise.all(routers.map((r) => refreshRouter(r, register)));
 
