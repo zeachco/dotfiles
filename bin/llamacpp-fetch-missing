@@ -9,22 +9,52 @@
 #             partial files, verifies digests and asks the router to rescan.
 # Between the two, the plan is printed and the run waits for a `y`. Decline, no answer
 # within LOS_FETCH_TIMEOUT (default 300 s) or no terminal at all = nothing fetched,
-# exit 0 -- so the Herdr `models` job (bin/dotfiles-job) can leave this unattended
-# and still close its workspace. LOS_FETCH_YES=1 skips the prompt (non-interactive
-# installs). The big models keep their own opt-in, LOS_FETCH_HEAVY=1.
+# exit 0 -- so an unattended run can leave this alone and still close its workspace.
+# LOS_FETCH_YES=1 skips the prompt (non-interactive installs). The big models keep their
+# own opt-in, LOS_FETCH_HEAVY=1.
 #
 # FIRST INSTALL (2026-11-06): when the served directory holds no model at all -- a box
 # where llama.cpp was just set up, or ~/models wiped -- and fzf plus a terminal are
 # there, the plan is made with the big models included and shown as an fzf
 # multi-selection, one row per model with its size. Only what is picked is fetched
-# (LOS_FETCH_SELECT, see _fetch-lib.sh). This runs as the LAST step of setup, after the
-# router is installed, so the choice is made once and by hand rather than by a script
-# starting a 250 GB download. Nothing picked = nothing fetched, exit 0; the next
-# dotfiles_update offers the same picker again as long as the directory is empty.
+# (LOS_FETCH_SELECT, see _fetch-lib.sh). The choice is made once and by hand rather than
+# by a script starting a 250 GB download. Nothing picked = nothing fetched, exit 0; the
+# next dotfiles_update offers the same picker again as long as the directory is empty.
+#
+# MODES.  Default: plan, print, ask, fetch.  --ask: plan, print, ask on THIS terminal and
+# then stop -- nothing is downloaded. It exists for the Herdr fan-out (utils.sh
+# herdr_fan_out), which runs each long step in its own workspace: a prompt inside an
+# unfocused (--no-focus) workspace is a question nobody sees, so both prompts -- the [y/N]
+# and the picker -- have to happen in the pane the operator is watching, and only the
+# download moves to a workspace, launched with LOS_FETCH_YES=1. --select-out <file> copies
+# the picker's rows there so a --ask pick survives into that fetch run (--ask + the picker
+# requires it).
+#
+# Exit codes: 0 = fetched (default mode) or "go ahead" (--ask: picked/confirmed, or
+# nothing to download); 10 = declined, unanswered or no terminal (--ask only -- a plain
+# run still exits 0 when it declines, because a declined models job is not a failed
+# update); 2 = bad usage; 1 = the plan pass failed; otherwise the recipe's code.
 #
 # Runs with literal bash on purpose (see llamacpp/README.md) and stays bash 3.2 clean:
 # the Mac runs it too.
 set -uo pipefail
+
+ask_only=0
+select_out=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --ask) ask_only=1 ;;
+    --select-out) select_out="${2:-}"; shift ;;
+    -h | --help)
+      echo "usage: llamacpp-fetch-missing [--ask] [--select-out <file>]"
+      echo "  --ask           print the plan and ask, download nothing (0 = go ahead, 10 = no)"
+      echo "  --select-out F  write the first-install picker's rows to F for the fetch run"
+      echo "  env: LOS_FETCH_YES=1 skips the prompt, LOS_FETCH_TIMEOUT=<s> changes its deadline"
+      exit 0 ;;
+    *) echo "llamacpp-fetch-missing: unknown argument: $1 (--help for usage)"; exit 2 ;;
+  esac
+  shift
+done
 
 DOT_DIR="$HOME/dotfiles"
 . "$DOT_DIR/llamacpp/shared/_hw-gate.sh"
@@ -52,13 +82,21 @@ if [ -z "$(find "$served" -name '*.gguf' -print 2>/dev/null | head -1)" ]; then
 fi
 
 echo "==> checking ~/models against $recipe"
+plan_rc=0
 if [ "$first_install" = 1 ]; then
-  LOS_FETCH_PLAN="$plan" LOS_FETCH_HEAVY=1 bash "$recipe" >/dev/null 2>&1
+  LOS_FETCH_PLAN="$plan" LOS_FETCH_HEAVY=1 bash "$recipe" >/dev/null 2>&1 || plan_rc=$?
 else
-  LOS_FETCH_PLAN="$plan" bash "$recipe" >/dev/null 2>&1
+  LOS_FETCH_PLAN="$plan" bash "$recipe" >/dev/null 2>&1 || plan_rc=$?
 fi
 
 if [ ! -s "$plan" ]; then
+  # An empty plan is only "nothing to download" when the recipe actually got that far.
+  # Swallowing its output here would otherwise report a dead network or a broken recipe
+  # as a perfectly up-to-date ~/models.
+  if [ "$plan_rc" != 0 ]; then
+    echo "Could not build the download list: $recipe exited $plan_rc (network, jq?). Run it by hand."
+    exit 1
+  fi
   echo "All models are on disk; nothing to download."
   exit 0
 fi
@@ -102,6 +140,19 @@ if [ "$first_install" = 1 ] && [ -t 0 ] && [ -t 1 ] && command -v fzf >/dev/null
   awk -F '\t' -v served="$served" -v home="$HOME" -v picked="$picked" "$PLAN_KEY_AWK"'
     BEGIN { n = split(picked, p, "\n"); for (i = 1; i <= n; i++) want[p[i]] = 1 }
     key($3, $2) in want { printf "%s\t%s\n", $1, $2 }' "$plan" >"$select_file"
+  if [ "$ask_only" = 1 ]; then
+    # The picker IS the confirmation. Hand the rows to the caller -- the temp file this
+    # script exits over would otherwise take the selection with it and the fetch run
+    # would download the whole plan.
+    if [ -z "$select_out" ]; then
+      echo "--ask with the picker needs --select-out <file> or the pick is lost. Nothing fetched."
+      exit 2
+    fi
+    cp "$select_file" "$select_out"
+    echo
+    echo "Picked. Nothing downloaded yet -- the fetch runs with this selection."
+    exit 0
+  fi
   echo
   echo "Downloading:"
   plan_groups | awk -F '\t' -v picked="$picked" '
@@ -131,15 +182,32 @@ done <"$plan"
 if [ "${LOS_FETCH_YES:-0}" != "1" ]; then
   if [ ! -t 0 ]; then
     echo "No terminal to confirm on; re-run with LOS_FETCH_YES=1 to download. Nothing fetched."
+    [ "$ask_only" = 1 ] && exit 10
     exit 0
   fi
+  # The question is printed here rather than passed to read -p: that prompt goes to
+  # stderr, and stderr is exactly the stream this script loses (a pane run by the Herdr
+  # server, a tee'd update log). Count and size come from the plan, so the question
+  # repeats what the table above just said instead of asking blind.
+  printf "Download models now? [y/N] (%s file(s), %s GiB, %ss to answer) " \
+    "$(wc -l <"$plan" | tr -d ' ')" \
+    "$(awk -F '\t' '{ t += $4 } END { printf "%.1f", t / 1073741824 }' "$plan")" \
+    "${LOS_FETCH_TIMEOUT:-300}"
   answer=""
-  read -r -t "${LOS_FETCH_TIMEOUT:-300}" -p "Download now? [y/N] " answer || answer=""
+  read -r -t "${LOS_FETCH_TIMEOUT:-300}" answer || answer=""
   echo
   case "$answer" in
   y | Y | yes | YES) ;;
-  *) echo "Nothing fetched. Re-run: bash $DOT_DIR/bin/llamacpp-fetch-missing"; exit 0 ;;
+  *)
+    echo "Nothing fetched. Re-run: bash $DOT_DIR/bin/llamacpp-fetch-missing"
+    [ "$ask_only" = 1 ] && exit 10
+    exit 0 ;;
   esac
+fi
+
+if [ "$ask_only" = 1 ]; then
+  echo "Confirmed. Nothing downloaded yet -- run without --ask (or LOS_FETCH_YES=1) to fetch."
+  exit 0
 fi
 
 # A first install that got here (no fzf, or LOS_FETCH_YES=1) fetches the plan it printed,

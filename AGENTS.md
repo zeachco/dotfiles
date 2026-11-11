@@ -32,12 +32,18 @@ management. This file keeps only the map and the gotchas.
 - **Inside Herdr, `setup.sh` fans out.** With `HERDR_ENV=1` and `herdr` on PATH, `setup.sh`
   only opens one Herdr workspace per long step (`sysupdate`, `llamacpp`, `models`, `profile`,
   via `bin/dotfiles-job`), waits for their rc files, closes the workspaces that passed and
-  leaves a failed one open. The `models` job (local-LLM boxes only) runs
-  `bin/llamacpp-fetch-missing`: it lists what the per-OS fetch recipe wants and is not on
-  disk, then waits for a `y` in its pane before downloading — so the whole update blocks on
-  that prompt until it is answered or times out (5 min = no). On a box with no model at all
-  (first install) that pane is an fzf multi-select of every model in the recipe instead, and
-  only the picks are fetched; esc = nothing, and it is offered again next time. `DOTFILES_SKIP_MODELS=1` drops
+  leaves a failed one open. The `models` job (local-LLM boxes only) is
+  `bin/llamacpp-fetch-missing`, and its prompt is **not** in that job's workspace:
+  `herdr_fan_out` asks `Download models now? [y/N]` in the main pane (`--ask`) and only opens
+  the workspace for a yes, launched with `LOS_FETCH_YES=1` written into the `herdr pane run`
+  command — a pane inherits the Herdr server's environment, so nothing exported by `setup.sh`
+  reaches it, and a `[y/N]` sitting in an unfocused workspace was simply never seen before it
+  timed out (5 min = no). No answer, a no, or a plan that needs nothing = no workspace at all
+  and a clean update. On a box with no model at all (first install) the ask is an fzf
+  multi-select of every model in the recipe instead, and only the picks are fetched — they
+  travel from `--select-out` into the job's `LOS_FETCH_SELECT`, so `--ask` + picker without
+  `--select-out` exits 2 rather than silently downloading the whole plan; esc = nothing,
+  offered again next time. `DOTFILES_SKIP_MODELS=1` drops
   the job. The profile job re-runs `setup.sh` with `DOTFILES_JOB` set plus
   `DOTFILES_SKIP_SYSUPDATE` / `DOTFILES_SKIP_LLAMACPP`, so a new long step must honour a
   skip flag of its own or it runs twice. `DOTFILES_PARALLEL=0` forces the serial path.

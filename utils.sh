@@ -459,12 +459,19 @@ function pacman_wait_lock {
 # ---- parallel update inside Herdr ----------------------------------------------------
 # When setup.sh runs in a Herdr pane, the long steps run side by side, one Herdr
 # workspace each (bin/dotfiles-job): the system update, the llama.cpp rebuild, the
-# model download (on the local-LLM boxes only; it asks [y/N] in its pane before
-# fetching anything, and only fetches what is missing) and the profile installation.
-# Each job writes <rc-dir>/<job>.rc when it exits; this
-# polls those files, prints a summary, closes the workspaces of the jobs that passed
-# and leaves a failed one open so its output can be read. Returns non-zero when any
-# job failed, and 1 immediately when a workspace disappears (closed by hand).
+# model download (local-LLM boxes only) and the profile installation. Each job writes
+# <rc-dir>/<job>.rc when it exits; this polls those files, prints a summary, closes the
+# workspaces of the jobs that passed and leaves a failed one open so its output can be read.
+# Returns non-zero when any job failed, and 1 immediately when a workspace disappears
+# (closed by hand).
+#
+# The model download is the one step that needs a human yes, and a question printed inside
+# an unfocused workspace is a question nobody sees -- it would just time out after
+# LOS_FETCH_TIMEOUT (5 min) and close, leaving "done models" as the only trace. So
+# herdr_fan_out asks about models itself, in the pane the operator is watching
+# (`bin/llamacpp-fetch-missing --ask`), and only launches the workspace when the answer is
+# yes, with LOS_FETCH_YES=1 in the command string (the pane's environment comes from the
+# Herdr server, so nothing exported here reaches it). Declined = no workspace at all.
 #
 # Opt out with DOTFILES_PARALLEL=0. Never recurses: the profile job runs setup.sh
 # with DOTFILES_JOB set, which herdr_fan_out_available refuses.
@@ -486,32 +493,61 @@ function herdr_models_job_wanted {
   )
 }
 
+# Open a workspace for one job and start bin/dotfiles-job in it. Records the ids in the
+# caller's ws_of/pane_of (dynamic scope: the arrays are declared in herdr_fan_out, which is
+# the only caller). $3 is an env prefix for the command -- the only way to hand a variable
+# to a pane, since the pane inherits the Herdr server's environment, not this shell's.
+function herdr_start_job {
+  local job="$1" rc_dir="$2" prefix="${3:-}" result ws pane
+  result=$(herdr workspace create --cwd "$DOT_DIR" --label "dotfiles: $job" --no-focus) || {
+    echo -e "${FAIL}herdr workspace create failed for $job${NORM}"
+    return 1
+  }
+  ws=$(echo "$result" | jq -r '.result.workspace.workspace_id')
+  pane=$(echo "$result" | jq -r '.result.root_pane.pane_id')
+  ws_of[$job]="$ws"
+  pane_of[$job]="$pane"
+  herdr pane run "$pane" "${prefix}bash '$DOT_DIR/bin/dotfiles-job' $job '$rc_dir'" >/dev/null || {
+    echo -e "${FAIL}herdr pane run failed for $job${NORM}"
+    return 1
+  }
+  echo -e "  ${INFO}$job${NORM} -> workspace $ws"
+}
+
 function herdr_fan_out {
-  local variant jobs=() job rc_dir result ws pane
+  local variant jobs=() job rc_dir ask_rc env_prefix
   variant="$(dotfiles_variant)"
   [[ "$variant" == archlinux ]] && jobs+=(sysupdate)
   [[ -n "$variant" && -f "$DOT_DIR/llamacpp/$variant/setup.sh" ]] && jobs+=(llamacpp)
-  if [[ "${DOTFILES_SKIP_MODELS:-}" != 1 ]] && herdr_models_job_wanted; then jobs+=(models); fi
   jobs+=(profile)
 
   rc_dir="$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-update.XXXXXX")"
   declare -A ws_of pane_of
   echo -e "${INFO}herdr ${NORM}running in parallel: ${jobs[*]}"
   for job in "${jobs[@]}"; do
-    result=$(herdr workspace create --cwd "$DOT_DIR" --label "dotfiles: $job" --no-focus) || {
-      echo -e "${FAIL}herdr workspace create failed for $job${NORM}"
-      return 1
-    }
-    ws=$(echo "$result" | jq -r '.result.workspace.workspace_id')
-    pane=$(echo "$result" | jq -r '.result.root_pane.pane_id')
-    ws_of[$job]="$ws"
-    pane_of[$job]="$pane"
-    herdr pane run "$pane" "bash '$DOT_DIR/bin/dotfiles-job' $job '$rc_dir'" >/dev/null || {
-      echo -e "${FAIL}herdr pane run failed for $job${NORM}"
-      return 1
-    }
-    echo -e "  ${INFO}$job${NORM} -> workspace $ws"
+    herdr_start_job "$job" "$rc_dir" || return 1
   done
+
+  # Asked after the jobs above are running, so a slow answer never delays them; the model
+  # download itself is the longest step anyway. Exit codes: 0 fetch, 10 declined or
+  # unanswered, anything else = the plan pass failed (see the script's header).
+  if [[ "${DOTFILES_SKIP_MODELS:-}" != 1 ]] && herdr_models_job_wanted; then
+    echo -e "${INFO}models ${NORM}checking ~/models..."
+    bash "$DOT_DIR/bin/llamacpp-fetch-missing" --ask --select-out "$rc_dir/models.select"
+    ask_rc=$?
+    case "$ask_rc" in
+      0) jobs+=(models) ;;
+      10) echo -e "  ${WARN}models${NORM} not downloading (declined or no answer); retry with: bash $DOT_DIR/bin/llamacpp-fetch-missing" ;;
+      *) echo -e "  ${WARN}models${NORM} could not check ~/models (rc $ask_rc); not downloading" ;;
+    esac
+  fi
+  if [[ " ${jobs[*]} " == *" models "* ]]; then
+    env_prefix="LOS_FETCH_YES=1 "
+    # Only when the picker actually wrote rows: a LOS_FETCH_SELECT that points at nothing
+    # selects zero files, which would fetch nothing and call it a success.
+    [[ -s "$rc_dir/models.select" ]] && env_prefix="${env_prefix}LOS_FETCH_SELECT='$rc_dir/models.select' "
+    herdr_start_job models "$rc_dir" "$env_prefix" || return 1
+  fi
 
   local pending=("${jobs[@]}") still=() failed=()
   while ((${#pending[@]})); do
@@ -521,6 +557,10 @@ function herdr_fan_out {
         rc=$(<"$rc_dir/$job.rc")
         if [[ "$rc" == 0 ]]; then
           echo -e "${PASS}done ${NORM}$job"
+          # A successful models job closes right away, and it is the one job whose output
+          # says what actually landed -- print the tail before the pane goes.
+          [[ "$job" == models ]] &&
+            herdr pane read "${pane_of[$job]}" --source recent-unwrapped --lines 6 2>/dev/null | sed 's/^/    /'
           herdr workspace close "${ws_of[$job]}" >/dev/null
         else
           echo -e "${FAIL}failed ${NORM}$job (rc $rc), workspace ${ws_of[$job]} left open:"

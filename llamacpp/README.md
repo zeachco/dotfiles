@@ -90,7 +90,7 @@ and fail mid-conversation. `bin/llamacpp-audit` enforces this invariant.
 
 ```
 fetch          llamacpp/<os>/fetch-models*.sh        resumable HF downloads into ~/models/llama (plus non-router models such as `~/models/laya`)
-fetch missing  bin/llamacpp-fetch-missing            same recipe, plan pass first (LOS_FETCH_PLAN): lists what is missing, asks [y/N]; the `models` Herdr job of dotfiles_update, i.e. the LAST step of setup. On a box with no model yet it is an fzf multi-select over every model the recipe knows (big ones included) and fetches only what was picked (LOS_FETCH_SELECT)
+fetch missing  bin/llamacpp-fetch-missing            same recipe, plan pass first (LOS_FETCH_PLAN): lists what is missing, asks "Download models now? [y/N]"; the `models` Herdr job of dotfiles_update (a job of its own, asked about in the main pane). `--ask` = plan + ask only (exit 0/10), which is how the parallel update asks — in the main pane, because a prompt in the unfocused `models` workspace is never seen — and only then opens that workspace with LOS_FETCH_YES=1. On a box with no model yet it is an fzf multi-select over every model the recipe knows (big ones included) and fetches only what was picked (LOS_FETCH_SELECT, handed over with --select-out)
 verify         llamacpp/shared/verify-models.sh      SHA-256 vs the HF sidecar recorded at fetch
 serve          router serves --models-dir            loads on request only (Arch); LLAMA_CACHE pinned so the cache cannot add models
 sync clients   bin/llamacpp-sync  (los → sync-models) rebuilds pi/opencode model defs from /v1/models

@@ -12,10 +12,12 @@
 #
 #   sysupdate  system packages (omarchy update / pacman -Syu); Arch only today
 #   llamacpp   llamacpp/<variant>/setup.sh (pull + rebuild + router install)
-#   models     bin/llamacpp-fetch-missing: lists the GGUFs the per-OS fetch recipe
-#              wants that are not on disk and downloads them after a [y/N] in the
-#              pane (declined / unanswered = rc 0, nothing fetched). Only on the two
-#              local-LLM boxes (llamacpp/shared/_hw-gate.sh).
+#   models     bin/llamacpp-fetch-missing: downloads the GGUFs the per-OS fetch recipe
+#              wants that are not on disk. Only on the two local-LLM boxes
+#              (llamacpp/shared/_hw-gate.sh). The [y/N] is NOT asked here: the main thread
+#              already asked in its own pane (`--ask`) and only opened this workspace for a
+#              yes, so it runs with LOS_FETCH_YES=1 (and LOS_FETCH_SELECT=<file> when the
+#              first-install picker was used). Run by hand, this job still asks in the pane.
 #   profile    setup.sh itself with the two steps above skipped
 #              (DOTFILES_SKIP_SYSUPDATE / DOTFILES_SKIP_LLAMACPP), DOTFILES_JOB set
 #              so it does not fan out again.
