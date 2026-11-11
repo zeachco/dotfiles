@@ -438,3 +438,37 @@ tab_autoname() {
     echo "Warning: could not resolve the workspace for tab $tab_id; sidebar not renamed"
   fi
 }
+
+# ==============================================================================
+# Claude Code on a local llama.cpp model  (localclaude / lcc)
+# ==============================================================================
+#
+# Claude Code only speaks Anthropic's /v1/messages; llama.cpp's server answers that
+# natively, so this is the usual "point Claude Code at a local model" recipe with no
+# proxy in between.
+#
+#   lcc                  # Qwen3.8-Flash-Next, high thinking
+#   lcc -c               # any claude flag works: -c, --resume, -p "..."
+#   LCC_MODEL=GLM-5.3-Flash lcc
+#
+# BASE_URL is the router root WITHOUT /v1 (Claude Code appends /v1/messages). The token
+# is ignored by llama.cpp and only has to be non-empty for Claude Code to send anything.
+# On a --no-models-autoload router (the Strix box) the model must be resident first:
+# `los` / `los-load` — otherwise the request fails with 400 "model is not loaded".
+localclaude() {
+  # One knob beyond the usual three: Claude Code puts its "# Environment" context in
+  # messages[] as role:"system" (its catalogue says every model accepts that), and the
+  # Qwen chat template only accepts a system turn at messages[0] — every request died
+  # with HTTP 500 "Jinja Exception: System message must be at the beginning". This
+  # declares the capability off, moving the block into the top-level `system` array,
+  # which llama.cpp and the template both take. Syntax is `modelglob=cap,cap,-cap`
+  # per rule, `;` between rules; with no `=` it applies to every model this runs.
+  ANTHROPIC_AUTH_TOKEN="llamacpp" \
+  ANTHROPIC_API_KEY="" \
+  ANTHROPIC_BASE_URL="${LCC_URL:-http://oli-llms.local:7070}" \
+  ANTHROPIC_MODEL="${LCC_MODEL:-Qwen3.8-Flash-Next}" \
+  ANTHROPIC_SMALL_FAST_MODEL="${LCC_MODEL:-Qwen3.8-Flash-Next}" \
+  CLAUDE_CODE_MODEL_CAPABILITIES="-mid_conv_system" \
+  claude "$@"
+}
+alias lcc="localclaude"
