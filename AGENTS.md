@@ -49,7 +49,10 @@ management. This file keeps only the map and the gotchas.
 - **Machine-local state is gitignored**: `themes/current`, `configs/alacritty/…/theme.toml`, pi
   `models.json` (seeded from `models.seed.json` **before** stow — without the seed pi comes up
   with no llamacpp providers at all, which sync cannot repair), pi `auth.json`, herdr-agent-state
-  files.
+  files. pi's `settings.json` is tracked *except* `defaultProvider`/`defaultModel` (the startup
+  `/model` pick, per box): each variant's setup calls `pi_set_default_model` (utils.sh) and
+  `filter.pi-settings` strips the pair in git — osx defaults to `llamacpp-remote` (oli-llms),
+  archlinux to `llamacpp`.
 - **Harness skill dirs are real directories, linked one skill at a time.** `unfold_dir`
   (utils.sh) creates `~/.claude/skills`, `~/.codex/skills`, `~/.pi/agent/skills` and
   `~/.config/opencode/skills` before their package is stowed, so Stow links each entry of

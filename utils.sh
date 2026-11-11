@@ -337,6 +337,70 @@ function nudge_alacritty_reload() {
   return 0
 }
 
+# ---- pi's startup model, per box ----------------------------------------------------
+# pi has ONE global settings.json (~/.pi/agent/settings.json, Stow-linked to the tracked
+# configs/pi copy), but its startup model differs per box: the Mac's own router does not
+# serve Qwen3.8-Flash-Next, so a Mac opens on the Strix Halo box (oli-llms.local), which
+# models.json registers as the `llamacpp-remote` provider, while the LLM box opens on its
+# own `llamacpp`. Like Claude Code's "model" key, `defaultProvider`/`defaultModel` are
+# machine state inside an otherwise tracked file, so a clean filter strips them in git
+# (filter.pi-settings, registered in variants/shared/setup.sh) and each variant states its
+# own pick here. pi rewrites this same file itself (/model -> Ctrl+S, /settings, its
+# package list), so patching it in place is normal; the variant re-applies the pick on
+# every run, which is also what restores it after a `git checkout` clobbers the file.
+#
+# Idempotent, and it never invents a value: empty args fail instead of writing nulls.
+# Writes the repo path, which is the live file's Stow symlink target, so the link itself is
+# never replaced by a copy.
+function pi_set_default_model() {
+  local provider="${1:-}" model="${2:-}"
+  local file="$DOT_DIR/configs/pi/.pi/agent/settings.json"
+
+  if [[ -z "$provider" || -z "$model" ]]; then
+    echo -e "${FAIL}pi_set_default_model: need a provider and a model${NORM}"
+    return 1
+  fi
+  if [[ ! -f "$file" ]]; then
+    echo -e "${FAIL}no pi settings.json at $file${NORM}"
+    return 1
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    echo -e "${FAIL}jq is required to set pi's default model${NORM}"
+    return 1
+  fi
+
+  if [[ "$(jq -r '[.defaultProvider, .defaultModel] | @tsv' "$file" 2>/dev/null)" == "$provider"$'\t'"$model" ]]; then
+    echo -e "${INFO}pi default${NORM}  $provider/$model"
+    return 0
+  fi
+
+  # Soft check only: models.json is machine state and a provider can legitimately be
+  # empty for a moment (llamacpp-discover empties one whose port refuses connections),
+  # and a default that is not resident still resolves once the router answers.
+  local models="$DOT_DIR/configs/pi/.pi/agent/models.json"
+  if [[ -f "$models" ]] && ! jq -e --arg p "$provider" '.providers[$p] // empty' "$models" >/dev/null 2>&1; then
+    echo -e "${WARN}pi has no '$provider' provider in models.json; the default will not resolve until it does${NORM}"
+  fi
+
+  local tmp status=1
+  tmp="$(mktemp)"
+  # jq keeps existing key order, so the two keys stay where they were.
+  if jq --arg p "$provider" --arg m "$model" \
+       '.defaultProvider = $p | .defaultModel = $m' "$file" >"$tmp"; then
+    # printf, not cp: jq always terminates its output, and the file has no trailing
+    # newline -- copying jq's would churn the file (and the diff) on every run.
+    printf '%s' "$(cat "$tmp")" >"$file" && status=0
+  fi
+  rm -f "$tmp"
+
+  if (( status == 0 )); then
+    echo -e "${INFO}set ${NORM}pi default model $provider/$model"
+  else
+    echo -e "${FAIL}could not write $file${NORM}"
+  fi
+  return "$status"
+}
+
 # ---- OS detection shared by setup.sh and bin/dotfiles-job --------------------------
 # Prints the variant name (osx | nixos | archlinux | termux) or nothing for a Linux
 # with no OS-specific profile. Same rules as the big picture in docs/ARCHITECTURE.md.

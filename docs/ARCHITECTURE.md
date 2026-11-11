@@ -88,6 +88,15 @@ one that cannot be split: its `theme` and `hooks` keys are machine state inside 
 so a clean filter (`.gitattributes`, registered by `variants/shared/setup.sh`) strips them in
 git — the same remedy as herdr's config.
 
+pi's `settings.json` is tracked (it declares the packages pi loads) except for the same
+one kind of key: `defaultProvider`/`defaultModel` are the startup `/model` pick, and it
+differs per box — the Mac's own router does not serve the model a Mac should open on, so a
+Mac defaults to the Strix Halo box through the `llamacpp-remote` provider while the LLM box
+defaults to its own `llamacpp`. `pi_set_default_model <provider> <model>` (utils.sh) writes
+the pair, each variant's setup calls it on every run, and `filter.pi-settings` strips the
+two keys in git, so neither box shows a diff for the other's choice. A fresh clone has no
+default until its variant setup runs.
+
 ## Shell profiles
 
 `install_profile <variant>` (utils.sh) does **not** link — it **copies**:

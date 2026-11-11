@@ -2,3 +2,10 @@
 # and "model" (see variants/shared/setup.sh, which registers the filter); the clean
 # filter strips them so none of them ever shows up as a diff.
 configs/claude/.claude/settings.json filter=claude-settings
+
+# pi's settings.json carries the same kind of machine state: "defaultProvider" and
+# "defaultModel" are the startup /model pick, which differs per box (a Mac opens on the
+# Strix Halo router as llamacpp-remote, the LLM box on its own llamacpp). Each variant
+# re-applies its pick with pi_set_default_model (utils.sh); the clean filter keeps both
+# out of git so neither box ever shows a diff for the other's choice.
+configs/pi/.pi/agent/settings.json filter=pi-settings

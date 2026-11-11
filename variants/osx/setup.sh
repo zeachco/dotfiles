@@ -76,6 +76,12 @@ if command -v herdr &>/dev/null; then
   "$DOT_DIR/bin/herdr-config" sync-theme
 fi
 
+# pi opens on the Strix Halo box here: this Mac's own router (llamacpp -> 127.0.0.1:7070)
+# does not serve Qwen3.8-Flash-Next, while oli-llms.local does, registered as the
+# `llamacpp-remote` provider. Both keys are git-stripped (filter.pi-settings), so the Mac
+# and the LLM box can share one tracked settings.json; see pi_set_default_model in utils.sh.
+pi_set_default_model llamacpp-remote Qwen3.8-Flash-Next
+
 # Generate alacritty os.toml with the absolute herdr path
 # Alacritty uses execve(2) which doesn't search PATH, so we need absolute paths
 # herdr with no args launches or attaches to the persistent session

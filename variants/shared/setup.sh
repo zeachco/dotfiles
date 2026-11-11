@@ -217,6 +217,13 @@ fi
 # strips them in git, the working copy keeps them.
 git -C "$DOT_DIR" config filter.claude-settings.clean "jq 'del(.theme, .hooks, .model)'"
 
+# pi's settings.json has the same problem with its startup model: "defaultProvider" and
+# "defaultModel" are the /model pick saved by Ctrl+S, and it differs per box (the Mac's
+# router does not serve the model the Mac should open on, so a Mac defaults to the Strix
+# Halo box through the llamacpp-remote provider). Stripped in git for the same reason;
+# each variant states its own pick with pi_set_default_model (utils.sh).
+git -C "$DOT_DIR" config filter.pi-settings.clean "jq 'del(.defaultProvider, .defaultModel)'"
+
 if command -v herdr &>/dev/null; then
   "$DOT_DIR/bin/herdr-config" ensure-keys
   "$DOT_DIR/bin/herdr-config" sync-theme
