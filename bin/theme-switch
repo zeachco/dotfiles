@@ -61,7 +61,6 @@ update_nvim_theme() {
 # Select theme
 if [ -n "$1" ]; then
   THEME="$1"
-  # say "theme $THEME"
   if [ ! -d "$THEMES_PATH/$THEME" ]; then
     echo "Error: Theme '$THEME' not found"
     echo "Available themes:"

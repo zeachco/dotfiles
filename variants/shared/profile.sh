@@ -428,16 +428,6 @@ ai() {
   opencode "$@"
 }
 
-# gemini() {
-#   deno run -A --no-lock npm:@google/gemini-cli "$@"
-# }
-
-# replace normal to call hook after the command
-# cd() {
-#   builtin cd "$@" || return
-#   check_for_devbox
-# }
-
 # Enter a devbox shell. DEVBOX_SETUP defaults to 0 so a repo's init hook skips
 # its (slow) setup: with several panes on the same worktree only one of them
 # should install anything. `wt` gives every workspace a throwaway `setup...`
@@ -473,9 +463,7 @@ check_for_devbox() {
   fi
 }
 
-# also call on shell open for when you split your terminal on an existing devbox path
-# remove this line if you find this behavior too intrusive
-# check_for_devbox
+# not auto-run on shell open (too intrusive); call check_for_devbox here to re-enable
 
 # GOTCHA: on linux, nix dedamon might not be automatically starteed
 # sudo systemctl enable --now nix-daemon

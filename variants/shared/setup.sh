@@ -230,13 +230,7 @@ if command -v herdr &>/dev/null; then
   "$DOT_DIR/bin/herdr-config" ensure-los-status
 fi
 
-# # not using OMZSH
-# if [ -d "$HOME/.oh-my-zsh" ] && [ -f "$HOME/.zshrc" ]; then
-#     print_exists "Oh My Zsh"
-# else
-#     print_needs "Oh My Zsh"
-#   sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
-# fi
+# not using oh-my-zsh here (variants/osx/setup.sh still installs it)
 
 # backup .zshrc
 if [ "$SHELL" = "/bin/zsh" ] || [ "$SHELL" = "/usr/bin/zsh" ]; then

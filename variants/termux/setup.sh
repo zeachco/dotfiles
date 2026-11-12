@@ -19,12 +19,6 @@ install fish
 install neovim
 install htop
 
-# Development utilities
-# install make
-# install cmake
-# install clang
-# install pkg-config
-
 # Android-specific packages (check if already available)
 exists termux-setup-storage || install termux-api
 exists termux-info || install termux-tools

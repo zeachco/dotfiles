@@ -93,9 +93,10 @@ function print_exists {
   echo -e "${PASS}found ${NORM}$1"
 }
 
+# `exists`/`needs` print only the "missing" line on purpose: they run once per package on
+# every dotfiles_update, so a "found" line each would bury the output that matters.
 function exists {
   if command -v "$1" >/dev/null 2>&1; then
-    # print_exists $1
     return 0
   else
     print_needs $1
@@ -108,7 +109,6 @@ function needs {
     print_needs $1
     return 0
   else
-    # print_exists $1
     return 1
   fi
 }
@@ -142,28 +142,37 @@ function nix_profile_install() {
   fi
 }
 
+# The one place that knows each manager's install verb: callers decide *whether*, this
+# decides *how*. Private to utils.sh. Bash 3.2 / macOS / zsh: this file is sourced by the
+# llamacpp installers and by the zsh profiles, so no arrays, no ${var,,}, no mapfile.
+function _pkg_install() {
+  local pkg_name="$1"
+
+  # Check for Termux environment first
+  if [[ -n "${TERMUX_VERSION:-}" ]] || [[ "${PREFIX:-}" == *"com.termux"* ]]; then
+    pkg install -y "$pkg_name"
+  elif is_nixos; then
+    nix_profile_install "$pkg_name"
+  elif command -v apt &>/dev/null; then
+    sudo apt install -y "$pkg_name"
+  elif command -v pacman &>/dev/null; then
+    pacman_wait_lock
+    sudo pacman -S "$pkg_name" --needed --noconfirm
+  elif command -v brew &>/dev/null; then
+    brew install "$pkg_name"
+  else
+    echo -e "${FAIL} I don't know how to install $pkg_name ${NORM}"
+  fi
+}
+
 function install() {
   name="$1"
   pkg_name="${2:-$1}"
 
-  if needs $name; then
+  if needs "$name"; then
     echo -e "${WARN}installing ${NORM}$pkg_name..."
     sleep 1
-    # Check for Termux environment first
-    if [[ -n "${TERMUX_VERSION:-}" ]] || [[ "${PREFIX:-}" == *"com.termux"* ]]; then
-      pkg install -y $pkg_name
-    elif is_nixos; then
-      nix_profile_install "$pkg_name"
-    elif command -v apt &>/dev/null; then
-      sudo apt install -y $pkg_name
-    elif command -v pacman &>/dev/null; then
-      pacman_wait_lock
-      sudo pacman -S $pkg_name --needed --noconfirm
-    elif command -v brew &>/dev/null; then
-      brew install $pkg_name
-    else
-      echo -e "${FAIL} I don't know how to install $pkg_name ${NORM}"
-    fi
+    _pkg_install "$pkg_name"
   fi
 }
 
@@ -171,38 +180,29 @@ function install() {
 # of looking for a command of the same name. Needed for anything that ships no binary
 # (headers, libraries, plugins): `command -v vulkan-headers` can never succeed, so
 # `install vulkan-headers` re-ran pacman on every dotfiles_update.
+# The ladder below only asks "is it already there?" and returns 0 when it is; every other
+# case falls through to the one shared install path. Unknown manager reports and stops.
 function install_pkg() {
   pkg_name="$1"
 
   if [[ -n "${TERMUX_VERSION:-}" ]] || [[ "${PREFIX:-}" == *"com.termux"* ]]; then
     dpkg-query -W -f='${Status}' "$pkg_name" 2>/dev/null | grep -q "ok installed" && return 0
-    print_needs "$pkg_name"
-    echo -e "${WARN}installing ${NORM}$pkg_name..."
-    pkg install -y "$pkg_name"
   elif is_nixos; then
     nix_profile_has "$pkg_name" && return 0
-    print_needs "$pkg_name"
-    echo -e "${WARN}installing ${NORM}$pkg_name..."
-    nix_profile_install "$pkg_name"
   elif command -v apt &>/dev/null; then
     dpkg-query -W -f='${Status}' "$pkg_name" 2>/dev/null | grep -q "ok installed" && return 0
-    print_needs "$pkg_name"
-    echo -e "${WARN}installing ${NORM}$pkg_name..."
-    sudo apt install -y "$pkg_name"
   elif command -v pacman &>/dev/null; then
     pacman -Q "$pkg_name" &>/dev/null && return 0
-    print_needs "$pkg_name"
-    echo -e "${WARN}installing ${NORM}$pkg_name..."
-    pacman_wait_lock
-    sudo pacman -S "$pkg_name" --needed --noconfirm
   elif command -v brew &>/dev/null; then
     brew list "$pkg_name" &>/dev/null && return 0
-    print_needs "$pkg_name"
-    echo -e "${WARN}installing ${NORM}$pkg_name..."
-    brew install "$pkg_name"
   else
     echo -e "${FAIL} I don't know how to install $pkg_name ${NORM}"
+    return 0
   fi
+
+  print_needs "$pkg_name"
+  echo -e "${WARN}installing ${NORM}$pkg_name..."
+  _pkg_install "$pkg_name"
 }
 
 function script_install() {

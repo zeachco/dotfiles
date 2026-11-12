@@ -3,8 +3,6 @@ source "$HOME/dotfiles/utils.sh"
 
 # tools
 install unzip
-# install net-tools
-# install bind-tools  # for dig
 install curl
 install gcc
 install make
