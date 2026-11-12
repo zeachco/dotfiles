@@ -226,13 +226,16 @@ One row per change. Fixed columns, so an edit tool can tick a row and a 27B can 
 it without re-deriving anything:
 
 ```markdown
-- [ ] T1 | src/api/client.ts:120-178 | extract the retry loop into retryWithBackoff | ~40 lines | check: bun test client
-- [ ] T2 | src/api/client.ts, src/jobs/run.ts | use retryWithBackoff at both sites | ~15 lines | check: bun test
-- [ ] T3 | src/legacy/old-report.ts | delete file (dead: 02-findings § dead #4) | ~0 lines | check: build
+- [ ] T1 | src/api/client.ts:120-178 | extract the retry loop into retryWithBackoff | ~40 lines | check: bun test client | theme: retry
+- [ ] T2 | src/api/client.ts, src/jobs/run.ts | use retryWithBackoff at both sites | ~15 lines | check: bun test | theme: retry
+- [ ] T3 | src/legacy/old-report.ts | delete file (dead: 02-findings § dead #4) | ~0 lines | check: build | theme: dead code
 ```
 
 Rules:
 
+- **Every row carries a `theme:` tag**, set when the row is written, not reconstructed
+  from the diff afterwards. A row belongs to one theme; if it serves two, split it. The
+  tag becomes the commit.
 - **Behaviour-preserving only.** A bug fix or a behaviour change you spot goes into the
   plan as a separate row marked `behaviour: <what changes>`, for the user to approve —
   never bundled into a simplification.
@@ -355,13 +358,43 @@ Work the plan top to bottom, one row at a time. The loop, per row:
    work, re-cut as new rows. Do not silently drop it. Tick and append in the same step
    as the commit — a committed-but-unchecked row is a notes bug, and the notes are the
    only state the next session can trust.
-5. **Commit per row** when the repo allows it: one concept per commit, message naming the
-   concept and citing the plan row. Small commits are the only rollback a small model
-   can reason about.
+5. **Commit per theme, as you go** when the repo allows it. A theme is one directive the
+   reviewer can hold in their head: "one `AppConfig` union", "type every option as
+   `PreviewAppOptions`", "split `deployment.ts` builders". Rows with the same `theme:`
+   tag (see `04-plan.md`) form one commit; commit when the theme's last row is green, not
+   at the end of the pass. See *Commit grouping* below.
 6. **Context checkpoint.** After the commit, forget everything except `04-plan.md`'s next
    unchecked row, the last line of `06-progress.md`, and the current file. If you notice
    you are re-reading things you already decided, re-read the notes file instead — the
    decision is written down.
+
+### Commit grouping
+
+The branch is read by a reviewer, so each commit states one intent and nothing else.
+
+- **Order commits so each is small and self-contained**: cross-file sweeps first (a type
+  rename, one shared union), then deletions and visibility narrowing, then shared names
+  and helpers, then single-file extractions, then tests last.
+- **Never bundle a sweep with an extraction.** A rename across 15 files and the split of
+  one function must not share a commit, even when they touch the same file.
+- **The message says the intent and the behaviour claim**: a one-line title naming the
+  theme, bullets for what moved where, and "no behaviour change" or the exact change.
+- **Every commit passes the gate and the typecheck**, not just the tip. Check with
+  `git rev-list --reverse <base>..HEAD` and a checkout loop before pushing.
+- **Note unavoidable coupling in the message.** If a signature change forces a call-site
+  edit in another file, put the call-site edit in the same commit and say so; if a helper
+  is defined in one commit and used in the next, say that too.
+- **Splitting a finished diff by hunk is the last resort.** If the work was not committed
+  per theme, split with `git apply --cached` on `-U0` patches, and rewrite each hunk's
+  new-side start (`+c`) to `old start + net lines added by the hunks already selected in
+  that file`. `git apply` trusts `+c`; stale values insert code at the wrong line and
+  can still compile. Match hunks by body, not by index, because indices shift after
+  each commit. Confirm `git diff <old-tip>` is empty at the end.
+- **Do not run the pre-push hook blind.** Some repos' hooks run tests that call
+  `git init` with the hook's `GIT_*` variables inherited, which can flip the shared
+  `core.bare` to `true` and break every worktree. If git says "must be run in a work
+  tree" after a push, run `git config core.bare false` in the main checkout and report
+  the failing test rather than skipping the hook.
 
 Stop and ask the user when: a row would change behaviour, a deletion has an unclear
 proof, two concepts want the same name, or the gate breaks in a way the baseline cannot
