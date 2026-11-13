@@ -1,4 +1,7 @@
 {
+  "permissions": {
+    "defaultMode": "auto"
+  },
   "modelSettings": {
     "claude-opus-5": {
       "effortLevel": "high"
@@ -6,8 +9,5 @@
     "claude-fable-5-1": {
       "effortLevel": "low"
     }
-  },
-  "permissions": {
-    "defaultMode": "auto"
   }
 }
