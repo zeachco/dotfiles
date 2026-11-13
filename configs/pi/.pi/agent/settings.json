@@ -10,6 +10,7 @@
   "enabledModels": [
     "openai-codex/gpt-5.6-luna",
     "llamacpp/qwen3.8",
+    "llamacpp/Qwen3.8-27B",
     "llamacpp/GLM-4.7-Flash-UD-Q4_K_XL",
     "llamacpp/Qwen3.8-Flash-Next",
     "llamacpp/gpt-oss-120b-MXFP4",
