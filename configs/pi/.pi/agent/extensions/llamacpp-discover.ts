@@ -32,9 +32,11 @@
  * session is a provider error instead of a short wait.
  *
  * Main-model swap: the box's two main chat models are a pair (MAIN_MODELS below: pi's
- * default and its fallback). When a run starts on one of them and the router does not
+ * default and its fallback). When the session is on one of them and the router does not
  * hold it while it holds the sibling, the session switches to the loaded sibling instead
- * of paying a cold load — pi opens on the main model the router already has resident.
+ * of paying a cold load. Checked at startup (right after the background refresh reaches
+ * the router, so the TUI opens on the model the box actually has) and before every run
+ * as a retry — pi opens on the main model the router already has resident.
  *
  * When nothing listens on the router's port (not installed on this box) the
  * provider is emptied so /model does not offer dead models; a transient failure
@@ -240,6 +242,12 @@ async function routerStatus(baseUrl: string, id: string): Promise<LiveModel | un
 
 type Notify = (message: string, level: "info" | "warning" | "error") => void;
 
+/** The session-context surface the main-model swap touches (see swapToLoadedSibling). */
+type SwapContext = {
+	modelRegistry: { find: (provider: string, id: string) => Parameters<ExtensionAPI["setModel"]>[0] | undefined };
+	ui: { notify: Notify };
+};
+
 /** Load `id` on its router if it is unloaded and fits in free GPU memory; otherwise warn. */
 async function ensureLoaded(baseUrl: string, id: string, notify: Notify): Promise<void> {
 	let live: LiveModel | undefined;
@@ -351,11 +359,47 @@ export default function (pi: ExtensionAPI) {
 	const refresh = () => Promise.all(routers.map((r) => refreshRouter(r, register)));
 
 	// Background, after the session is up; never awaited by pi.
-	pi.on("session_start", () => {
-		void refresh();
+	pi.on("session_start", (_event, ctx) => {
+		void (async () => {
+			await refresh();
+			// Detect the available model at startup: the session opened on the configured
+			// default, which the router may not hold — open on the sibling it does.
+			await swapToLoadedSibling(ctx.model, ctx);
+		})();
 	});
 
 	const routerOf = (provider: string) => routers.find((r) => r.provider === provider);
+
+	// ---- main-model swap: run on the sibling the router already holds --------------
+	//
+	// Called at startup (after the background refresh reached the router) and before
+	// each run (before_agent_start). Switches the session to the loaded sibling when
+	// the current model is one of the two main models and the router does not hold it;
+	// returns true when the session switched, so the caller skips its own load logic.
+	const swapToLoadedSibling = async (
+		model: { provider: string; id: string } | undefined,
+		ctx: SwapContext,
+	): Promise<boolean> => {
+		if (!model) return false;
+		const r = routerOf(model.provider);
+		const sibling = MAIN_MODELS[model.id];
+		if (!r || !sibling) return false;
+		let state: string | undefined;
+		try {
+			state = (await routerStatus(r.baseUrl, model.id))?.status?.value;
+		} catch {
+			return false; // router not answering; the per-run check retries
+		}
+		if (state !== "unloaded") return false;
+		const sibState = (await routerStatus(r.baseUrl, sibling).catch(() => undefined))?.status?.value;
+		if (sibState !== "loaded") return false;
+		const target = ctx.modelRegistry.find(r.provider, sibling);
+		if (target && (await pi.setModel(target))) {
+			ctx.ui.notify(`Using ${sibling} — it is loaded; ${model.id} is not resident (/model to switch back)`, "info");
+			return true;
+		}
+		return false;
+	};
 
 	// ---- self-heal: do not start a run against a model the router lost --------------
 	//
@@ -393,17 +437,7 @@ export default function (pi: ExtensionAPI) {
 		if (state === "unloaded") {
 			// One of the two main models, and the router does not hold it. If it holds the
 			// sibling, run on the loaded one: one GET + a swap instead of a cold load.
-			const sibling = MAIN_MODELS[model.id];
-			if (sibling) {
-				const sibState = (await routerStatus(r.baseUrl, sibling).catch(() => undefined))?.status?.value;
-				if (sibState === "loaded") {
-					const target = ctx.modelRegistry.find(r.provider, sibling);
-					if (target && (await pi.setModel(target))) {
-						ctx.ui.notify(`Using ${sibling} — it is loaded; ${model.id} is not resident (/model to switch back)`, "info");
-						return;
-					}
-				}
-			}
+			if (await swapToLoadedSibling(model, ctx)) return;
 			await ensureLoaded(r.baseUrl, model.id, (m, level) => ctx.ui.notify(m, level));
 		}
 	});
