@@ -31,6 +31,11 @@
  * it comes back seconds later and empty, and without this the next message in a live
  * session is a provider error instead of a short wait.
  *
+ * Main-model swap: the box's two main chat models are a pair (MAIN_MODELS below: pi's
+ * default and its fallback). When a run starts on one of them and the router does not
+ * hold it while it holds the sibling, the session switches to the loaded sibling instead
+ * of paying a cold load — pi opens on the main model the router already has resident.
+ *
  * When nothing listens on the router's port (not installed on this box) the
  * provider is emptied so /model does not offer dead models; a transient failure
  * (timeout, bad response) keeps the models.json definitions in place. `llamacpp-sync`
@@ -72,6 +77,14 @@ const MEASURED_TSV = join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"
 const DEFAULT_CONTEXT = 131_072;
 const DEFAULT_MAX_TOKENS = 16_384;
 const PI_HIDDEN = /^gemma-4-/i;
+// why: the box's two main chat models — pi's default and its fallback, as a pair. When a
+// run starts on one of them and the router does not hold it but holds the sibling, the
+// session swaps to the loaded sibling (before_agent_start) instead of cold-loading.
+// If either model is renamed or retired, this map silently stops applying.
+const MAIN_MODELS: Record<string, string> = {
+	"Qwen3.8-Flash-Next": "qwen3.8",
+	"qwen3.8": "Qwen3.8-Flash-Next",
+};
 const REASONING_HINT = /(qwen3|deepseek|glm-[45]|gpt-oss|ministral|mistral|kimi|reasoning|think)/i;
 const KEPT_TUNING = ["thinkingLevelMap", "compat", "cost", "samplingParams", "inputLimits"] as const;
 const ZERO_COST = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
@@ -378,6 +391,19 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 		if (state === "unloaded") {
+			// One of the two main models, and the router does not hold it. If it holds the
+			// sibling, run on the loaded one: one GET + a swap instead of a cold load.
+			const sibling = MAIN_MODELS[model.id];
+			if (sibling) {
+				const sibState = (await routerStatus(r.baseUrl, sibling).catch(() => undefined))?.status?.value;
+				if (sibState === "loaded") {
+					const target = ctx.modelRegistry.find(r.provider, sibling);
+					if (target && (await pi.setModel(target))) {
+						ctx.ui.notify(`Using ${sibling} — it is loaded; ${model.id} is not resident (/model to switch back)`, "info");
+						return;
+					}
+				}
+			}
 			await ensureLoaded(r.baseUrl, model.id, (m, level) => ctx.ui.notify(m, level));
 		}
 	});
