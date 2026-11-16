@@ -61,7 +61,16 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 // empty to keep it out of /model.
 const LOCAL_ROUTER = { provider: "llamacpp", baseUrl: "http://127.0.0.1:7070/v1" };
 const REMOTE_ROUTER = { provider: "llamacpp-remote", baseUrl: "http://oli-llms.local:7070/v1" };
-const ROUTERS = process.platform === "darwin" ? [LOCAL_ROUTER, REMOTE_ROUTER] : [LOCAL_ROUTER];
+/** The `auto` alias: llamacpp/shared/autorouter.mjs in front of the local router
+ *  (llama-autorouter.service on the box). It resolves `auto` per request to a model
+ *  the box can serve now, and its GET /v1/models serves ONE router-shaped card
+ *  mirroring the routed model (status.args, architecture, context_length), so this
+ *  extension consumes it exactly like a router card -- and its self-heal works
+ *  through it, because the alias's card goes `unloaded` only when the router itself
+ *  holds nothing. Loopback-only, so it exists on the box alone; elsewhere the
+ *  provider is registered empty, like llamacpp-remote is here. */
+const AUTO_ROUTER = { provider: "llamacpp-auto", baseUrl: "http://127.0.0.1:7080/v1" };
+const ROUTERS = process.platform === "darwin" ? [LOCAL_ROUTER, REMOTE_ROUTER] : [LOCAL_ROUTER, AUTO_ROUTER];
 /** The router's own endpoints (POST /models/load, …) live beside /v1, not under it. */
 const routerRoot = (baseUrl: string) => baseUrl.replace(/\/v1\/?$/, "");
 const DEFAULT_ROUTER = ROUTERS[0].baseUrl;
@@ -355,6 +364,7 @@ export default function (pi: ExtensionAPI) {
 	// Instant: the static list, so startup never waits on the router.
 	for (const { provider, baseUrl, fallback } of routers) register(provider, baseUrl, fallback);
 	if (!routers.some((r) => r.provider === REMOTE_ROUTER.provider)) register(REMOTE_ROUTER.provider, REMOTE_ROUTER.baseUrl, []);
+	if (!routers.some((r) => r.provider === AUTO_ROUTER.provider)) register(AUTO_ROUTER.provider, AUTO_ROUTER.baseUrl, []);
 
 	const refresh = () => Promise.all(routers.map((r) => refreshRouter(r, register)));
 

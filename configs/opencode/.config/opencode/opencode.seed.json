@@ -78,6 +78,15 @@
       },
       "models": {}
     },
+    "llamacpp-auto": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "llama.cpp auto router",
+      "options": {
+        "baseURL": "http://127.0.0.1:7080/v1",
+        "timeout": false
+      },
+      "models": {}
+    },
     "openrouter": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "OpenRouter",

@@ -83,10 +83,12 @@ stow_link nvim
 unfold_dir "$HOME/.config/opencode/skills"
 stow_link opencode
 
-# This box IS oli-llms.local, so pi opens on its own router. The pick is only re-asserted
-# here so a re-run restores it after a checkout; both keys are git-stripped
-# (filter.pi-settings) because the Mac defaults to llamacpp-remote instead.
-pi_set_default_model llamacpp Qwen3.8-Flash-Next
+# pi opens on the `auto` alias (llama-autorouter.service, :7080): one endpoint that
+# resolves to whichever model the box can serve now, so the session never pins a
+# model the router may have evicted. The pick is only re-asserted here so a re-run
+# restores it after a checkout; both keys are git-stripped (filter.pi-settings)
+# because the Mac defaults to llamacpp-remote instead.
+pi_set_default_model llamacpp-auto auto
 
 # All llama.cpp setup (router install, model fetch check) lives in llamacpp/.
 # Skipped when the `llamacpp` job runs it in a parallel Herdr workspace.

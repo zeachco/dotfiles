@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 #
-# Install THE llama.cpp router as a systemd --user service:
-#   llama-router.service   :7070, LAN-reachable, ~/models/llama, models.ini,
-#                          --no-models-autoload -- every load is an explicit `los`
+# Install THE llama.cpp router as a systemd --user services:
+#   llama-router.service     :7070, LAN-reachable, ~/models/llama, models.ini,
+#                            --no-models-autoload -- every load is an explicit `los`
+#   llama-autorouter.service :7080, loopback -- the `auto` model alias that routes
+#                            requests to whatever model the box can serve now
+#                            (llamacpp/shared/autorouter.mjs; needs node)
 #
 # Until 2026-11-06 there were three (light :7070 / cheap :7071 / heavy :7072). This
 # script retires the two extra units when it finds them installed, and moves the old
@@ -197,6 +200,38 @@ for aux in los-snapshot.service los-snapshot.timer llama-router-restore.service;
 done
 if [[ -n "${aux_changed:-}" ]]; then
   systemctl --user daemon-reload
+fi
+
+# ---- the auto router ----------------------------------------------------------------
+# The model-alias proxy in front of the router (llama-autorouter.service, :7080, see
+# its template for the policy). It needs node at install time: the unit's ExecStart
+# bakes in whatever node this shell finds. No node, no alias -- the router itself is
+# untouched and clients keep using concrete model ids.
+AR_UNIT="llama-autorouter.service"
+NODE_BIN="$(command -v node || true)"
+if [[ -n "$NODE_BIN" && -x "$NODE_BIN" ]]; then
+  NODE_BIN="$(realpath -- "$NODE_BIN" 2>/dev/null || printf '%s' "$NODE_BIN")"
+  ar_template="$SCRIPT_DIR/$AR_UNIT"
+  ar_installed="$USER_UNIT_DIR/$AR_UNIT"
+  ar_rendered="$WORK_DIR/$AR_UNIT"
+  [[ -f "$ar_template" ]] || { echo "llama router: missing template $ar_template" >&2; exit 1; }
+  sed -e "s|@NODE@|$NODE_BIN|g" "$ar_template" >"$ar_rendered"
+  if grep -q '@[A-Z_]*@' "$ar_rendered"; then
+    echo "llama router: unsubstituted token left in $AR_UNIT:" >&2
+    grep -n '@[A-Z_]*@' "$ar_rendered" >&2
+    exit 1
+  fi
+  if [[ -f "$ar_installed" ]] && cmp -s "$ar_rendered" "$ar_installed" && systemctl --user is-active --quiet "$AR_UNIT"; then
+    echo "llama router: $AR_UNIT is already installed and running"
+  else
+    install -m 644 "$ar_rendered" "$ar_installed"
+    systemctl --user daemon-reload
+    echo "llama router: installed $AR_UNIT (node: $NODE_BIN)"
+  fi
+  systemctl --user enable --now "$AR_UNIT" || echo "llama router: $AR_UNIT failed to start" >&2
+  echo "llama auto router: http://127.0.0.1:7080 (model alias 'auto'; logs: journalctl --user -u $AR_UNIT -f)"
+else
+  echo "llama router: auto router skipped: node not on PATH (the router itself is unaffected)"
 fi
 
 # enable --now is idempotent and cheap; it also recovers a unit that was installed

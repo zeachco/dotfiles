@@ -164,6 +164,30 @@
         }
       ]
     },
+    "llamacpp-auto": {
+      "api": "openai-completions",
+      "apiKey": "llamacpp",
+      "baseUrl": "http://127.0.0.1:7080/v1",
+      "models": [
+        {
+          "id": "auto",
+          "name": "Auto Router (local llama.cpp)",
+          "contextWindow": 131072,
+          "maxTokens": 16384,
+          "input": [
+            "text",
+            "image"
+          ],
+          "reasoning": true,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        }
+      ]
+    },
     "llamacpp-remote": {
       "api": "openai-completions",
       "apiKey": "llamacpp",

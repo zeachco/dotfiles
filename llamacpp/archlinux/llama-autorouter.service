@@ -1,0 +1,45 @@
+# TEMPLATE -- installed to ~/.config/systemd/user/ by llamacpp/archlinux/install.sh
+# in this directory.
+#
+# THE AUTO ROUTER: a model-alias proxy in front of the router (llama-router.service,
+# :7070). It serves ONE virtual model, `auto`, that resolves per request to a model
+# the box can serve right now (free GTT memory picks between the two mains, and it
+# loads the default when nothing is resident). The full policy is in the header of
+# llamacpp/shared/autorouter.mjs.
+#
+# Why it exists: the router refuses requests for models that are not resident
+# (--no-models-autoload), so every harness client had to track the loaded model.
+# Pointing pi's llamacpp-auto provider (and any other OpenAI client) at this port
+# means one alias for all sessions; the client collects the routed model's stats
+# (context window, modalities, reasoning) from GET /v1/models at session start.
+#
+# Loopback only: the router stays the LAN-facing endpoint (the mac reaches it via
+# oli-llms.local:7070), the alias is local convenience, not a remote surface.
+#
+# %h is systemd's own user-unit specifier for $HOME. @NODE@ is rendered by
+# install.sh to the first node on PATH (so the unit runs the same runtime the
+# user's shell uses; the script itself has no dependencies).
+
+[Unit]
+Description=llama.cpp auto router (model alias `auto`) on :7080
+After=network.target
+Wants=llama-router.service
+
+[Service]
+Type=simple
+Environment=AUTOROUTER_HOST=127.0.0.1
+Environment=AUTOROUTER_PORT=7080
+Environment=AUTOROUTER_UPSTREAM=http://127.0.0.1:7070
+# The two mains of this box and the switch between them (see the script header):
+# nothing resident -> load DEFAULT; both resident -> MAIN while free GTT >=
+# SWITCH_GIB, FAST under memory pressure.
+Environment=AUTOROUTER_DEFAULT=Qwen3.8-Flash-Next
+Environment=AUTOROUTER_MAIN=qwen3.8
+Environment=AUTOROUTER_FAST=Qwen3.8-Flash-Next
+Environment=AUTOROUTER_SWITCH_GIB=48
+ExecStart=@NODE@ %h/dotfiles/llamacpp/shared/autorouter.mjs
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

@@ -9,9 +9,9 @@ Local model serving. Only two machines in this repo run local models — an Appl
 
 | Path              | What it is                                                                                                     |
 | ----------------- | -------------------------------------------------------------------------------------------------------------- |
-| `shared/`         | Cross-OS, sourced by the shell profile: `_llama.sh` (foreground launchers + verbs), `_los_menu.sh` (the `los` fzf menu), `_fetch-lib.sh` (HuggingFace download helper), `verify-models.sh` (GGUF integrity vs HF SHA-256), `clone.sh` (clones `~/dev/llama.cpp`, starts initial downloads), `_hw-gate.sh` |
+| `shared/`         | Cross-OS, sourced by the shell profile: `_llama.sh` (foreground launchers + verbs), `_los_menu.sh` (the `los` fzf menu), `_fetch-lib.sh` (HuggingFace download helper), `verify-models.sh` (GGUF integrity vs HF SHA-256), `clone.sh` (clones `~/dev/llama.cpp`, starts initial downloads), `_hw-gate.sh`, `autorouter.mjs` (the `auto` model alias, loopback :7080 — see [The auto router](#the-auto-router-arch-box)) |
 | `osx/`            | `setup.sh` (brew install + launchd user agent + wired-memory cap daemon), `osx.ini` presets, `install*.sh` + plist templates, `fetch-models-osx.sh` (opt-in via `LOS_FETCH_MODELS=1`), `update.sh` (build sync) |
-| `archlinux/`      | `setup.sh` (installs the router unit), `llama-router.service` template, `models.ini` presets, `fetch-models.sh`, `install.sh` (also retires the pre-2026-11-06 tier units and migrates `~/models/{light,heavy,cheap}` into `~/models/llama`), `los-snapshot.{service,timer}` + `llama-router-restore.service` (reload what was resident after a router restart — see [Keeping a loaded model loaded](#keeping-a-loaded-model-loaded-arch)), `update.sh` (checkout + Vulkan build sync, gated to the Strix Halo box) |
+| `archlinux/`      | `setup.sh` (installs the router unit), `llama-router.service` template, `llama-autorouter.service` template (the `auto` alias), `models.ini` presets, `fetch-models.sh`, `install.sh` (also retires the pre-2026-11-06 tier units and migrates `~/models/{light,heavy,cheap}` into `~/models/llama`), `los-snapshot.{service,timer}` + `llama-router-restore.service` (reload what was resident after a router restart — see [Keeping a loaded model loaded](#keeping-a-loaded-model-loaded-arch)), `update.sh` (checkout + Vulkan build sync, gated to the Strix Halo box) |
 
 Everything is invoked with literal `bash` (not `$SHELL`) because the setup scripts are run
 through the user's shell, which would ignore the shebangs.
@@ -21,6 +21,7 @@ through the user's shell, which would ignore the shebangs.
 | Port   | Unit                   | Bind            | Models           | Notes |
 | ------ | ---------------------- | --------------- | ---------------- | ----- |
 | `:7070` | `llama-router.service` | `0.0.0.0` (LAN) | `~/models/llama` | `--no-models-autoload`, `--models-max 8`, `--models-memory-margin 20480`: nothing loads until `los` / `los-load` / pi's model picker asks; a load that would leave less than 20 GiB of GPU memory free (room for a game) evicts the idle least-recently-used model, or queues while every resident model is busy |
+| `:7080` | `llama-autorouter.service` | `127.0.0.1` (loopback) | `auto` + every `:7070` id | `autorouter.mjs` (node, no deps): the `auto` alias that resolves per request to a model the box can serve now — see [The auto router](#the-auto-router-arch-box) |
 
 One router since 2026-11-06. Before that there were three (light `:7070` with autoload,
 cheap `:7071` for the shell helpers, heavy `:7072` one-at-a-time) whose whole reason was
@@ -34,6 +35,30 @@ models: drafts live in `~/models/drafts`, the Laya encoder in `~/models/laya`, p
 weights in `~/models/retired`.
 
 The Mac runs a single router too (launchd agent, `osx.ini`), with autoload.
+
+## The auto router (Arch box)
+
+`autorouter.mjs` (node, no dependencies; unit `llama-autorouter.service`, installed by
+`install.sh` when node is on PATH) sits in front of the router on loopback :7080. It adds one
+virtual model, `auto`, resolved **per request**:
+
+1. a candidate is a chat model the router reports `loaded` or `sleeping` (gemma-4 excluded);
+2. both mains resident → **free GTT picks**: ≥ `AUTOROUTER_SWITCH_GIB` (48 GiB) free →
+   `AUTOROUTER_MAIN` (`qwen3.8`), less → `AUTOROUTER_FAST` (`Qwen3.8-Flash-Next`);
+3. exactly one main resident → that one;
+4. only other models resident → the one with the largest context;
+5. nothing resident → load `AUTOROUTER_DEFAULT` (`Qwen3.8-Flash-Next`) on the router and wait.
+
+`GET /v1/routing` shows the live decision (candidates, free GTT, loadavg, reason). The
+`auto` card in `GET /v1/models` mirrors the router's card shape for the current target
+(`status.args`, `architecture`, `context_length`), so `bin/llamacpp-sync` and pi's
+`llamacpp-discover` extension consume it unchanged: the `llamacpp-auto` provider is pi's
+default on this box (`llamacpp-auto/auto`), and a session collects the routed model's context
+window at startup. The response `model` field is rewritten back to `auto` (JSON and SSE);
+the routed target goes in the `x-autorouter-target` header. Concrete ids pass through
+unchanged (unknown id → 404), and the router stays the LAN-facing endpoint — the alias is
+loopback convenience, not a remote surface. The alias's card reports `unloaded` only when the
+router holds nothing, so pi's self-heal (load-before-run) works through it.
 
 ## Keeping a loaded model loaded (Arch)
 
@@ -93,7 +118,8 @@ fetch          llamacpp/<os>/fetch-models*.sh        resumable HF downloads into
 fetch missing  bin/llamacpp-fetch-missing            same recipe, plan pass first (LOS_FETCH_PLAN): lists what is missing, asks "Download models now? [y/N]"; the `models` Herdr job of dotfiles_update (a job of its own, asked about in the main pane). `--ask` = plan + ask only (exit 0/10), which is how the parallel update asks — in the main pane, because a prompt in the unfocused `models` workspace is never seen — and only then opens that workspace with LOS_FETCH_YES=1. On a box with no model yet it is an fzf multi-select over every model the recipe knows (big ones included) and fetches only what was picked (LOS_FETCH_SELECT, handed over with --select-out)
 verify         llamacpp/shared/verify-models.sh      SHA-256 vs the HF sidecar recorded at fetch
 serve          router serves --models-dir            loads on request only (Arch); LLAMA_CACHE pinned so the cache cannot add models
-sync clients   bin/llamacpp-sync  (los → sync-models) rebuilds pi/opencode model defs from /v1/models
+sync clients   bin/llamacpp-sync  (los → sync-models) rebuilds pi/opencode model defs from /v1/models (incl. the `auto` alias from :7080)
+alias          llama-autorouter.service (:7080)  resolves `auto` per request to a resident model ([The auto router](#the-auto-router-arch-box))
 pi discovery   configs/pi/.pi/agent/extensions/llamacpp-discover.ts  pi re-reads the router's /v1/models itself at startup (models.json = offline fallback) and loads a picked model when it fits
 restart all    los-restart-all    (los → restart) restarts the router daemon, reachable or not
 audit          bin/llamacpp-audit                    ~/models vs INI presets vs client configs must agree
