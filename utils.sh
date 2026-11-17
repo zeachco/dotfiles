@@ -382,23 +382,25 @@ function pi_set_default_model() {
     echo -e "${WARN}pi has no '$provider' provider in models.json; the default will not resolve until it does${NORM}"
   fi
 
-  local tmp status=1
+  # Not `status`: setup scripts run through $SHELL, and in zsh `status` is a read-only
+  # special variable. Assigning it aborts the whole script.
+  local tmp write_rc=1
   tmp="$(mktemp)"
   # jq keeps existing key order, so the two keys stay where they were.
   if jq --arg p "$provider" --arg m "$model" \
        '.defaultProvider = $p | .defaultModel = $m' "$file" >"$tmp"; then
     # printf, not cp: jq always terminates its output, and the file has no trailing
     # newline -- copying jq's would churn the file (and the diff) on every run.
-    printf '%s' "$(cat "$tmp")" >"$file" && status=0
+    printf '%s' "$(cat "$tmp")" >"$file" && write_rc=0
   fi
   rm -f "$tmp"
 
-  if (( status == 0 )); then
+  if (( write_rc == 0 )); then
     echo -e "${INFO}set ${NORM}pi default model $provider/$model"
   else
     echo -e "${FAIL}could not write $file${NORM}"
   fi
-  return "$status"
+  return "$write_rc"
 }
 
 # ---- OS detection shared by setup.sh and bin/dotfiles-job --------------------------
