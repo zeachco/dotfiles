@@ -1,0 +1,331 @@
+#!/usr/bin/env bash
+#
+# vllm-ctl -- control the vLLM server on macOS (launchd agent com.zeachco.vllm).
+#
+#   vllm-ctl models          list the models in models.conf (on disk? active?)
+#   vllm-ctl use <id>        make <id> the active model and (re)start the server
+#   vllm-ctl stop            stop the server and clear the active model
+#   vllm-ctl restart         restart the server with the same model
+#   vllm-ctl status          active model, agent state, health, served ids
+#   vllm-ctl logs            follow the server log
+#   vllm-ctl fetch <id>      download one model into the HF cache (asks first)
+#   vllm-ctl serve           INTERNAL: what the launchd agent runs
+#
+# vLLM serves one model for each process, so "load a model" is "restart the server
+# with that model". The active model id is machine state:
+#   ${XDG_STATE_HOME:-~/.local/state}/vllm/active
+#
+# The server never downloads: `serve` sets HF_HUB_OFFLINE=1 and refuses a model that
+# is not on disk. `fetch` is the only command that downloads.
+#
+# macOS has bash 3.2: no associative arrays, no mapfile, no ${var,,}.
+
+set -uo pipefail
+
+LABEL="com.zeachco.vllm"
+DOMAIN="gui/$(id -u)"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
+CONF="${VLLM_CONF:-$SCRIPT_DIR/models.conf}"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/vllm"
+ACTIVE="$STATE_DIR/active"
+LOG="$HOME/Library/Logs/vllm/server.log"
+
+# Loopback only. The llama.cpp router is the LAN endpoint; vLLM stays local until it
+# is proven. 8000 is the vLLM default port.
+HOST="127.0.0.1"
+PORT="8000"
+URL="http://$HOST:$PORT"
+
+die() {
+  echo "vllm-ctl: $*" >&2
+  exit 1
+}
+
+# ---- models.conf -----------------------------------------------------------------
+# conf_field <id> <n>: field n of the line for <id> (2 = source, 3 = args).
+conf_field() {
+  awk -F'|' -v id="$1" -v n="$2" '
+    /^[[:space:]]*#/ { next }
+    { k = $1; gsub(/^[ \t]+|[ \t]+$/, "", k) }
+    k == id { v = $n; gsub(/^[ \t]+|[ \t]+$/, "", v); print v; found = 1; exit }
+    END { exit !found }' "$CONF"
+}
+
+conf_ids() {
+  awk -F'|' '
+    /^[[:space:]]*#/ { next }
+    { k = $1; gsub(/^[ \t]+|[ \t]+$/, "", k); if (k != "") print k }' "$CONF"
+}
+
+# source_on_disk <source>: an absolute path that exists, or a HuggingFace repository
+# with a snapshot in the HF cache.
+source_on_disk() {
+  case "$1" in
+  /*) [[ -e "$1" ]] ;;
+  *)
+    local hub="${HF_HUB_CACHE:-${HF_HOME:-$HOME/.cache/huggingface}/hub}"
+    ls "$hub/models--${1//\//--}"/snapshots/*/config.json >/dev/null 2>&1
+    ;;
+  esac
+}
+
+active_id() {
+  [[ -s "$ACTIVE" ]] && head -1 "$ACTIVE"
+}
+
+agent_loaded() {
+  launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1
+}
+
+agent_running() {
+  launchctl print "$DOMAIN/$LABEL" 2>/dev/null | grep -q 'state = running'
+}
+
+healthy() {
+  curl -sf -m 2 "$URL/health" >/dev/null 2>&1
+}
+
+need_agent() {
+  agent_loaded || die "the launchd agent is not installed. Run: bash $SCRIPT_DIR/setup.sh"
+}
+
+# ---- serve (run by launchd) ------------------------------------------------------
+# Exit 0 means "nothing to serve": the agent has KeepAlive.SuccessfulExit = false,
+# so launchd leaves the job stopped. A crash of `vllm serve` exits non-zero and
+# launchd starts it again.
+cmd_serve() {
+  local id source args
+  id="$(active_id)" || {
+    echo "vllm-ctl serve: no active model, staying idle (vllm-ctl use <id>)"
+    exit 0
+  }
+  source="$(conf_field "$id" 2)" || {
+    echo "vllm-ctl serve: active model '$id' is not in $CONF, staying idle"
+    exit 0
+  }
+  if ! source_on_disk "$source"; then
+    echo "vllm-ctl serve: '$id' ($source) is not on disk, staying idle"
+    echo "                download it first: vllm-ctl fetch $id"
+    exit 0
+  fi
+  args="$(conf_field "$id" 3)"
+
+  command -v vllm >/dev/null 2>&1 || {
+    echo "vllm-ctl serve: no vllm binary on PATH ($PATH)"
+    exit 0
+  }
+
+  # Never download from the service. See the plist.
+  export HF_HUB_OFFLINE=1
+
+  echo "vllm-ctl serve: $(date '+%Y-%m-%d %H:%M:%S') starting '$id' ($source) on $URL"
+  # $args is split on spaces on purpose. set -f: no filename expansion in it.
+  set -f
+  # No `exec`: this shell stays the parent, for two reasons that were both seen on
+  # the first test (2026-11-16).
+  #
+  # 1. A stop must end the full process tree. `vllm serve` forks an engine process,
+  #    and a SIGTERM that arrives during startup can leave the tree alive. launchd
+  #    signals only the job's main process. So this shell takes the SIGTERM, passes
+  #    it on, waits, and then kills its process group (launchd makes the job a
+  #    group leader, so the group is exactly this job).
+  # 2. A start failure must not become a crash loop. A wrong argument in models.conf
+  #    (for example a KV cache that does not fit --gpu-memory-utilization) makes
+  #    `vllm serve` exit 1 after ~12 s, and launchd restarted it 33 times in 7
+  #    minutes. A non-zero exit before /health ever answered is reported as exit 0:
+  #    launchd leaves the job stopped and the error stays at the end of the log.
+  local child=0 rc=0 was_healthy=0 stopping=0
+  stop_tree() {
+    stopping=1
+    [[ "$child" -gt 0 ]] && kill -TERM "$child" 2>/dev/null
+    local i=0
+    while [[ "$i" -lt 15 ]] && kill -0 "$child" 2>/dev/null; do
+      sleep 1
+      i=$((i + 1))
+    done
+    echo "vllm-ctl serve: $(date '+%Y-%m-%d %H:%M:%S') stopped '$id'"
+    trap - TERM INT
+    # The group contains this shell: the last line it runs.
+    kill -KILL 0 2>/dev/null
+    exit 0
+  }
+  trap stop_tree TERM INT
+
+  # shellcheck disable=SC2086
+  vllm serve "$source" \
+    --served-model-name "$id" \
+    --host "$HOST" \
+    --port "$PORT" \
+    $args &
+  child=$!
+
+  while kill -0 "$child" 2>/dev/null; do
+    [[ "$was_healthy" == 1 ]] || { healthy && was_healthy=1; }
+    sleep 5 &
+    wait $! 2>/dev/null
+  done
+  wait "$child"
+  rc=$?
+
+  if [[ "$rc" -ne 0 && "$was_healthy" == 0 ]]; then
+    echo "vllm-ctl serve: '$id' failed to start (exit $rc). Not restarting."
+    echo "                Fix the line in $CONF, then: vllm-ctl use $id"
+    exit 0
+  fi
+  exit "$rc"
+}
+
+# ---- verbs -----------------------------------------------------------------------
+cmd_models() {
+  local id source mark disk active
+  active="$(active_id || true)"
+  printf '%-2s %-18s %-8s %s\n' "" "ID" "ON DISK" "SOURCE"
+  for id in $(conf_ids); do
+    source="$(conf_field "$id" 2)"
+    mark=""
+    [[ "$id" == "$active" ]] && mark="*"
+    disk="no"
+    source_on_disk "$source" && disk="yes"
+    printf '%-2s %-18s %-8s %s\n' "$mark" "$id" "$disk" "$source"
+  done
+  echo
+  echo "* = active model. Download a model with: vllm-ctl fetch <id>"
+}
+
+# Wait until /health answers. A cold load of a 16 GB model takes time, so the wait
+# is long, but it stops early if the job is not running any more.
+wait_ready() {
+  local limit="${VLLM_WAIT:-600}" waited=0
+  printf 'vllm-ctl: waiting for %s/health ' "$URL"
+  while [[ "$waited" -lt "$limit" ]]; do
+    if healthy; then
+      echo " ready (${waited}s)"
+      return 0
+    fi
+    if [[ "$waited" -ge 10 ]] && ! agent_running; then
+      echo " failed"
+      echo "vllm-ctl: the server is not running. Errors at the end of the log:" >&2
+      # The root cause is far above the last traceback, so pick the error lines.
+      tail -400 "$LOG" | grep -E '^[A-Za-z_.]*(Error|Exception): ' | tail -3 >&2
+      echo "vllm-ctl: full log: $LOG" >&2
+      return 1
+    fi
+    printf '.'
+    sleep 2
+    waited=$((waited + 2))
+  done
+  echo " not ready after ${limit}s"
+  echo "vllm-ctl: the load continues. Follow it with: vllm-ctl logs" >&2
+  return 1
+}
+
+cmd_use() {
+  local id="${1:-}" source
+  [[ -n "$id" ]] || die "usage: vllm-ctl use <id>   (ids: $(conf_ids | tr '\n' ' '))"
+  source="$(conf_field "$id" 2)" || die "'$id' is not in $CONF (ids: $(conf_ids | tr '\n' ' '))"
+  source_on_disk "$source" ||
+    die "'$id' ($source) is not on disk. Download it first: vllm-ctl fetch $id"
+  need_agent
+
+  mkdir -p "$STATE_DIR"
+  printf '%s\n' "$id" >"$ACTIVE"
+  # -k stops the running server first. vLLM has no model unload: one process, one model.
+  launchctl kickstart -k "$DOMAIN/$LABEL" >/dev/null ||
+    die "launchctl kickstart failed"
+  wait_ready || return 1
+
+  # The server holds one model, so the clients' `vllm` provider must list that one
+  # model and nothing else. llamacpp-sync reads it from /v1/models.
+  if "$SCRIPT_DIR/../../bin/llamacpp-sync" --provider vllm >/dev/null 2>&1; then
+    echo "vllm-ctl: pi/opencode 'vllm' provider now lists '$id'"
+  else
+    echo "vllm-ctl: client sync failed. Run: llamacpp-sync --provider vllm" >&2
+  fi
+}
+
+cmd_stop() {
+  rm -f "$ACTIVE"
+  if agent_loaded; then
+    # After the kill, launchd may start the job one more time (a signal is not a
+    # successful exit). `serve` then finds no active model and exits 0, so it stays down.
+    launchctl kill TERM "$DOMAIN/$LABEL" 2>/dev/null || true
+  fi
+  echo "vllm-ctl: stopped, no active model"
+}
+
+cmd_restart() {
+  local id
+  id="$(active_id)" || die "no active model. Use: vllm-ctl use <id>"
+  cmd_use "$id"
+}
+
+cmd_status() {
+  local id
+  id="$(active_id || true)"
+  echo "active model : ${id:-none}"
+  if ! agent_loaded; then
+    echo "launchd agent: not installed (bash $SCRIPT_DIR/setup.sh)"
+  elif agent_running; then
+    echo "launchd agent: running"
+  else
+    echo "launchd agent: installed, idle"
+  fi
+  if healthy; then
+    echo "endpoint     : $URL (healthy)"
+    echo "served ids   : $(curl -sf -m 5 "$URL/v1/models" |
+      /usr/bin/python3 -c 'import json,sys; print(" ".join(m["id"] for m in json.load(sys.stdin)["data"]))' 2>/dev/null)"
+  else
+    echo "endpoint     : $URL (not answering)"
+  fi
+}
+
+cmd_logs() {
+  [[ -f "$LOG" ]] || die "no log yet at $LOG"
+  exec tail -n 50 -f "$LOG"
+}
+
+# The only command that downloads. It uses the `hf` tool from the vllm-metal venv,
+# so there is nothing more to install.
+cmd_fetch() {
+  local id="${1:-}" source hf answer
+  [[ -n "$id" ]] || die "usage: vllm-ctl fetch <id>"
+  source="$(conf_field "$id" 2)" || die "'$id' is not in $CONF"
+  case "$source" in
+  /*) die "'$id' is a local path ($source). There is nothing to download." ;;
+  esac
+  if source_on_disk "$source"; then
+    echo "vllm-ctl: '$id' ($source) is already on disk"
+    return 0
+  fi
+  hf="$(brew --prefix 2>/dev/null)/opt/vllm-metal/libexec/bin/hf"
+  [[ -x "$hf" ]] || die "no hf tool at $hf. Run: bash $SCRIPT_DIR/setup.sh"
+
+  if [[ "${VLLM_FETCH_YES:-}" != "1" ]]; then
+    [[ -t 0 ]] || die "not a terminal. Set VLLM_FETCH_YES=1 to download without a question."
+    printf 'Download %s from HuggingFace into the HF cache? [y/N] ' "$source"
+    read -r answer
+    case "$answer" in
+    y | Y | yes) ;;
+    *)
+      echo "vllm-ctl: nothing downloaded"
+      return 0
+      ;;
+    esac
+  fi
+  "$hf" download "$source"
+}
+
+case "${1:-}" in
+serve) cmd_serve ;;
+models | ls) cmd_models ;;
+use) cmd_use "${2:-}" ;;
+stop) cmd_stop ;;
+restart) cmd_restart ;;
+status) cmd_status ;;
+logs) cmd_logs ;;
+fetch) cmd_fetch "${2:-}" ;;
+*)
+  sed -n '3,12p' "$0" | sed 's/^# \{0,1\}//'
+  [[ -z "${1:-}" || "$1" == "-h" || "$1" == "--help" ]] || exit 2
+  ;;
+esac

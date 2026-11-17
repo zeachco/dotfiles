@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  TEMPLATE. install.sh in this directory installs it to ~/Library/LaunchAgents.
+
+  launchd does no variable expansion. install.sh writes the absolute paths:
+
+    @HOME@      $HOME
+    @BREW@      $(brew --prefix)
+    @DOT_DIR@   $DOT_DIR
+
+  The agent runs `vllm-ctl serve`. That command reads the active model id and
+  starts one `vllm serve` process for it. vLLM serves one model for each process,
+  so there is no router here. See vllm/README.md.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.zeachco.vllm</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>@DOT_DIR@/vllm/osx/vllm-ctl</string>
+    <string>serve</string>
+  </array>
+
+  <!-- launchd refuses to start the job if this directory does not exist, and it
+       writes nothing to the log. install.sh creates the directory. -->
+  <key>WorkingDirectory</key>
+  <string>@HOME@/Library/Logs/vllm</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- launchd gives agents /usr/bin:/bin:/usr/sbin:/sbin only. -->
+    <key>PATH</key>
+    <string>@BREW@/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <!-- The service must never download a model. Without this, `vllm serve <repo>`
+         downloads a repository that is not in the cache: tens of GB, with no
+         question asked. A download is always an explicit `vllm-ctl fetch <id>`. -->
+    <key>HF_HUB_OFFLINE</key>
+    <string>1</string>
+  </dict>
+
+  <!-- Aqua only: Metal needs a GUI login session. Same reason as the llama.cpp
+       router agent. -->
+  <key>LimitLoadToSessionType</key>
+  <array>
+    <string>Aqua</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- Restart after a crash only. `vllm-ctl serve` exits 0 when there is no active
+       model or the model is not on disk, and then launchd leaves the job stopped.
+       That is the normal idle state: this agent uses no memory until
+       `vllm-ctl use <id>`. -->
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <!-- "Background" or "Adaptive" puts the job on the efficiency cores. Decode
+       becomes several times slower and nothing is logged. -->
+  <key>ProcessType</key>
+  <string>Interactive</string>
+
+  <key>SoftResourceLimits</key>
+  <dict>
+    <key>NumberOfFiles</key>
+    <integer>4096</integer>
+  </dict>
+
+  <!-- One file for both streams. launchd does not rotate it. -->
+  <key>StandardOutPath</key>
+  <string>@HOME@/Library/Logs/vllm/server.log</string>
+  <key>StandardErrorPath</key>
+  <string>@HOME@/Library/Logs/vllm/server.log</string>
+</dict>
+</plist>

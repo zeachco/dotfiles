@@ -18,7 +18,11 @@ OpenRouter's public catalog is filtered to text-output chat models. Its API key 
 needed to list models, but the clients use `$OPENROUTER_API_KEY` when making requests.
 The llama.cpp providers retain their existing per-slot context calculation.
 
-Providers other than `llamacpp*` and `openrouter` are left untouched. Each config is
+A `vllm*` provider (vllm/README.md) is synced too: vLLM's /v1/models reports the one
+model the server holds now, with its context in `max_model_len`. vLLM runs on demand, so
+an endpoint that does not answer is skipped without a warning and keeps its models.
+
+Providers other than `llamacpp*`, `vllm*` and `openrouter` are left untouched. Each config is
 rewritten through its real path, so the dotfiles symlinks in ~/.pi/agent/ and
 ~/.config/opencode/ are never replaced by a regular file.
 
@@ -47,6 +51,10 @@ DEFAULT_MODELS_JSON = os.path.expanduser("~/.pi/agent/models.json")
 DEFAULT_OPENCODE_JSON = os.path.expanduser("~/.config/opencode/opencode.json")
 PREFIX = "llamacpp"
 OPENROUTER = "openrouter"
+VLLM = "vllm"
+# vLLM's /v1/models does not report modalities. The Gemma 4 MLX checkpoints are the
+# only image-input models in vllm/osx/models.conf.
+VLLM_IMAGE_HINT = re.compile(r"gemma-4", re.I)
 DEFAULT_CONTEXT = 131072
 DEFAULT_MAX_TOKENS = 16384
 REASONING_HINT = re.compile(
@@ -63,10 +71,12 @@ PI_HIDDEN = re.compile(r"^gemma-4-", re.I)
 
 
 def is_syncable_provider(name):
-    return name.startswith(PREFIX) or name == OPENROUTER
+    return name.startswith((PREFIX, VLLM)) or name == OPENROUTER
 
 
 def provider_kind(name, base_url):
+    if name.startswith(VLLM):
+        return VLLM
     return OPENROUTER if name == OPENROUTER or "openrouter.ai" in base_url else PREFIX
 
 
@@ -139,13 +149,16 @@ def live_models(base_url, timeout, kind):
     try:
         data = fetch_models(url, timeout, kind)
     except Exception as e:  # noqa: BLE001 - report and keep moving
-        result = (None, f"{base_url} unreachable ({e}); keeping existing models")
+        # vLLM runs on demand: a server that is down is the normal state, so no
+        # reason is reported and the caller stays quiet.
+        reason = f"{base_url} unreachable ({e}); keeping existing models"
+        result = (None, None if kind == VLLM else reason)
     else:
         live = [m for m in data if isinstance(m, dict) and m.get("id")]
         decisions = []
         if kind == OPENROUTER:
             live = [m for m in live if is_openrouter_chat(m)]
-        else:
+        elif kind == PREFIX:
             decisions = [m["id"] for m in live if not is_llamacpp_chat(m)]
             live = [m for m in live if is_llamacpp_chat(m)]
         if not live:
@@ -225,6 +238,16 @@ def live_facts(live):
     )
 
 
+def vllm_facts(live):
+    """(context or None, has image input, reasoning guess) for one vLLM model."""
+    ctx = live.get("max_model_len")
+    return (
+        ctx if isinstance(ctx, int) and ctx > 0 else None,
+        bool(VLLM_IMAGE_HINT.search(live["id"])),
+        bool(REASONING_HINT.search(live["id"])),
+    )
+
+
 def openrouter_facts(live):
     architecture = live.get("architecture") or {}
     top = live.get("top_provider") or {}
@@ -293,7 +316,8 @@ def build_pi_model(live, existing, kind):
     if kind == OPENROUTER:
         ctx, max_tokens, has_image, reasoning_guess, cost = openrouter_facts(live)
     else:
-        ctx, has_image, reasoning_guess = live_facts(live)
+        facts = vllm_facts if kind == VLLM else live_facts
+        ctx, has_image, reasoning_guess = facts(live)
         max_tokens, cost = None, None
 
     model = {
@@ -340,7 +364,8 @@ def sync_pi(models_path, provider_filter, timeout, dry_run):
         kind = provider_kind(name, base_url)
         live, reason = live_models(base_url, timeout, kind)
         if live is None:
-            warn(f"{name}: {reason}")
+            if reason:
+                warn(f"{name}: {reason}")
             continue
         if kind == PREFIX:
             hidden = [m["id"] for m in live if PI_HIDDEN.search(m["id"])]
@@ -385,7 +410,8 @@ def build_opencode_model(live, existing, kind):
         supported = live.get("supported_parameters") or []
         tool_default = "tools" in supported or "tool_choice" in supported
     else:
-        ctx, has_image, reasoning_guess = live_facts(live)
+        facts = vllm_facts if kind == VLLM else live_facts
+        ctx, has_image, reasoning_guess = facts(live)
         max_tokens, cost, tool_default = None, None, True
 
     model = dict(ex)
@@ -543,7 +569,8 @@ def sync_opencode(config_path, provider_filter, timeout, dry_run):
         kind = provider_kind(name, base_url)
         live, reason = live_models(base_url, timeout, kind)
         if live is None:
-            warn(f"{name}: {reason}")
+            if reason:
+                warn(f"{name}: {reason}")
             continue
 
         old = cfg.get("models") if isinstance(cfg.get("models"), dict) else {}
@@ -608,7 +635,7 @@ def main():
         "--provider",
         action="append",
         metavar="NAME",
-        help="provider to sync; repeatable (default: llamacpp* and openrouter)",
+        help="provider to sync; repeatable (default: llamacpp*, vllm* and openrouter)",
     )
     ap.add_argument("--timeout", type=float, default=5.0, help="HTTP timeout seconds")
     ap.add_argument("--dry-run", action="store_true", help="show what would change")

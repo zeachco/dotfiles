@@ -18,6 +18,7 @@ management. This file keeps only the map and the gotchas.
 | `configs/`          | Stow packages, mirroring `$HOME`: `configs/nvim/.config/nvim/…` → `~/.config/nvim/…` |
 | `skills/`           | Agent skills shared by every harness (Claude Code, Codex, opencode, pi), one dir per skill; each `configs/<harness>` package links it in |
 | `llamacpp/`         | Local model serving: shared launchers/menu/fetch lib, osx (launchd) + archlinux (systemd) — see [llamacpp/README.md](llamacpp/README.md) |
+| `vllm/`             | vLLM serving beside llama.cpp, Apple Silicon Mac only (vllm-metal, launchd agent, one model at a time) — see [vllm/README.md](vllm/README.md) |
 | `bin/`              | Helper scripts, invoked by absolute path — see [bin/README.md](bin/README.md) |
 | `themes/`           | Per-app themes; `themes/current` is machine state (gitignored)       |
 | `framework-ryzen/`  | Rust RGB dashboard for the Framework Desktop, installed as a root systemd daemon |
@@ -91,6 +92,10 @@ management. This file keeps only the map and the gotchas.
 - **Alacritty live-reload races Stow.** `nudge_alacritty_reload()` (utils.sh) touches the
   alacritty tomls at the end of a variant setup, after the last write — the full rationale is in
   its comment.
+- **`vllm serve <repo>` downloads a missing model without a question.** The vLLM agent
+  therefore sets `HF_HUB_OFFLINE=1` and `vllm-ctl serve` refuses a model that is not on
+  disk; `vllm-ctl fetch <id>` is the only download path, and no setup step calls it.
+  vLLM holds one model for each process, so `vllm-ctl use <id>` restarts the server.
 - **bash 3.2 on macOS.** Everything under `llamacpp/` that ships to the Mac (fetch lib, hw gate,
   verify) must not use associative arrays, `${var,,}`, mapfile, globstar, or GNU sed/awk.
 - **Neovim `.git`/`.github` visibility** is handled by

@@ -137,6 +137,12 @@ if [[ -z "${DOTFILES_SKIP_LLAMACPP:-}" ]]; then
   bash "$DOT_DIR/llamacpp/osx/setup.sh"
 fi
 
+# vLLM (vllm-metal) beside llama.cpp: brew install + an idle launchd agent. It
+# downloads no model. Set DOTFILES_SKIP_VLLM=1 to skip it. See vllm/README.md.
+if [[ -z "${DOTFILES_SKIP_VLLM:-}" ]]; then
+  bash "$DOT_DIR/vllm/osx/setup.sh"
+fi
+
 # Must stay last: the Stow relinks above leave a running Alacritty reloaded
 # against a half-written config, which drops the Nerd Font. See
 # nudge_alacritty_reload in utils.sh.

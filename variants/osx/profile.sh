@@ -98,3 +98,8 @@ los-mem() {
   sysctl vm.swapusage
   ps -Ao pid,ppid,rss,%cpu,comm | grep -E 'llama' | grep -v grep
 }
+
+# --- vLLM (launchd agent com.zeachco.vllm) ----------------------------------------
+# One model for each server process: `vllm-ctl use <id>` starts it, `vllm-ctl stop`
+# gives the memory back. It runs beside the llama.cpp router. See vllm/README.md.
+alias vllm-ctl="$HOME/dotfiles/vllm/osx/vllm-ctl"

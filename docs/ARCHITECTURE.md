@@ -181,6 +181,25 @@ The router, model lifecycle, and client integration: [`llamacpp/README.md`](../l
 The Strix Halo machine runbook (GTT unlock, backend choice, incidents, per-model numbers):
 [ryzen-llm-setup.md](ryzen-llm-setup.md).
 
+## The vLLM subsystem (`vllm/`)
+
+vLLM runs beside llama.cpp on the Apple Silicon Mac only, through the vllm-metal plugin
+(MLX). `vllm/osx/setup.sh` (called from `variants/osx/setup.sh`, opt-out
+`DOTFILES_SKIP_VLLM=1`) brew-installs vllm-metal and installs the launchd user agent
+`com.zeachco.vllm`. The agent is idle until `vllm-ctl use <id>`.
+
+- **One model for each server process.** There is no router: `vllm-ctl use <id>` writes
+  the active id (`~/.local/state/vllm/active`, machine state) and restarts the agent,
+  which runs `vllm serve` for the matching line of `vllm/osx/models.conf` on
+  `127.0.0.1:8000`.
+- **Weights** are MLX repositories in the HuggingFace cache, not the GGUF files in
+  `~/models`. The server runs with `HF_HUB_OFFLINE=1`; `vllm-ctl fetch <id>` is the only
+  download path.
+- **Clients**: the `vllm` provider in pi and opencode. `bin/llamacpp-sync` syncs `vllm*`
+  providers from `/v1/models` (`max_model_len` is the context), and `vllm-ctl use` runs it.
+
+Details: [`vllm/README.md`](../vllm/README.md).
+
 ## Per-OS service management
 
 The same "long-running thing" is installed per-platform with the platform's native mechanism:

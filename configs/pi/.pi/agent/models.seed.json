@@ -352,6 +352,29 @@
         }
       ]
     },
+    "vllm": {
+      "api": "openai-completions",
+      "apiKey": "vllm",
+      "baseUrl": "http://127.0.0.1:8000/v1",
+      "models": [
+        {
+          "id": "Qwen3.8-27B",
+          "name": "Qwen3.8 27B (vLLM)",
+          "contextWindow": 98304,
+          "maxTokens": 16384,
+          "input": [
+            "text"
+          ],
+          "reasoning": true,
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
+        }
+      ]
+    },
     "openrouter": {
       "api": "openai-completions",
       "apiKey": "$OPENROUTER_API_KEY",

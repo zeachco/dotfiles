@@ -68,6 +68,15 @@
       },
       "models": {}
     },
+    "vllm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "vLLM",
+      "options": {
+        "baseURL": "http://127.0.0.1:8000/v1",
+        "timeout": false
+      },
+      "models": {}
+    },
     "openrouter": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "OpenRouter",
