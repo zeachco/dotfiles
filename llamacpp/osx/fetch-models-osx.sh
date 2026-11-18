@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetch the macOS router's model set. ~43 GB. Resumable and idempotent: re-run to
+# Fetch the macOS router's model set. ~50 GB. Resumable and idempotent: re-run to
 # continue an interrupted download; a completed file is skipped, not re-reported as
 # failed. Safe to run while the router is up -- a directory that appears mid-run is
 # picked up on the next router restart (`los-restart`).
@@ -66,6 +66,17 @@ fetch unsloth/Qwen3.8-27B-GGUF Qwen3.8-27B-UD-IQ4_XS.gguf "$MODELS/Qwen3.8-27B"
 # tier, single-file models") and light.ini before re-adding it on that side.
 fetch unsloth/GLM-4.7-Flash-GGUF GLM-4.7-Flash-UD-Q4_K_XL.gguf "$MODELS"
 
+# --- id: Bespoke-Nimble-9B-v3-Q4_K_M -- 6.32 GB. Decision model (classifier). -----
+# Added 2026-11-17. Same file as the Ryzen box (llamacpp/archlinux/fetch-models.sh).
+# Base model: Qwen3.5-9B. The GGUF carries `<arch>.decision.type = nimble`, so the
+# router reports `output_modalities = ["decisions"]`. pi's built-in llama.cpp provider
+# lists it as a classifier (/v1/systemone). bin/llamacpp-sync keeps it out of the chat
+# model lists.
+# Single file at the TOP LEVEL of --models-dir, so the id is the filename stem.
+# LICENSE: CC BY-NC 4.0. Non-commercial use only.
+# The Mac router autoloads: the first classify call loads it (7.58 GiB, see osx.ini).
+fetch ggml-org/Bespoke-Nimble-9B-v3-GGUF Bespoke-Nimble-9B-v3-Q4_K_M.gguf "$MODELS"
+
 # --- MTP draft heads ------- 1.57 GB total. Optional speculative decode. ----------
 # Cheap enough to always have on disk; wiring them up is a commented-out block at the
 # bottom of llamacpp/osx/osx.ini, to be enabled one model at a time after reading the
@@ -86,7 +97,7 @@ routers_reload 7070
 echo
 echo "Confirm the ids the router actually assigned (restart with los-restart if it was down):"
 echo "  los-models"
-echo "They must be exactly: gemma-4-E2B-it, gemma-4-E4B-it, Qwen3.8-27B, GLM-4.7-Flash-UD-Q4_K_XL"
+echo "They must be exactly: gemma-4-E2B-it, gemma-4-E4B-it, Qwen3.8-27B, GLM-4.7-Flash-UD-Q4_K_XL, Bespoke-Nimble-9B-v3-Q4_K_M"
 echo "Cross-check them against llamacpp/osx/osx.ini with: los-check"
 
 fetch_report

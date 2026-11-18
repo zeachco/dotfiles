@@ -149,6 +149,10 @@ classifier concept). To use a local classifier in pi you must be logged into the
 custom `llamacpp` provider in `models.json` only serves chat. A classify call does not load
 it (no autoload): load it beside `qwen3.8` with `los` when a session wants it.
 
+The Mac has the same file since 2026-11-17 (`fetch-models-osx.sh`, section
+`[Bespoke-Nimble-9B-v3-Q4_K_M]` in `osx.ini`). The Mac router autoloads, so there the first
+classify call loads it.
+
 **Every GGUF under `~/models` must have a line in the fetch script** — the audit exists because
 that invariant was broken silently before (the default model was a hardlink out of a retired
 daemon's blob store).
