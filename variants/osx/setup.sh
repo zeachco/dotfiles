@@ -68,6 +68,8 @@ stow_link alacritty-osx
 stow_link herdr
 stow_link nvim
 install nvtop # per-process GPU/VRAM usage (supports AMDGPU)
+install himalaya        # CLI email client
+install slack slack-cli # Slack CLI (the cask `slack-cli` ships the `slack` command)
 
 # The shared profile already ran herdr-config, but that was before the Stow
 # link existed; re-apply so the keymap and theme land in the linked file.
