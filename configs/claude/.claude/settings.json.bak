@@ -9,5 +9,6 @@
     "claude-fable-5-1": {
       "effortLevel": "low"
     }
-  }
+  },
+  "model": "fable"
 }
