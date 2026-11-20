@@ -10,7 +10,7 @@ description: >
 A reply should move the review forward. It should make the code, tradeoff, or next
 step clearer—not merely acknowledge that a comment was seen.
 
-Prefix every comment you create here with `self-review: ` and post it inline, in the
+Prefix every comment you create here with `🤖 self-review: ` and post it inline, in the
 thread it answers, so the conversation stays with the code. A top-level comment is
 for a thread-wide verdict, not for answering one line.
 
